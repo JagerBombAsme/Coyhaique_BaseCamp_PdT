@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/language_provider.dart';
+import '../../data/providers/planner_provider.dart';
 
 class PlanificacionScreen extends ConsumerStatefulWidget {
   const PlanificacionScreen({super.key});
@@ -16,17 +17,11 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
   String _date = '12/01/2027';
   int _people = 2;
 
-  final List<String> _destinations = [
-    'Cerro Castillo',
-    'Reserva Nacional Coyhaique',
-    'Lago General Carrera',
-    'Puerto Chacabuco',
-  ];
-
   @override
   Widget build(BuildContext context) {
     final locale = ref.watch(languageProvider);
     final isSpanish = locale.languageCode == 'es';
+    final destinationsAsync = ref.watch(plannerDestinationsProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.slateLight,
@@ -35,14 +30,14 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
           padding: const EdgeInsets.all(24.0),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            child: _buildStepContent(isSpanish),
+            child: _buildStepContent(isSpanish, destinationsAsync),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStepContent(bool isSpanish) {
+  Widget _buildStepContent(bool isSpanish, AsyncValue destinationsAsync) {
     switch (_step) {
       case 1:
         return Column(
@@ -115,24 +110,38 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedDestination,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                items: _destinations
-                    .map((dest) => DropdownMenuItem(value: dest, child: Text(dest)))
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _selectedDestination = val);
+              destinationsAsync.when(
+                data: (destinations) {
+                  final list = destinations.map((d) => d.name).toList();
+                  if (!list.contains(_selectedDestination) && list.isNotEmpty) {
+                    _selectedDestination = list.first;
                   }
+
+                  return DropdownButtonFormField<String>(
+                    initialValue: _selectedDestination,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: list
+                        .map((dest) => DropdownMenuItem(value: dest, child: Text(dest)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedDestination = val);
+                      }
+                    },
+                  );
                 },
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => TextFormField(
+                  initialValue: _selectedDestination,
+                  onChanged: (val) => _selectedDestination = val,
+                ),
               ),
               const SizedBox(height: 20),
               Text(

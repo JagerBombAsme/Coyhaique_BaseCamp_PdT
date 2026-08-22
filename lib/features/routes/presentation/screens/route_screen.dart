@@ -2,22 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/language_provider.dart';
-
-class RouteItem {
-  final String id;
-  final String title;
-  final String description;
-  final String duration;
-  final String difficulty;
-
-  const RouteItem({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.duration,
-    required this.difficulty,
-  });
-}
+import '../../data/providers/route_provider.dart';
 
 class RouteScreen extends ConsumerWidget {
   final ValueChanged<String> onRouteClick;
@@ -31,45 +16,7 @@ class RouteScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(languageProvider);
     final isSpanish = locale.languageCode == 'es';
-
-    final routes = [
-      RouteItem(
-        id: '1',
-        title: isSpanish ? 'Ruta Miradores' : 'Viewpoints Route',
-        description: isSpanish
-            ? 'Descubre los mejores miradores de Coyhaique con vistas panorámicas.'
-            : 'Discover the best viewpoints of Coyhaique with panoramic views.',
-        duration: '2h 30m',
-        difficulty: isSpanish ? 'Baja' : 'Low',
-      ),
-      RouteItem(
-        id: '2',
-        title: isSpanish ? 'Sendero Los Leñeros' : 'Los Leñeros Trail',
-        description: isSpanish
-            ? 'Sendero corto con dos miradores hacia la ciudad de Coyhaique.'
-            : 'Short trail with two viewpoints overlooking the city of Coyhaique.',
-        duration: '1h 45m',
-        difficulty: isSpanish ? 'Baja' : 'Low',
-      ),
-      RouteItem(
-        id: '3',
-        title: isSpanish ? 'Circuito 4 Lagunas' : '4 Lakes Circuit',
-        description: isSpanish
-            ? 'Recorrido completo que conecta las 4 lagunas de la Reserva Nacional.'
-            : 'Full tour connecting the 4 lakes of the National Reserve.',
-        duration: '4h 00m',
-        difficulty: isSpanish ? 'Media' : 'Medium',
-      ),
-      RouteItem(
-        id: '4',
-        title: isSpanish ? 'Ascenso Cerro Cinchao' : 'Mount Cinchao Climb',
-        description: isSpanish
-            ? 'Desafío a la cima del cerro Cinchao (1.361 m) con vista panorámica.'
-            : 'Challenge to the summit of Mount Cinchao (1,361 m) with panoramic views.',
-        duration: '6h 00m',
-        difficulty: isSpanish ? 'Alta' : 'High',
-      ),
-    ];
+    final routesAsync = ref.watch(routesProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.slateLight,
@@ -77,81 +24,127 @@ class RouteScreen extends ConsumerWidget {
         title: Text(isSpanish ? 'Rutas de Aventura' : 'Adventure Routes'),
         backgroundColor: Colors.white,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: routes.length,
-        itemBuilder: (context, index) {
-          final item = routes[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            elevation: 2,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => onRouteClick(item.id),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
+      body: routesAsync.when(
+        data: (routes) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(routesProvider);
+            },
+            color: AppTheme.primaryDark,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16.0),
+              itemCount: routes.length,
+              itemBuilder: (context, index) {
+                final item = routes[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 2,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => onRouteClick(item.id),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.getTitle(isSpanish),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentLightBlue,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  item.getDifficulty(isSpanish),
+                                  style: const TextStyle(
+                                    color: AppTheme.accentBlue,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentLightBlue,
-                            borderRadius: BorderRadius.circular(12),
+                          const SizedBox(height: 8),
+                          Text(
+                            item.getDescription(isSpanish),
+                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                           ),
-                          child: Text(
-                            item.difficulty,
-                            style: const TextStyle(
-                              color: AppTheme.accentBlue,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Icon(Icons.timer, size: 16, color: AppTheme.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(
+                                item.duration,
+                                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                              ),
+                              if (item.distanceKm != null) ...[
+                                const SizedBox(width: 16),
+                                const Icon(Icons.straighten, size: 16, color: AppTheme.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${item.distanceKm} km',
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                                ),
+                              ],
+                              const Spacer(),
+                              Text(
+                                isSpanish ? 'Ver ruta ->' : 'View route ->',
+                                style: const TextStyle(
+                                  color: AppTheme.primaryDark,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      item.description,
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Icon(Icons.timer, size: 16, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          item.duration,
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                        ),
-                        const Spacer(),
-                        Text(
-                          isSpanish ? 'Ver ruta ->' : 'View route ->',
-                          style: const TextStyle(
-                            color: AppTheme.primaryDark,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           );
         },
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppTheme.primaryDark),
+        ),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 60, color: Colors.redAccent),
+              const SizedBox(height: 16),
+              Text(
+                isSpanish ? 'Error al cargar rutas' : 'Error loading routes',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryDark),
+                onPressed: () => ref.invalidate(routesProvider),
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: Text(isSpanish ? 'Reintentar' : 'Retry', style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

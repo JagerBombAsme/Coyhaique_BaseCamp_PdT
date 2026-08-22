@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/language_provider.dart';
 import 'core/widgets/bottom_nav_bar.dart';
@@ -15,14 +16,6 @@ import 'features/routes/presentation/screens/route_detail_screen.dart';
 import 'features/routes/presentation/screens/route_screen.dart';
 import 'features/welcome/presentation/screens/welcome_screen.dart';
 
-void main() {
-  runApp(
-    const ProviderScope(
-      child: CoyhaiqueApp(),
-    ),
-  );
-}
-
 class CoyhaiqueApp extends ConsumerWidget {
   const CoyhaiqueApp({super.key});
 
@@ -35,10 +28,7 @@ class CoyhaiqueApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       locale: locale,
-      supportedLocales: const [
-        Locale('es'),
-        Locale('en'),
-      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -116,9 +106,7 @@ class _AppNavigationWrapperState extends State<AppNavigationWrapper> {
     }
 
     if (_selectedRouteId != null) {
-      return RouteDetailScreen(
-        routeId: _selectedRouteId!,
-      );
+      return RouteDetailScreen(routeId: _selectedRouteId!);
     }
 
     if (_showRouteScreen) {
@@ -130,9 +118,7 @@ class _AppNavigationWrapperState extends State<AppNavigationWrapper> {
           ),
           title: const Text('Rutas de Aventura'),
         ),
-        body: RouteScreen(
-          onRouteClick: _navigateToRouteDetail,
-        ),
+        body: RouteScreen(onRouteClick: _navigateToRouteDetail),
       );
     }
 
@@ -167,7 +153,8 @@ class _AppNavigationWrapperState extends State<AppNavigationWrapper> {
           const PlanificacionScreen(),
           const MapScreen(),
           ProfileScreen(
-            onLanguageChangeClick: () => setState(() => _showWelcomeScreen = true),
+            onLanguageChangeClick: () =>
+                setState(() => _showWelcomeScreen = true),
           ),
         ],
       ),
@@ -185,4 +172,26 @@ class _AppNavigationWrapperState extends State<AppNavigationWrapper> {
       ),
     );
   }
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    // Continuar con valores por defecto si no existe el archivo .env
+  }
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ??
+      'https://mijtzoqfuqqxymexewoh.supabase.co';
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ??
+      'sb_publishable_0rWbty5pFicV8RIuz77o6A_8fYGeUSw';
+
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+  );
+
+  runApp(const ProviderScope(child: CoyhaiqueApp()));
 }
