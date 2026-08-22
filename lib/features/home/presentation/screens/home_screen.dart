@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/models/category_model.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/language_provider.dart';
@@ -23,6 +24,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _selectedTab = 'Todos';
 
   @override
   void dispose() {
@@ -36,6 +38,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final language = locale.languageCode;
     final isSpanish = language == 'es';
 
+    final tabs = isSpanish
+        ? ['Todos', 'Gastronomía', 'Alojamiento', 'Rutas', 'Cultura']
+        : ['All', 'Gastronomy', 'Accommodation', 'Routes', 'Culture'];
+
     final filteredCategories = homeCategories.where((cat) {
       if (_searchQuery.isEmpty) return true;
       final name = cat.getNombre(language).toLowerCase();
@@ -44,81 +50,100 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return name.contains(query) || desc.contains(query);
     }).toList();
 
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // User Header
           HomeHeader(
             onProfileClick: widget.onProfileClick,
           ),
-          const SizedBox(height: 12),
-          Text(
-            isSpanish ? '¿Qué haremos hoy?' : 'What shall we do today?',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              height: 1.0,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            isSpanish
-                ? 'Elige una categoría para descubrir Coyhaique según tu plan.'
-                : 'Choose a category to discover Coyhaique according to your plan.',
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 20),
-          // Buscador
-          TextField(
-            controller: _searchController,
-            onChanged: (val) {
-              setState(() {
-                _searchQuery = val;
-              });
-            },
-            decoration: InputDecoration(
-              hintText: isSpanish ? 'Buscar categoría...' : 'Search category...',
-              prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary),
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-          Text(
-            isSpanish ? 'Categorías' : 'Categories',
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 23,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (filteredCategories.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24.0),
-              child: Text(
-                isSpanish
-                    ? 'No se encontraron categorías para "$_searchQuery"'
-                    : 'No categories found for "$_searchQuery"',
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 14,
+          const SizedBox(height: 8),
+
+          // Search Bar with Filter icon
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: isSpanish
+                        ? 'Buscar destinos, restaurantes, rutas...'
+                        : 'Search destinations, restaurants, routes...',
+                    hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    filled: true,
+                    fillColor: const Color(0xFFF0F1F1),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
               ),
-            )
-          else
-            ListView.builder(
+              const SizedBox(width: 12),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.primaryDark,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.tune, color: Colors.white),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          isSpanish ? 'Filtros de búsqueda' : 'Search filters',
+                        ),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Category Tabs
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: tabs.map((tab) {
+                final isSelected = tab == _selectedTab || (tab == 'Todos' && _selectedTab == 'All');
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedTab = tab;
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 18.0),
+                    child: Text(
+                      tab,
+                      style: TextStyle(
+                        color: isSelected ? AppTheme.primaryDark : Colors.grey,
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 24),
+                 ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: filteredCategories.length,
