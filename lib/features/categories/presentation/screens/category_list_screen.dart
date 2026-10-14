@@ -84,6 +84,13 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
               // Header
               Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: AppTheme.primaryDark),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 12),
                   const Icon(
                     Icons.location_on,
                     color: AppTheme.primaryDark,

@@ -44,9 +44,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? ['Todos', 'Gastronomía', 'Alojamiento', 'Rutas', 'Cultura']
         : ['All', 'Gastronomy', 'Accommodation', 'Routes', 'Culture'];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-      child: Column(
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(categoriesProvider);
+        ref.invalidate(placesProvider);
+      },
+      color: AppTheme.primaryDark,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // User Header
@@ -140,8 +147,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Categorías obtenidas desde categories_v2 (con fallback automático)
           categoriesAsync.when(
             data: (categories) {
-              final activeList = categories.where((c) => c.isActive).toList();
-              final sourceList = activeList.isNotEmpty ? activeList : homeCategories;
+              final sourceList = categories.where((c) => c.isActive).toList();
+
+              if (sourceList.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40.0),
+                  child: Center(
+                    child: Text(
+                      isSpanish
+                          ? 'No hay categorías activas disponibles.'
+                          : 'No active categories available.',
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
 
               final filteredCategories = sourceList.where((cat) {
                 // Filtro por pestaña
@@ -184,10 +205,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 itemBuilder: (context, index) {
                   final category = filteredCategories[index];
                   return CategoryCard(
-                    category: category,
-                    language: language,
-                    onClick: () => widget.onNavigate(category.route),
-                  );
+                  category: category,
+                  language: language,
+                  onClick: () {
+                    widget.onNavigate(
+                      category.route,
+                    );
+                  },
+                );
                 },
               );
             },
@@ -221,6 +246,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 24),
         ],
       ),
+    ),
     );
   }
 }

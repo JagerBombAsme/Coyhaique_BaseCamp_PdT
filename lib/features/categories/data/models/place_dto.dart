@@ -209,6 +209,11 @@ class PlaceDto {
     };
   }
 
+  // Getters de compatibilidad con Supabase V2 y especificación técnica
+  String get nameEs => titleEs;
+  String? get nameEn => titleEn;
+  String get name => titleEs;
+
   String getTitle(bool isSpanish) {
     if (!isSpanish && titleEn != null && titleEn!.isNotEmpty) {
       return titleEn!;
