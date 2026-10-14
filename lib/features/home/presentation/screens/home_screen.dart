@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/language_provider.dart';
 import '../../../../core/widgets/category_card.dart';
 import '../../../../core/widgets/home_header.dart';
+import '../../../categories/data/providers/places_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final Function(String route) onNavigate;
@@ -37,19 +38,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final locale = ref.watch(languageProvider);
     final language = locale.languageCode;
     final isSpanish = language == 'es';
+    final categoriesAsync = ref.watch(categoriesProvider);
 
     final tabs = isSpanish
         ? ['Todos', 'Gastronomía', 'Alojamiento', 'Rutas', 'Cultura']
         : ['All', 'Gastronomy', 'Accommodation', 'Routes', 'Culture'];
-
-    final filteredCategories = homeCategories.where((cat) {
-      if (_searchQuery.isEmpty) return true;
-      final name = cat.getNombre(language).toLowerCase();
-      final desc = cat.getDescripcion(language).toLowerCase();
-      final query = _searchQuery.toLowerCase();
-      return name.contains(query) || desc.contains(query);
-    }).toList();
-
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
@@ -143,19 +136,88 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 24),
-                 ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredCategories.length,
-              itemBuilder: (context, index) {
-                final category = filteredCategories[index];
-                return CategoryCard(
-                  category: category,
-                  language: language,
-                  onClick: () => widget.onNavigate(category.route),
+
+          // Categorías obtenidas desde categories_v2 (con fallback automático)
+          categoriesAsync.when(
+            data: (categories) {
+              final activeList = categories.where((c) => c.isActive).toList();
+              final sourceList = activeList.isNotEmpty ? activeList : homeCategories;
+
+              final filteredCategories = sourceList.where((cat) {
+                // Filtro por pestaña
+                if (_selectedTab != 'Todos' && _selectedTab != 'All') {
+                  final group = cat.groupType?.toLowerCase() ?? '';
+                  final slug = cat.slug.toLowerCase();
+                  final name = cat.getNombre(language).toLowerCase();
+                  final tabLower = _selectedTab.toLowerCase();
+                  final matchTab = group.contains(tabLower) || slug.contains(tabLower) || name.contains(tabLower);
+                  if (!matchTab) return false;
+                }
+
+                // Filtro por búsqueda
+                if (_searchQuery.isEmpty) return true;
+                final name = cat.getNombre(language).toLowerCase();
+                final desc = cat.getDescripcion(language).toLowerCase();
+                final query = _searchQuery.toLowerCase();
+                return name.contains(query) || desc.contains(query);
+              }).toList();
+
+              if (filteredCategories.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40.0),
+                  child: Center(
+                    child: Text(
+                      isSpanish
+                          ? 'No se encontraron categorías que coincidan con la búsqueda.'
+                          : 'No categories found matching your search.',
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 );
-              },
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredCategories.length,
+                itemBuilder: (context, index) {
+                  final category = filteredCategories[index];
+                  return CategoryCard(
+                    category: category,
+                    language: language,
+                    onClick: () => widget.onNavigate(category.route),
+                  );
+                },
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40.0),
+              child: Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryDark),
+              ),
             ),
+            error: (err, _) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 30.0),
+              child: Center(
+                child: Column(
+                  children: [
+                    Text(
+                      isSpanish
+                          ? 'Error al cargar categorías'
+                          : 'Error loading categories',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => ref.invalidate(categoriesProvider),
+                      child: Text(isSpanish ? 'Reintentar' : 'Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),
