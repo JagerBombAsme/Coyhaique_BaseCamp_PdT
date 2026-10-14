@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/models/category_model.dart';
+import '../../../../core/models/informational_content_dto.dart';
 import '../models/place_dto.dart';
 
 /// Repositorio de datos turísticos adaptado al modelo Supabase V2
@@ -20,11 +21,11 @@ class PlacesRepository {
           .map((json) => CategoryModel.fromJson(json as Map<String, dynamic>))
           .toList();
 
-      if (list.isNotEmpty) return list;
+      return list;
     } catch (_) {
-      // Fallback local en caso de desconexión
+      // Fallback local únicamente en caso de error de red o desconexión
+      return homeCategories;
     }
-    return homeCategories;
   }
 
   /// Obtiene atractivos turísticos (places_v2 donde kind = 'place' y retired_at es null)
@@ -79,39 +80,66 @@ class PlacesRepository {
     return _getFallbackPlaces().where((p) => p.kind == 'activity').toList();
   }
 
-  /// Filtra lugares por category_id (UUID) o category_slug de compatibilidad
+  /// Filtra lugares por category_id (UUID), group_type o category_slug de compatibilidad
   Future<List<PlaceDto>> getPlacesByCategory(String categoryIdOrSlug) async {
     if (categoryIdOrSlug.isEmpty || categoryIdOrSlug == 'all' || categoryIdOrSlug == 'todos') {
       return getPlaces();
     }
 
+    final trimmed = categoryIdOrSlug.trim();
+    final isUuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(trimmed);
+
+    if (isUuid) {
+      try {
+        final response = await _client
+            .from('places_v2')
+            .select('''
+              *,
+              place_media_v2 (*),
+              categories_v2 (*)
+            ''')
+            .eq('category_id', trimmed)
+            .eq('is_active', true)
+            .isFilter('retired_at', null)
+            .order('name_es');
+
+        final list = (response as List)
+            .map((json) => PlaceDto.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+        if (list.isNotEmpty) return list;
+      } catch (_) {
+        // Fallback local
+      }
+    }
+
+    // Si es un slug, group_type (gastronomia, alojamiento, etc.) o nombre de categoría:
     try {
-      // Intentar primero por category_id exacto (UUID)
-      final response = await _client
-          .from('places_v2')
-          .select('''
-            *,
-            place_media_v2 (*),
-            categories_v2 (*)
-          ''')
-          .eq('category_id', categoryIdOrSlug)
-          .eq('is_active', true)
-          .isFilter('retired_at', null)
-          .order('name_es');
-
-      final list = (response as List)
-          .map((json) => PlaceDto.fromJson(json as Map<String, dynamic>))
-          .toList();
-
-      if (list.isNotEmpty) return list;
-
-      // Si no retornó por UUID, intentar por slug de categoría unida
       final allPlaces = await getPlaces();
-      final filtered = allPlaces.where((p) =>
-          p.categoryId == categoryIdOrSlug ||
-          (p.categorySlug != null && p.categorySlug!.toLowerCase() == categoryIdOrSlug.toLowerCase()) ||
-          (p.category != null && p.category!.slug.toLowerCase() == categoryIdOrSlug.toLowerCase())
-      ).toList();
+      final term = trimmed.toLowerCase();
+      final singularTerm = term.endsWith('s') && term.length > 4
+          ? term.substring(0, term.length - 1)
+          : term;
+
+      final filtered = allPlaces.where((p) {
+        final catId = p.categoryId?.toLowerCase() ?? '';
+        final catSlug = p.categorySlug?.toLowerCase() ?? '';
+        final groupType = p.category?.groupType?.toLowerCase() ?? '';
+        final joinedSlug = p.category?.slug.toLowerCase() ?? '';
+        final catName = p.category?.nameEs.toLowerCase() ?? '';
+
+        return catId == term ||
+            catSlug == term ||
+            catSlug == singularTerm ||
+            groupType == term ||
+            groupType == singularTerm ||
+            joinedSlug == term ||
+            joinedSlug == singularTerm ||
+            catName.contains(term) ||
+            catName.contains(singularTerm);
+      }).toList();
 
       if (filtered.isNotEmpty) return filtered;
     } catch (_) {
@@ -151,6 +179,30 @@ class PlacesRepository {
       (p) => p.id == id,
       orElse: () => fallback.first,
     );
+  }
+
+  /// Obtiene contenido informativo institucional (guías, prevención, historia, restricciones)
+  /// desde informational_content_v2 según ANTIGRAVITY_AI_CONTEXT.md §11
+  Future<List<InformationalContentDto>> getInformationalContent({String? contentType}) async {
+    try {
+      var query = _client
+          .from('informational_content_v2')
+          .select()
+          .eq('is_active', true);
+
+      if (contentType != null && contentType.isNotEmpty) {
+        query = query.eq('content_type', contentType);
+      }
+
+      final response = await query;
+      final list = (response as List)
+          .map((json) => InformationalContentDto.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      return list;
+    } catch (_) {
+      return const [];
+    }
   }
 
   List<PlaceDto> _getFallbackPlaces() {
