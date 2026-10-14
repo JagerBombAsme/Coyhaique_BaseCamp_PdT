@@ -1,44 +1,109 @@
 import 'package:flutter/material.dart';
 
+/// Modelo de categoría adaptado para categories_v2 según ANTIGRAVITY_AI_CONTEXT.md
 class CategoryModel {
   final String id;
+  final String slug;
   final String nombreEs;
-  final String nombreEn;
-  final String descripcionEs;
-  final String descripcionEn;
+  final String? nombreEn;
+  final String? descripcionEs;
+  final String? descripcionEn;
+  final String? groupType;
+  final String? imageUrl;
   final IconData icon;
   final String route;
-  final String imageUrl;
+  final bool isActive;
 
   const CategoryModel({
     required this.id,
+    required this.slug,
     required this.nombreEs,
-    required this.nombreEn,
-    required this.descripcionEs,
-    required this.descripcionEn,
+    this.nombreEn,
+    this.descripcionEs,
+    this.descripcionEn,
+    this.groupType,
+    this.imageUrl,
     required this.icon,
     required this.route,
-    required this.imageUrl,
+    this.isActive = true,
   });
 
+  factory CategoryModel.fromJson(Map<String, dynamic> json) {
+    final slug = json['slug']?.toString() ?? '';
+    final groupType = json['group_type']?.toString();
+
+    return CategoryModel(
+      id: json['id']?.toString() ?? '',
+      slug: slug,
+      nombreEs: json['name_es'] ?? json['nombre_es'] ?? '',
+      nombreEn: json['name_en'] ?? json['nombre_en'],
+      descripcionEs: json['description_es'] ?? json['descripcion_es'],
+      descripcionEn: json['description_en'] ?? json['descripcion_en'],
+      groupType: groupType,
+      imageUrl: json['image_url'],
+      icon: _getIconForCategory(slug, groupType),
+      route: slug,
+      isActive: json['is_active'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'slug': slug,
+      'name_es': nombreEs,
+      'name_en': nombreEn,
+      'description_es': descripcionEs,
+      'description_en': descripcionEn,
+      'group_type': groupType,
+      'image_url': imageUrl,
+      'is_active': isActive,
+    };
+  }
+
   String getNombre(String language) {
-    if (language == 'en') {
-      return nombreEn.isEmpty ? nombreEs : nombreEn;
+    if (language == 'en' && nombreEn != null && nombreEn!.isNotEmpty) {
+      return nombreEn!;
     }
     return nombreEs;
   }
 
   String getDescripcion(String language) {
-    if (language == 'en') {
-      return descripcionEn.isEmpty ? descripcionEs : descripcionEn;
+    if (language == 'en' && descripcionEn != null && descripcionEn!.isNotEmpty) {
+      return descripcionEn!;
     }
-    return descripcionEs;
+    return descripcionEs ?? '';
+  }
+
+  static IconData _getIconForCategory(String slug, String? groupType) {
+    final lower = '${slug.toLowerCase()} ${groupType?.toLowerCase() ?? ''}';
+    if (lower.contains('gastro') || lower.contains('restauran') || lower.contains('bar') || lower.contains('cafe')) {
+      return Icons.restaurant_rounded;
+    }
+    if (lower.contains('aloj') || lower.contains('hotel') || lower.contains('hostal') || lower.contains('cabana')) {
+      return Icons.hotel_rounded;
+    }
+    if (lower.contains('cultur') || lower.contains('museo') || lower.contains('histor')) {
+      return Icons.museum_rounded;
+    }
+    if (lower.contains('avent') || lower.contains('ruta') || lower.contains('sender') || lower.contains('trek')) {
+      return Icons.directions_run_rounded;
+    }
+    if (lower.contains('transp') || lower.contains('transfer') || lower.contains('bus')) {
+      return Icons.directions_bus_rounded;
+    }
+    if (lower.contains('natur') || lower.contains('parque') || lower.contains('reserva')) {
+      return Icons.park_rounded;
+    }
+    return Icons.landscape_rounded;
   }
 }
 
+/// Fallback local en caso de desconexión temporal
 const List<CategoryModel> homeCategories = [
   CategoryModel(
     id: 'gastronomia',
+    slug: 'gastronomia',
     nombreEs: 'Gastronomía',
     nombreEn: 'Gastronomy',
     descripcionEs: 'Sabores y asados de la Patagonia',
@@ -49,16 +114,18 @@ const List<CategoryModel> homeCategories = [
   ),
   CategoryModel(
     id: 'alojamientos',
+    slug: 'alojamiento',
     nombreEs: 'Alojamiento',
     nombreEn: 'Accommodation',
     descripcionEs: 'Dónde quedarse en Coyhaique',
     descripcionEn: 'Where to stay in Coyhaique',
     icon: Icons.hotel,
-    route: 'alojamientos',
+    route: 'alojamiento',
     imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80',
   ),
   CategoryModel(
     id: 'cultura',
+    slug: 'cultura',
     nombreEs: 'Cultura y Museo',
     nombreEn: 'Culture & Museum',
     descripcionEs: 'Encuentro con la historia patagónica',
@@ -69,6 +136,7 @@ const List<CategoryModel> homeCategories = [
   ),
   CategoryModel(
     id: 'aventura',
+    slug: 'aventura',
     nombreEs: 'Rutas de Aventura',
     nombreEn: 'Adventure Routes',
     descripcionEs: 'Senderos y miradores en la naturaleza',
@@ -79,6 +147,7 @@ const List<CategoryModel> homeCategories = [
   ),
   CategoryModel(
     id: 'transporte',
+    slug: 'transporte',
     nombreEs: 'Transporte',
     nombreEn: 'Transport',
     descripcionEs: 'Transfers y rutas por la región',
@@ -89,6 +158,7 @@ const List<CategoryModel> homeCategories = [
   ),
   CategoryModel(
     id: 'naturaleza',
+    slug: 'naturaleza',
     nombreEs: 'Naturaleza y Parques',
     nombreEn: 'Nature & Parks',
     descripcionEs: 'Reservas y paisajes patagónicos',

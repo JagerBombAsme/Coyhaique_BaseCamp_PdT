@@ -151,7 +151,9 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        place.categorySlug.toUpperCase(),
+                        (place.categorySlug != null && place.categorySlug!.isNotEmpty
+                            ? place.categorySlug!
+                            : (place.category?.slug ?? 'ATRACTIVO')).toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 11,
@@ -223,9 +225,109 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                     ],
                   ),
                 ],
+                if (place.schedule != null && place.schedule!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.access_time_rounded, color: AppTheme.primaryDark, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          place.schedule!,
+                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (place.referencePrice != null && place.referencePrice!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.attach_money_rounded, color: AppTheme.primaryDark, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          place.referencePrice!,
+                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (place.contactInfo != null && place.contactInfo!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.phone_rounded, color: AppTheme.primaryDark, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          place.contactInfo!,
+                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (place.websiteUrl != null && place.websiteUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.language_rounded, color: AppTheme.primaryDark, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          place.websiteUrl!,
+                          style: const TextStyle(color: AppTheme.primaryDark, fontSize: 14, decoration: TextDecoration.underline),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (place.media.length > 1) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    isSpanish ? 'Galería de Fotos' : 'Photo Gallery',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2C3E50),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: place.media.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, idx) {
+                        final mediaItem = place.media[idx];
+                        final url = mediaItem.externalUrl;
+                        if (url == null || url.isEmpty) return const SizedBox.shrink();
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: CachedNetworkImage(
+                            imageUrl: url,
+                            width: 140,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Container(
+                              width: 140,
+                              color: Colors.grey[200],
+                              child: const Icon(Icons.broken_image),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 const Divider(color: Color(0xFFEEEEEE)),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 Text(
                   isSpanish ? 'Información Adicional' : 'Additional Information',
                   style: const TextStyle(
@@ -237,8 +339,8 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                 const SizedBox(height: 8),
                 Text(
                   isSpanish
-                      ? 'Disponible durante todo el año en la Región de Aysén. Se recomienda reservar en temporada alta.'
-                      : 'Available year-round in the Aysén Region. Advance reservations recommended during peak season.',
+                      ? 'Disponible durante todo el año en la Región de Aysén. Se recomienda verificar horarios y condiciones climáticas antes de tu visita.'
+                      : 'Available year-round in the Aysén Region. Checking schedules and weather conditions prior to visit is recommended.',
                   style: const TextStyle(
                     color: Color(0xFF7F8C8D),
                     fontSize: 14,

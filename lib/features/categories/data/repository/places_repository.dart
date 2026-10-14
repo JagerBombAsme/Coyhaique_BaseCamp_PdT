@@ -1,56 +1,165 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/models/category_model.dart';
 import '../models/place_dto.dart';
 
+/// Repositorio de datos turísticos adaptado al modelo Supabase V2
+/// según ANTIGRAVITY_AI_CONTEXT.md (tablas categories_v2, places_v2, place_media_v2)
 class PlacesRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
-  Future<List<PlaceDto>> getPlaces() async {
-    try {
-      final response = await _client.from('places').select();
-      final list = (response as List).map((json) => PlaceDto.fromJson(json)).toList();
-      if (list.isNotEmpty) return list;
-    } catch (_) {
-      // Fallback to local default data if Supabase table is unreachable or empty
-    }
-    return _getFallbackPlaces();
-  }
-
-  Future<List<PlaceDto>> getPlacesByCategory(String categorySlug) async {
+  /// Obtiene categorías activas desde categories_v2
+  Future<List<CategoryModel>> getCategories() async {
     try {
       final response = await _client
-          .from('places')
+          .from('categories_v2')
           .select()
-          .eq('category_slug', categorySlug);
-      final list = (response as List).map((json) => PlaceDto.fromJson(json)).toList();
+          .eq('is_active', true)
+          .order('name_es');
+
+      final list = (response as List)
+          .map((json) => CategoryModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      if (list.isNotEmpty) return list;
+    } catch (_) {
+      // Fallback local en caso de desconexión
+    }
+    return homeCategories;
+  }
+
+  /// Obtiene atractivos turísticos (places_v2 donde kind = 'place' y retired_at es null)
+  Future<List<PlaceDto>> getPlaces() async {
+    try {
+      final response = await _client
+          .from('places_v2')
+          .select('''
+            *,
+            place_media_v2 (*),
+            categories_v2 (*)
+          ''')
+          .eq('kind', 'place')
+          .eq('is_active', true)
+          .isFilter('retired_at', null)
+          .order('name_es');
+
+      final list = (response as List)
+          .map((json) => PlaceDto.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      if (list.isNotEmpty) return list;
+    } catch (_) {
+      // Fallback a datos locales de contingencia
+    }
+    return _getFallbackPlaces().where((p) => p.kind == 'place').toList();
+  }
+
+  /// Obtiene actividades / tours (places_v2 donde kind = 'activity' y retired_at es null)
+  Future<List<PlaceDto>> getActivities() async {
+    try {
+      final response = await _client
+          .from('places_v2')
+          .select('''
+            *,
+            place_media_v2 (*),
+            categories_v2 (*)
+          ''')
+          .eq('kind', 'activity')
+          .eq('is_active', true)
+          .isFilter('retired_at', null)
+          .order('name_es');
+
+      final list = (response as List)
+          .map((json) => PlaceDto.fromJson(json as Map<String, dynamic>))
+          .toList();
+
       if (list.isNotEmpty) return list;
     } catch (_) {
       // Fallback
     }
-    return _getFallbackPlaces().where((p) => p.categorySlug == categorySlug || categorySlug == 'all').toList();
+    return _getFallbackPlaces().where((p) => p.kind == 'activity').toList();
   }
 
+  /// Filtra lugares por category_id (UUID) o category_slug de compatibilidad
+  Future<List<PlaceDto>> getPlacesByCategory(String categoryIdOrSlug) async {
+    if (categoryIdOrSlug.isEmpty || categoryIdOrSlug == 'all' || categoryIdOrSlug == 'todos') {
+      return getPlaces();
+    }
+
+    try {
+      // Intentar primero por category_id exacto (UUID)
+      final response = await _client
+          .from('places_v2')
+          .select('''
+            *,
+            place_media_v2 (*),
+            categories_v2 (*)
+          ''')
+          .eq('category_id', categoryIdOrSlug)
+          .eq('is_active', true)
+          .isFilter('retired_at', null)
+          .order('name_es');
+
+      final list = (response as List)
+          .map((json) => PlaceDto.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      if (list.isNotEmpty) return list;
+
+      // Si no retornó por UUID, intentar por slug de categoría unida
+      final allPlaces = await getPlaces();
+      final filtered = allPlaces.where((p) =>
+          p.categoryId == categoryIdOrSlug ||
+          (p.categorySlug != null && p.categorySlug!.toLowerCase() == categoryIdOrSlug.toLowerCase()) ||
+          (p.category != null && p.category!.slug.toLowerCase() == categoryIdOrSlug.toLowerCase())
+      ).toList();
+
+      if (filtered.isNotEmpty) return filtered;
+    } catch (_) {
+      // Fallback
+    }
+
+    return _getFallbackPlaces().where((p) =>
+        p.categoryId == categoryIdOrSlug ||
+        (p.categorySlug != null && p.categorySlug!.toLowerCase() == categoryIdOrSlug.toLowerCase())
+    ).toList();
+  }
+
+  /// Obtiene detalle completo de un atractivo por ID (HU-02)
   Future<PlaceDto?> getPlaceById(String id) async {
     try {
       final response = await _client
-          .from('places')
-          .select()
+          .from('places_v2')
+          .select('''
+            *,
+            place_media_v2 (*),
+            categories_v2 (*)
+          ''')
           .eq('id', id)
-          .single();
-      return PlaceDto.fromJson(response);
+          .eq('is_active', true)
+          .isFilter('retired_at', null)
+          .maybeSingle();
+
+      if (response != null) {
+        return PlaceDto.fromJson(response);
+      }
     } catch (_) {
-      final fallback = _getFallbackPlaces();
-      return fallback.firstWhere(
-        (p) => p.id == id,
-        orElse: () => fallback.first,
-      );
+      // Fallback
     }
+
+    final fallback = _getFallbackPlaces();
+    return fallback.firstWhere(
+      (p) => p.id == id,
+      orElse: () => fallback.first,
+    );
   }
 
   List<PlaceDto> _getFallbackPlaces() {
     return const [
       PlaceDto(
         id: 'gastro_1',
+        categoryId: 'gastronomia',
         categorySlug: 'gastronomia',
+        kind: 'place',
         titleEs: 'Restaurante El Fogón',
         titleEn: 'El Fogón Restaurant',
         subtitleEs: 'Coyhaique Centro',
@@ -62,21 +171,10 @@ class PlacesRepository {
         isFeatured: true,
       ),
       PlaceDto(
-        id: 'gastro_2',
-        categorySlug: 'gastronomia',
-        titleEs: 'Café de la Plaza',
-        titleEn: 'Plaza Café',
-        subtitleEs: 'Plaza de Armas',
-        subtitleEn: 'Main Square',
-        descriptionEs: 'Repostería artesanal, chocolates y café de especialidad preparado por baristas locales.',
-        descriptionEn: 'Artisanal pastries, chocolates and specialty coffee prepared by local baristas.',
-        imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80',
-        rating: 4.6,
-        isPopular: true,
-      ),
-      PlaceDto(
         id: 'aloj_1',
+        categoryId: 'alojamientos',
         categorySlug: 'alojamientos',
+        kind: 'place',
         titleEs: 'Lodge Valle Simpson',
         titleEn: 'Valle Simpson Lodge',
         subtitleEs: 'Sector El Blanco',
@@ -89,7 +187,9 @@ class PlacesRepository {
       ),
       PlaceDto(
         id: 'cult_1',
+        categoryId: 'cultura',
         categorySlug: 'cultura',
+        kind: 'place',
         titleEs: 'Museo Regional de Aysén',
         titleEn: 'Aysén Regional Museum',
         subtitleEs: 'Sector Escuela Agrícola',
@@ -100,15 +200,18 @@ class PlacesRepository {
         rating: 4.7,
       ),
       PlaceDto(
-        id: 'trans_1',
-        categorySlug: 'transporte',
-        titleEs: 'Terminal de Buses Coyhaique',
-        titleEn: 'Coyhaique Bus Terminal',
-        subtitleEs: 'Av. O\'Higgins',
-        subtitleEn: 'O\'Higgins Ave.',
-        descriptionEs: 'Conexión terrestre a Puerto Aysén, Cerro Castillo, Cochrane y Balmaceda.',
-        descriptionEn: 'Land connection to Puerto Aysén, Cerro Castillo, Cochrane and Balmaceda.',
-        imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=600&q=80',
+        id: 'act_1',
+        categoryId: 'aventura',
+        categorySlug: 'aventura',
+        kind: 'activity',
+        titleEs: 'Trekking Reserva Nacional Coyhaique',
+        titleEn: 'Coyhaique National Reserve Trekking',
+        subtitleEs: 'Senderos Las Bandurrias',
+        subtitleEn: 'Las Bandurrias Trails',
+        descriptionEs: 'Recorrido guiado de 4 horas por senderos con vistas panorámicas al valle.',
+        descriptionEn: '4-hour guided hike along scenic trails overlooking the valley.',
+        imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80',
+        rating: 4.9,
       ),
     ];
   }

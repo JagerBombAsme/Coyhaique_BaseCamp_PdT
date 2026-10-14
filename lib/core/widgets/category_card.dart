@@ -38,7 +38,9 @@ class CategoryCard extends StatelessWidget {
           children: [
             // Background Image
             CachedNetworkImage(
-              imageUrl: category.imageUrl,
+              imageUrl: (category.imageUrl != null && category.imageUrl!.isNotEmpty)
+                  ? category.imageUrl!
+                  : 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
@@ -150,11 +152,13 @@ class RecommendedCarouselCard extends StatelessWidget {
         child: Stack(
           children: [
             CachedNetworkImage(
-              imageUrl: category.imageUrl,
+              imageUrl: (category.imageUrl != null && category.imageUrl!.isNotEmpty)
+                  ? category.imageUrl!
+                  : 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
-              errorWidget: (_, __, ___) => Container(color: AppTheme.primaryDark),
+              errorWidget: (context, url, error) => Container(color: AppTheme.primaryDark),
             ),
             Container(
               decoration: BoxDecoration(
