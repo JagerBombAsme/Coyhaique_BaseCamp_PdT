@@ -17,54 +17,33 @@ class GroupTypeScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(
-    BuildContext context,
-    WidgetRef ref,
-  ) {
-    final locale =
-        ref.watch(languageProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(languageProvider);
 
-    final language =
-        locale.languageCode;
+    final language = locale.languageCode;
 
-    final categoriesAsync =
-        ref.watch(
-      categoriesByGroupProvider(groupType),
-    );
+    final categoriesAsync = ref.watch(categoriesByGroupProvider(groupType));
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF8FAFA),
+      backgroundColor: const Color(0xFFF8FAFA),
       appBar: AppBar(
-        backgroundColor:
-            const Color(0xFFF8FAFA),
+        backgroundColor: const Color(0xFFF8FAFA),
         elevation: 0,
-        foregroundColor:
-            AppTheme.primaryDark,
-        title: Text(
-          _getGroupTitle(
-            groupType,
-            language,
-          ),
-        ),
+        foregroundColor: AppTheme.primaryDark,
+        title: Text(_getGroupTitle(groupType, language)),
       ),
       body: categoriesAsync.when(
         data: (categories) {
           if (categories.isEmpty) {
             return Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
                   language == 'es'
                       ? 'No hay categorías disponibles.'
                       : 'No categories available.',
-                  textAlign:
-                      TextAlign.center,
-                  style: const TextStyle(
-                    color:
-                        AppTheme.textSecondary,
-                  ),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppTheme.textSecondary),
                 ),
               ),
             );
@@ -72,21 +51,13 @@ class GroupTypeScreen extends ConsumerWidget {
 
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(
-                categoriesByGroupProvider(
-                  groupType,
-                ),
-              );
+              ref.invalidate(categoriesByGroupProvider(groupType));
             },
             child: ListView.builder(
-              padding:
-                  const EdgeInsets.all(20),
-              itemCount:
-                  categories.length,
-              itemBuilder:
-                  (context, index) {
-                final category =
-                    categories[index];
+              padding: const EdgeInsets.all(20),
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final category = categories[index];
 
                 return CategoryCard(
                   category: category,
@@ -94,12 +65,9 @@ class GroupTypeScreen extends ConsumerWidget {
                   onClick: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) =>
-                            CategoryPlacesScreen(
-                          category:
-                              category,
-                          onPlaceClick:
-                              onPlaceClick,
+                        builder: (_) => CategoryPlacesScreen(
+                          category: category,
+                          onPlaceClick: onPlaceClick,
                         ),
                       ),
                     );
@@ -109,61 +77,36 @@ class GroupTypeScreen extends ConsumerWidget {
             ),
           );
         },
-        loading: () =>
-            const Center(
-          child:
-              CircularProgressIndicator(),
-        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) {
           return Center(
             child: Padding(
-              padding:
-                  const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               child: Column(
-                mainAxisSize:
-                    MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     language == 'es'
                         ? 'No fue posible cargar las categorías.'
                         : 'Could not load categories.',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        const TextStyle(
-                      color: Colors.red,
-                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
                   ),
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 8),
                   Text(
                     error.toString(),
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        const TextStyle(
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       fontSize: 12,
-                      color: AppTheme
-                          .textSecondary,
+                      color: AppTheme.textSecondary,
                     ),
                   ),
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  const SizedBox(height: 16),
                   FilledButton(
                     onPressed: () {
-                      ref.invalidate(
-                        categoriesByGroupProvider(
-                          groupType,
-                        ),
-                      );
+                      ref.invalidate(categoriesByGroupProvider(groupType));
                     },
-                    child: Text(
-                      language == 'es'
-                          ? 'Reintentar'
-                          : 'Retry',
-                    ),
+                    child: Text(language == 'es' ? 'Reintentar' : 'Retry'),
                   ),
                 ],
               ),
@@ -174,12 +117,8 @@ class GroupTypeScreen extends ConsumerWidget {
     );
   }
 
-  String _getGroupTitle(
-    String group,
-    String language,
-  ) {
-    final normalized =
-        group.trim().toLowerCase();
+  String _getGroupTitle(String group, String language) {
+    final normalized = group.trim().toLowerCase();
 
     if (language == 'en') {
       switch (normalized) {

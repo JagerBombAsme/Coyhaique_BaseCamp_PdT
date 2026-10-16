@@ -68,7 +68,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Container(color: AppTheme.primaryDark),
+                  errorWidget: (_, _, _) => Container(color: AppTheme.primaryDark),
                 ),
               ),
               Container(
@@ -302,7 +302,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: place.media.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
                       itemBuilder: (context, idx) {
                         final mediaItem = place.media[idx];
                         final url = mediaItem.externalUrl;
@@ -314,7 +314,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                             width: 140,
                             height: 100,
                             fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
+                            errorWidget: (_, _, _) => Container(
                               width: 140,
                               color: Colors.grey[200],
                               child: const Icon(Icons.broken_image),

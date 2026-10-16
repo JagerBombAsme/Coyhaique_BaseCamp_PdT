@@ -217,7 +217,7 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
                                   fit: BoxFit.cover,
                                   width: double.infinity,
                                   height: double.infinity,
-                                  errorWidget: (_, __, ___) => Container(color: AppTheme.primaryDark),
+                                  errorWidget: (_, _, _) => Container(color: AppTheme.primaryDark),
                                 )
                               else
                                 Container(color: AppTheme.primaryDark),
@@ -297,7 +297,7 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
-                              errorWidget: (_, __, ___) => Container(color: AppTheme.primaryDark),
+                              errorWidget: (_, _, _) => Container(color: AppTheme.primaryDark),
                             )
                           else
                             Container(color: AppTheme.primaryDark),
