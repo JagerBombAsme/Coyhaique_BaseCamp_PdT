@@ -52,7 +52,7 @@ class RouteDetailScreen extends ConsumerWidget {
                     height: 240,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
+                    errorWidget: (_, _, _) => Container(
                       height: 240,
                       color: AppTheme.primaryDark,
                       child: const Icon(Icons.landscape, size: 60, color: Colors.white),

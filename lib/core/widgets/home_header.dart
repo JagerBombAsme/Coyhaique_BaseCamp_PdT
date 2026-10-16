@@ -66,7 +66,7 @@ class HomeHeader extends ConsumerWidget {
                   ),
                 ],
               ),
-              error: (_, __) => const Column(
+              error: (_, _) => const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -112,7 +112,7 @@ class HomeHeader extends ConsumerWidget {
                       ? CachedNetworkImage(
                           imageUrl: profile.avatarUrl!,
                           fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const CircleAvatar(
+                          errorWidget: (_, _, _) => const CircleAvatar(
                             backgroundColor: AppTheme.primaryDark,
                             child: Icon(Icons.person, color: Colors.white, size: 28),
                           ),
@@ -125,7 +125,7 @@ class HomeHeader extends ConsumerWidget {
                     backgroundColor: AppTheme.primaryDark,
                     child: Icon(Icons.person, color: Colors.white, size: 28),
                   ),
-                  error: (_, __) => const CircleAvatar(
+                  error: (_, _) => const CircleAvatar(
                     backgroundColor: AppTheme.primaryDark,
                     child: Icon(Icons.person, color: Colors.white, size: 28),
                   ),

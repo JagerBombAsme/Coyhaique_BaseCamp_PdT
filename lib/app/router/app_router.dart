@@ -46,10 +46,13 @@ final GoRouter appRouter = GoRouter(
     // -------------------------------------------------------------
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
+        final isHome = navigationShell.currentIndex == 0;
         return Scaffold(
+          backgroundColor: isHome ? const Color(0xFF211F22) : const Color(0xFFF6F7F5),
           body: navigationShell,
           bottomNavigationBar: BottomNavBar(
             currentIndex: navigationShell.currentIndex,
+            isDark: isHome,
             onTap: (index) => navigationShell.goBranch(
               index,
               initialLocation: index == navigationShell.currentIndex,
