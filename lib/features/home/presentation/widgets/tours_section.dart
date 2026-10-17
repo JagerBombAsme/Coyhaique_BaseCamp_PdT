@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import 'home_visual_tokens.dart';
+import 'section_header.dart';
 import 'tour_card.dart';
 
 class TourItemData {
@@ -34,64 +38,54 @@ class ToursSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayTitle = '$title (${items.length})';
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  displayTitle,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
-                  ),
-                ),
+    // La altura crece con el tamaño de texto del sistema para que el
+    // título/subtítulo de las tarjetas no se desborde.
+    final textScale =
+        (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(1.0, 1.6);
+    final listHeight = math.max(310.0, 240.0 + 60.0 * textScale);
+
+    return Padding(
+      padding: HomeVisualTokens.sectionPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: title,
+            count: items.length,
+            actionText: viewAllText,
+            onAction: onViewAll,
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: listHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(
+                left: HomeVisualTokens.pagePadding,
+                right: 40,
               ),
-              if (onViewAll != null)
-                TextButton(
-                  onPressed: onViewAll,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white.withValues(alpha: 0.8),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  child: Text(
-                    viewAllText,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-            ],
+              itemCount: items.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                final item = items[index];
+
+                return TourCard(
+                  key: ValueKey(item.id),
+                  title: item.title,
+                  imagePath: item.imagePath,
+                  subtitle: item.subtitle,
+                  onTap: item.onTap,
+                );
+              },
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 285,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: items.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return TourCard(
-                title: item.title,
-                imagePath: item.imagePath,
-                subtitle: item.subtitle,
-                onTap: item.onTap,
-              );
-            },
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

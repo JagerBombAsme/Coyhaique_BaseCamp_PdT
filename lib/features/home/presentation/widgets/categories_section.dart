@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/models/category_model.dart';
 import 'destination_image.dart';
+import 'home_visual_tokens.dart';
+import 'pressable_scale.dart';
+import 'section_header.dart';
 
 class CategoriesSection extends StatelessWidget {
   final String title;
@@ -17,106 +20,109 @@ class CategoriesSection extends StatelessWidget {
     required this.onCategoryTap,
   });
 
+  static const double _tileWidth = 150;
+  static const double _tileHeight = 130;
+  static const double _tilePadding = 12;
+
   @override
   Widget build(BuildContext context) {
     if (categories.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 130,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: categories.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
-            itemBuilder: (context, index) {
-              final cat = categories[index];
-              final catName = cat.getNombre(language);
-              final imageUrl = _resolveCategoryImage(cat);
+    final tileRadius = BorderRadius.circular(HomeVisualTokens.imageRadius);
 
-              return GestureDetector(
-                onTap: () => onCategoryTap(cat.route),
-                child: Container(
-                  width: 150,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: const Color(0xFF2C2A2F),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      DestinationImage(
-                        assetPath: imageUrl,
-                        label: catName,
-                      ),
-                      // Dark gradient
-                      DecoratedBox(
+    // Concéntrico: chip = radio de la tarjeta − padding (20 − 12 = 8).
+    final chipRadius = BorderRadius.circular(
+      HomeVisualTokens.innerRadius(
+        HomeVisualTokens.imageRadius,
+        _tilePadding,
+      ),
+    );
+
+    return Padding(
+      padding: HomeVisualTokens.sectionPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(title: title),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: _tileHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: HomeVisualTokens.pagePadding,
+              ),
+              itemCount: categories.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                final catName = cat.getNombre(language);
+                final imageUrl = _resolveCategoryImage(cat);
+
+                return PressableScale(
+                  semanticLabel: catName,
+                  excludeChildSemantics: true,
+                  onTap: () => onCategoryTap(cat.route),
+                  child: SizedBox(
+                    width: _tileWidth,
+                    child: DestinationImage(
+                      assetPath: imageUrl,
+                      label: catName,
+                      borderRadius: tileRadius,
+                      overlay: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
+                            stops: const [0.2, 1],
                             colors: [
-                              Colors.black.withValues(alpha: 0.15),
-                              Colors.black.withValues(alpha: 0.70),
+                              Colors.black.withValues(alpha: 0.10),
+                              Colors.black.withValues(alpha: 0.74),
+                            ],
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(_tilePadding),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  borderRadius: chipRadius,
+                                  border: Border.all(
+                                    color: HomeVisualTokens.outline,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Icon(
+                                    cat.icon,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                catName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: HomeVisualTokens.tileLabel,
+                              ),
                             ],
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                cat.icon,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              catName,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

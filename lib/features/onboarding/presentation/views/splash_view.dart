@@ -20,7 +20,7 @@ class _SplashViewState extends State<SplashView> {
   Future<void> _navigateToNext() async {
     await Future.delayed(const Duration(milliseconds: 1600));
     if (!mounted) return;
-    context.go('/onboarding');
+    context.go('/intro');
   }
 
   @override

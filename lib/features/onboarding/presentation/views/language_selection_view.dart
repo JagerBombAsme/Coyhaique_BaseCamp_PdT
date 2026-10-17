@@ -52,7 +52,7 @@ class _LanguageSelectionViewState extends ConsumerState<LanguageSelectionView> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/splash');
+              context.go('/intro');
             }
           },
         ),
