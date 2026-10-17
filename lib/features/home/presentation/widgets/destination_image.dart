@@ -1,88 +1,121 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+
+import 'home_visual_tokens.dart';
 
 class DestinationImage extends StatelessWidget {
   final String assetPath;
   final String label;
-  final List<Color>? placeholderColors;
-  final BoxFit fit;
+  final List<Color> placeholderColors;
+
+  /// Si se indica, recorta imagen, overlay y contorno con el mismo radio.
+  final BorderRadius? borderRadius;
+
+  /// Contorno de 1 px en blanco puro al 10 % para dar profundidad.
+  /// Desactívalo en imágenes a sangre (hero).
+  final bool showOutline;
+
+  /// Capa entre la imagen y el contorno (p. ej. un degradado), de modo que
+  /// el contorno nunca quede oscurecido por ella.
+  final Widget? overlay;
 
   const DestinationImage({
     super.key,
     required this.assetPath,
     required this.label,
-    this.placeholderColors,
-    this.fit = BoxFit.cover,
+    this.borderRadius,
+    this.showOutline = true,
+    this.overlay,
+    this.placeholderColors = const [
+      Color(0xFF8B9CB3),
+      Color(0xFF2C567A),
+      HomeVisualTokens.background,
+    ],
   });
 
-  bool get _isNetwork => assetPath.startsWith('http://') || assetPath.startsWith('https://');
+  static Widget _fadeIn(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (wasSynchronouslyLoaded) return child;
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isNetwork) {
-      return CachedNetworkImage(
-        imageUrl: assetPath,
-        width: double.infinity,
-        height: double.infinity,
-        fit: fit,
-        placeholder: (context, url) => _buildPlaceholder(),
-        errorWidget: (context, url, error) => _buildPlaceholder(),
-      );
-    }
-
-    return Image.asset(
-      assetPath,
-      width: double.infinity,
-      height: double.infinity,
-      fit: fit,
-      semanticLabel: label,
-      errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+    return AnimatedOpacity(
+      opacity: frame == null ? 0 : 1,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      child: child,
     );
   }
 
-  Widget _buildPlaceholder() {
-    final colors = placeholderColors ??
-        const [
-          Color(0xFF36343B),
-          Color(0xFF28262C),
-          Color(0xFF1B1A1E),
-        ];
+  @override
+  Widget build(BuildContext context) {
+    final isRemote = assetPath.startsWith('http://') ||
+        assetPath.startsWith('https://');
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: colors,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.landscape_rounded,
-            size: 40,
-            color: Colors.white24,
-          ),
-          if (label.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white38,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+    final Widget image = isRemote
+        ? Image.network(
+            assetPath,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            semanticLabel: label,
+            frameBuilder: _fadeIn,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+          )
+        : Image.asset(
+            assetPath,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            semanticLabel: label,
+            frameBuilder: _fadeIn,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+          );
+
+    Widget content = Stack(
+      fit: StackFit.expand,
+      children: [
+        const ColoredBox(color: HomeVisualTokens.surfaceMuted),
+        image,
+        ?overlay,
+        if (showOutline)
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: HomeVisualTokens.outline,
+                  width: 1,
                 ),
               ),
             ),
-          ],
-        ],
+          ),
+      ],
+    );
+
+    if (borderRadius != null) {
+      content = ClipRRect(borderRadius: borderRadius!, child: content);
+    }
+
+    return content;
+  }
+
+  Widget _buildPlaceholder() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: placeholderColors,
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.landscape_outlined,
+          size: 44,
+          color: Colors.white38,
+        ),
       ),
     );
   }

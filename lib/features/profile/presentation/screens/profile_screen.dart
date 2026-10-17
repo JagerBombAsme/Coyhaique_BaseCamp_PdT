@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/language_provider.dart';
@@ -58,6 +59,27 @@ class ProfileScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Column(
           children: [
+            // Top Header: Title & Settings Gear Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  isSpanish ? 'Mi perfil' : 'My profile',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined, color: AppTheme.textPrimary),
+                  tooltip: isSpanish ? 'Configuración' : 'Settings',
+                  onPressed: () => context.push('/profile/edit'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
             // Profile Header Card
             Container(
               width: double.infinity,
@@ -233,7 +255,7 @@ class ProfileScreen extends ConsumerWidget {
                               side: const BorderSide(color: AppTheme.primaryDark),
                             ),
                             onPressed: () {
-                              // Action for edit profile
+                              context.push('/profile/edit');
                             },
                             child: Text(
                               isSpanish ? 'Editar Perfil' : 'Edit Profile',

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
 import 'destination_image.dart';
+import 'home_visual_tokens.dart';
+import 'pressable_scale.dart';
 
 class TourCard extends StatelessWidget {
+  static const double width = 188;
+  static const double imageHeight = 220;
+
   final String title;
   final String imagePath;
   final String? subtitle;
-  final List<Color>? placeholderColors;
   final VoidCallback? onTap;
 
   const TourCard({
@@ -14,28 +18,44 @@ class TourCard extends StatelessWidget {
     required this.title,
     required this.imagePath,
     this.subtitle,
-    this.placeholderColors,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final radius = BorderRadius.circular(HomeVisualTokens.cardRadius);
+    final hasSubtitle = subtitle != null && subtitle!.trim().isNotEmpty;
+
+    return PressableScale(
       onTap: onTap,
+      semanticLabel: hasSubtitle ? '$title, $subtitle' : title,
+      excludeChildSemantics: true,
       child: SizedBox(
-        width: 185,
+        width: width,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              height: 220,
-              width: 185,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                boxShadow: HomeVisualTokens.softShadow,
+              ),
+              child: SizedBox(
+                height: imageHeight,
                 child: DestinationImage(
                   assetPath: imagePath,
                   label: title,
-                  placeholderColors: placeholderColors,
+                  borderRadius: radius,
+                  overlay: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.55, 1],
+                        colors: [Color(0x00000000), Color(0x66000000)],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -44,23 +64,15 @@ class TourCard extends StatelessWidget {
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                height: 1.25,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+              style: HomeVisualTokens.cardTitle,
             ),
-            if (subtitle != null && subtitle!.isNotEmpty) ...[
-              const SizedBox(height: 4),
+            if (hasSubtitle) ...[
+              const SizedBox(height: 5),
               Text(
                 subtitle!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.6),
-                ),
+                style: HomeVisualTokens.caption,
               ),
             ],
           ],

@@ -8,10 +8,7 @@ import '../theme/app_theme.dart';
 class HomeHeader extends ConsumerWidget {
   final VoidCallback onProfileClick;
 
-  const HomeHeader({
-    super.key,
-    required this.onProfileClick,
-  });
+  const HomeHeader({super.key, required this.onProfileClick});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,10 +56,7 @@ class HomeHeader extends ConsumerWidget {
                   SizedBox(height: 4),
                   Text(
                     'Cargando perfil...',
-                    style: TextStyle(
-                      color: AppTheme.accentBlue,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: AppTheme.accentBlue, fontSize: 12),
                   ),
                 ],
               ),
@@ -80,10 +74,7 @@ class HomeHeader extends ConsumerWidget {
                   SizedBox(height: 4),
                   Text(
                     'Coyhaique BaseCamp',
-                    style: TextStyle(
-                      color: AppTheme.accentBlue,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: AppTheme.accentBlue, fontSize: 12),
                   ),
                 ],
               ),
@@ -108,18 +99,27 @@ class HomeHeader extends ConsumerWidget {
               padding: const EdgeInsets.all(3),
               child: ClipOval(
                 child: profileAsync.when(
-                  data: (profile) => profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
+                  data: (profile) =>
+                      profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: profile.avatarUrl!,
                           fit: BoxFit.cover,
                           errorWidget: (_, _, _) => const CircleAvatar(
                             backgroundColor: AppTheme.primaryDark,
-                            child: Icon(Icons.person, color: Colors.white, size: 28),
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 28,
+                            ),
                           ),
                         )
                       : const CircleAvatar(
                           backgroundColor: AppTheme.primaryDark,
-                          child: Icon(Icons.person, color: Colors.white, size: 28),
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
                   loading: () => const CircleAvatar(
                     backgroundColor: AppTheme.primaryDark,
