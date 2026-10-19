@@ -24,7 +24,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Backend
-  supabase_flutter: ^2.8.0
+  supabase_flutter: ^2.18.3
 
   # Variables de entorno
   flutter_dotenv: ^5.2.1

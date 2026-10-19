@@ -2,8 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../authentication/data/providers/auth_controller.dart';
 import '../../../../core/utils/language_provider.dart';
 import '../../data/models/profile_dto.dart';
 import '../../data/providers/profile_provider.dart';
@@ -18,6 +17,27 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   bool _pauseNotifications = true;
   bool _darkMode = false;
+  Future<void> _handleLogOut(BuildContext context, bool isSpanish) async {
+    try {
+      await ref.read(authControllerProvider.notifier).signOut();
+
+      if (!mounted) return;
+
+      context.go('/auth-gateway');
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'No fue posible cerrar la sesión.'
+                : 'Unable to log out.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +64,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => ref.invalidate(profileProvider),
-                  child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Reintentar',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             ),
@@ -94,7 +117,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 44), // Espaciador de balance para centrar título
+              const SizedBox(
+                width: 44,
+              ), // Espaciador de balance para centrar título
             ],
           ),
         ),
@@ -102,7 +127,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         // 2. Body List
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 8.0,
+            ),
             child: Column(
               children: [
                 // Tarjeta 1: Perfil de usuario (Clickeable para editar datos)
@@ -113,9 +141,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 _buildCardGroup([
                   _buildSwitchTile(
                     icon: Icons.notifications_none_rounded,
-                    title: isSpanish ? 'Pause notifications' : 'Pause notifications',
+                    title: isSpanish
+                        ? 'Pause notifications'
+                        : 'Pause notifications',
                     value: _pauseNotifications,
-                    activeColor: const Color(0xFFC7F32D), // Verde lima exacto al mockup
+                    activeColor: const Color(
+                      0xFFC7F32D,
+                    ), // Verde lima exacto al mockup
                     onChanged: (val) {
                       setState(() => _pauseNotifications = val);
                     },
@@ -190,7 +222,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     onTap: () {
                       _showInfoDialog(
                         context,
-                        isSpanish ? 'Términos del servicio' : 'Terms of service',
+                        isSpanish
+                            ? 'Términos del servicio'
+                            : 'Terms of service',
                         isSpanish
                             ? 'El uso de esta aplicación implica la aceptación de los términos y condiciones de turismo responsable en la Patagonia.'
                             : 'Using this app implies acceptance of responsible tourism terms in Patagonia.',
@@ -238,9 +272,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E22),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.06),
-          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
         child: Row(
           children: [
@@ -250,14 +282,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFF5B800),
-                  width: 2.2,
-                ),
+                border: Border.all(color: const Color(0xFFF5B800), width: 2.2),
                 color: const Color(0xFF2A2A30),
               ),
               child: ClipOval(
-                child: profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
+                child:
+                    profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: profile.avatarUrl!,
                         fit: BoxFit.cover,
@@ -314,13 +344,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E22),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -450,46 +476,44 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void _confirmLogOut(BuildContext context, bool isSpanish) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E22),
-        title: Text(
-          isSpanish ? '¿Cerrar sesión?' : 'Log out?',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          isSpanish
-              ? '¿Estás seguro de que deseas cerrar tu sesión en Coyhaique BaseCamp?'
-              : 'Are you sure you want to log out of Coyhaique BaseCamp?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              isSpanish ? 'Cancelar' : 'Cancel',
-              style: const TextStyle(color: Colors.white60),
-            ),
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E22),
+          title: Text(
+            isSpanish ? '¿Cerrar sesión?' : 'Log out?',
+            style: const TextStyle(color: Colors.white),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
-            ),
-            onPressed: () async {
-              final router = GoRouter.of(context);
-              Navigator.pop(ctx);
-              try {
-                await Supabase.instance.client.auth.signOut();
-              } catch (_) {}
-              if (!mounted) return;
-              router.go('/auth');
-            },
-            child: Text(
-              isSpanish ? 'Cerrar sesión' : 'Log out',
-              style: const TextStyle(color: Colors.white),
-            ),
+          content: Text(
+            isSpanish
+                ? '¿Estás seguro de que deseas cerrar tu sesión en Coyhaique BaseCamp?'
+                : 'Are you sure you want to log out of Coyhaique BaseCamp?',
+            style: const TextStyle(color: Colors.white70),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text(
+                isSpanish ? 'Cancelar' : 'Cancel',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE53935),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+
+                await _handleLogOut(context, isSpanish);
+              },
+              child: Text(isSpanish ? 'Cerrar sesión' : 'Log out'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -516,10 +540,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     bool isSpanish,
   ) {
     final nameController = TextEditingController(text: profile.fullName);
-    final usernameController = TextEditingController(text: profile.username ?? '');
+    final usernameController = TextEditingController(
+      text: profile.username ?? '',
+    );
     final bioController = TextEditingController(text: profile.biography ?? '');
     final cityController = TextEditingController(text: profile.city ?? '');
-    final countryController = TextEditingController(text: profile.country ?? '');
+    final countryController = TextEditingController(
+      text: profile.country ?? '',
+    );
 
     showModalBottomSheet(
       context: context,
@@ -646,7 +674,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     },
                     child: Text(
                       isSpanish ? 'Guardar Cambios' : 'Save Changes',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -675,7 +706,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         labelStyle: const TextStyle(color: Colors.white60, fontSize: 13),
         filled: true,
         fillColor: const Color(0xFF28282E),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,

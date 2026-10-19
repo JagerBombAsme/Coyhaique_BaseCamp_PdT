@@ -48,3 +48,5 @@ app.*.map.json
 docs/ANTIGRAVITY_AI_CONTEXT.md
 *.rar
 flutter_*.png
+.vscode/launchjson
+config/dev.json
