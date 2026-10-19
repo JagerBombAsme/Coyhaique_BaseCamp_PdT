@@ -124,7 +124,7 @@ class PlacesRepository {
           : term;
 
       final filtered = allPlaces.where((p) {
-        final catId = p.categoryId?.toLowerCase() ?? '';
+        final catId = p.categoryId.toLowerCase();
         final catSlug = p.categorySlug?.toLowerCase() ?? '';
         final groupType = p.category?.groupType?.toLowerCase() ?? '';
         final joinedSlug = p.category?.slug.toLowerCase() ?? '';

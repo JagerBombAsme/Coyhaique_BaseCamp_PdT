@@ -33,7 +33,7 @@ class _LanguageSelectionViewState extends ConsumerState<LanguageSelectionView> {
 
     if (!mounted) return;
     setState(() => _isProcessing = false);
-    context.go('/auth');
+    context.push('/auth-gateway');
   }
 
   @override
