@@ -320,29 +320,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context,
     ActivityDto activity,
     bool isSpanish,
+    
   ) {
+    
     return TourItemData(
       id: activity.id,
 
       title: activity.getName(isSpanish),
 
-      imagePath: _getActivityImage(activity),
+      imagePath: activity.imageUrl ?? '',
 
       subtitle: _buildActivitySubtitle(activity, isSpanish),
 
-      // ==============================================================
-      // IMPORTANTE
-      //
-      // Antes:
-      //
-      // widget.onNavigate('aventura');
-      //
-      // Eso enviaba a:
-      //
-      // /routes
-      //
-      // Ahora utilizamos el ID real de places_v2.
-      // ==============================================================
       onTap: () {
         debugPrint('ACTIVIDAD SELECCIONADA: ${activity.id}');
 
@@ -350,10 +339,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
     );
   }
-
-  // ================================================================
-  // SUBTÍTULO
-  // ================================================================
 
   String _buildActivitySubtitle(ActivityDto activity, bool isSpanish) {
     final price = activity.referencePrice?.trim();
@@ -366,8 +351,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final schedule = activity.schedule?.trim();
 
-    // Si hay horario/información
-    // útil, la mostramos.
     if (schedule != null && schedule.isNotEmpty) {
       return schedule;
     }
@@ -380,6 +363,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return normalized == 'ver disponibilidad con el operador.' ||
         normalized == 'ver disponibilidad con el operador';
+        
   }
 
   // ================================================================
@@ -389,53 +373,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Mientras tanto resolvemos assets locales según el nombre.
   // ================================================================
 
-  String _getActivityImage(ActivityDto activity) {
-    final title = activity.nameEs.toLowerCase();
-
-    // CAPILLAS DE MÁRMOL
-    if (title.contains('mármol') || title.contains('marmol')) {
-      return 'assets/images/catedral_de_marmol.jpg';
-    }
-
-    // QUEULAT
-    if (title.contains('queulat')) {
-      return 'assets/images/ventisquero_queulat.jpg';
-    }
-
-    // DIVISADERO
-    if (title.contains('divisadero')) {
-      return 'assets/images/cordon_divisadero.jpg';
-    }
-
-    // BICICLETA
-    if (title.contains('bicicleta') || title.contains('cicloturismo')) {
-      return 'assets/images/miradores_coyhaique.jpg';
-    }
-
-    // TREKKING
-    if (title.contains('trekking') ||
-        title.contains('senderos') ||
-        title.contains('expediciones')) {
-      return 'assets/images/cerro_castillo_panoramico.jpg';
-    }
-
-    // LAGOS / LAGUNAS
-    if (title.contains('laguna') ||
-        title.contains('lagunas') ||
-        title.contains('lago')) {
-      return 'assets/images/cerro_castillo_laguna.jpg';
-    }
-
-    // NATURALEZA
-    if (title.contains('naturaleza') || title.contains('flora')) {
-      return 'assets/images/cerro_castillo_laguna.jpg';
-    }
-
-    // DEFAULT
-    return 'assets/images/cerro_castillo_panoramico.jpg';
-  }
-
-  // ================================================================
+    // ================================================================
   // SIN ACTIVIDADES
   // ================================================================
 

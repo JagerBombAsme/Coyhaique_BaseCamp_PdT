@@ -42,7 +42,7 @@ dependencies:
   permission_handler: ^11.3.1
 
   # Ubicación GPS
-  geolocator: ^13.0.2
+  geolocator: ^14.1.2
 
   # Abrir enlaces externos
   url_launcher: ^6.3.1
