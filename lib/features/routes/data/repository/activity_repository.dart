@@ -5,10 +5,8 @@ import '../models/activity_dto.dart';
 class ActivityRepository {
   final SupabaseClient _client;
 
-  ActivityRepository({
-    SupabaseClient? client,
-  }) : _client =
-            client ?? Supabase.instance.client;
+  ActivityRepository({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
 
   Future<List<ActivityDto>> getActivities() async {
     final response = await _client
@@ -20,9 +18,7 @@ class ActivityRepository {
 
     return response
         .map<ActivityDto>(
-          (json) => ActivityDto.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
+          (json) => ActivityDto.fromJson(Map<String, dynamic>.from(json)),
         )
         .toList();
   }

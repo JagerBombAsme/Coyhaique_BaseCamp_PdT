@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/models/category_model.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../../categories/data/providers/places_provider.dart'
-    hide activitiesProvider;
+  hide activitiesProvider;
 
 import '../../../routes/data/models/activity_dto.dart';
 import '../../../routes/data/providers/activity_provider.dart';
@@ -60,7 +61,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isSpanish = language == 'es';
 
     // ================================================================
-    // SUPABASE - ACTIVIDADES
+    // ACTIVIDADES DESDE SUPABASE
+    // places_v2
+    // kind = activity
+    // is_active = true
     // ================================================================
 
     final activitiesAsync = ref.watch(activitiesProvider);
@@ -107,16 +111,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // =========================================================
             RefreshIndicator(
               onRefresh: () async {
-                // Refresca las actividades
-                // provenientes de places_v2.
                 ref.invalidate(activitiesProvider);
 
                 ref.invalidate(categoriesProvider);
 
                 ref.invalidate(placesProvider);
 
-                // Esperamos a que las actividades
-                // vuelvan a cargarse.
                 await ref.read(activitiesProvider.future);
               },
               color: _iceDark,
@@ -141,7 +141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
 
                     // =================================================
-                    // TOURS / ACTIVIDADES DESDE SUPABASE
+                    // TOURS / ACTIVIDADES
                     // =================================================
                     Transform.translate(
                       offset: const Offset(0, -18),
@@ -160,9 +160,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                             ],
                           ),
-
                           child: HomeSurface(
                             child: _buildActivitiesSection(
+                              context,
                               activitiesAsync,
                               isSpanish,
                             ),
@@ -191,7 +191,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                           ],
                         ),
-
                         child: HomeSurface(
                           ambientGlow: true,
                           child: CategoriesSection(
@@ -227,7 +226,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
-
                 child: GlassIconButton(
                   semanticLabel: isSpanish ? 'Perfil' : 'Profile',
                   onTap: widget.onProfileClick,
@@ -246,10 +244,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // ================================================================
-  // ACTIVIDADES ASYNC
+  // SECCIÓN ACTIVIDADES
   // ================================================================
 
   Widget _buildActivitiesSection(
+    BuildContext context,
     AsyncValue<List<ActivityDto>> activitiesAsync,
     bool isSpanish,
   ) {
@@ -264,17 +263,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         final tourItems = activities
             .map<TourItemData>(
-              (activity) => _mapActivityToTourItem(activity, isSpanish),
+              (activity) =>
+                  _mapActivityToTourItem(context, activity, isSpanish),
             )
             .toList();
 
         return ToursSection(
-          title: isSpanish ? 'Actividades' : 'Activities',
+          title: isSpanish ? 'Tours' : 'Tours',
           viewAllText: isSpanish ? 'Ver todos' : 'View all',
           items: tourItems,
-          onViewAll: () {
-            widget.onNavigate('aventura');
-          },
+
+          // -----------------------------------------------------------
+          // Por ahora NO usamos /routes.
+          //
+          // /routes todavía corresponde a la antigua pantalla
+          // "Rutas de Aventura".
+          //
+          // Mostramos todas las actividades disponibles en el carrusel.
+          // Posteriormente podemos crear /activities.
+          // -----------------------------------------------------------
+          onViewAll: null,
         );
       },
 
@@ -282,8 +290,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // CARGANDO
       // ==============================================================
       loading: () {
-        return SizedBox(
-          height: 180,
+        return const SizedBox(
+          height: 200,
           child: Center(
             child: CircularProgressIndicator(
               color: _iceAccent,
@@ -297,16 +305,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // ERROR
       // ==============================================================
       error: (error, stackTrace) {
+        debugPrint('ERROR ACTIVIDADES HOME: $error');
+
         return _buildActivitiesError(isSpanish);
       },
     );
   }
 
   // ================================================================
-  // ACTIVITY DTO -> TOUR ITEM
+  // ACTIVITY -> TOUR ITEM
   // ================================================================
 
-  TourItemData _mapActivityToTourItem(ActivityDto activity, bool isSpanish) {
+  TourItemData _mapActivityToTourItem(
+    BuildContext context,
+    ActivityDto activity,
+    bool isSpanish,
+  ) {
     return TourItemData(
       id: activity.id,
 
@@ -316,8 +330,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       subtitle: _buildActivitySubtitle(activity, isSpanish),
 
+      // ==============================================================
+      // IMPORTANTE
+      //
+      // Antes:
+      //
+      // widget.onNavigate('aventura');
+      //
+      // Eso enviaba a:
+      //
+      // /routes
+      //
+      // Ahora utilizamos el ID real de places_v2.
+      // ==============================================================
       onTap: () {
-        widget.onNavigate('aventura');
+        debugPrint('ACTIVIDAD SELECCIONADA: ${activity.id}');
+
+        context.push('/attractions/${activity.id}');
       },
     );
   }
@@ -329,16 +358,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _buildActivitySubtitle(ActivityDto activity, bool isSpanish) {
     final price = activity.referencePrice?.trim();
 
-    // Si existe un precio real útil,
-    // se muestra primero.
-    if (price != null &&
-        price.isNotEmpty &&
-        price.toLowerCase() != 'ver disponibilidad con el operador.') {
+    // Si existe un precio concreto,
+    // lo mostramos.
+    if (price != null && price.isNotEmpty && !_isAvailabilityText(price)) {
       return price;
     }
 
     final schedule = activity.schedule?.trim();
 
+    // Si hay horario/información
+    // útil, la mostramos.
     if (schedule != null && schedule.isNotEmpty) {
       return schedule;
     }
@@ -346,40 +375,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return isSpanish ? 'Ver información' : 'View information';
   }
 
+  bool _isAvailabilityText(String value) {
+    final normalized = value.trim().toLowerCase();
+
+    return normalized == 'ver disponibilidad con el operador.' ||
+        normalized == 'ver disponibilidad con el operador';
+  }
+
   // ================================================================
-  // IMAGEN
+  // IMÁGENES
   //
   // places_v2 todavía no tiene image_url.
-  // Por eso se usa un asset local según el nombre.
+  // Mientras tanto resolvemos assets locales según el nombre.
   // ================================================================
 
   String _getActivityImage(ActivityDto activity) {
     final title = activity.nameEs.toLowerCase();
 
+    // CAPILLAS DE MÁRMOL
     if (title.contains('mármol') || title.contains('marmol')) {
       return 'assets/images/catedral_de_marmol.jpg';
     }
 
+    // QUEULAT
     if (title.contains('queulat')) {
       return 'assets/images/ventisquero_queulat.jpg';
     }
 
+    // DIVISADERO
     if (title.contains('divisadero')) {
       return 'assets/images/cordon_divisadero.jpg';
     }
 
+    // BICICLETA
     if (title.contains('bicicleta') || title.contains('cicloturismo')) {
       return 'assets/images/miradores_coyhaique.jpg';
     }
 
-    if (title.contains('trekking') || title.contains('expediciones')) {
+    // TREKKING
+    if (title.contains('trekking') ||
+        title.contains('senderos') ||
+        title.contains('expediciones')) {
       return 'assets/images/cerro_castillo_panoramico.jpg';
     }
 
-    if (title.contains('lagunas')) {
+    // LAGOS / LAGUNAS
+    if (title.contains('laguna') ||
+        title.contains('lagunas') ||
+        title.contains('lago')) {
       return 'assets/images/cerro_castillo_laguna.jpg';
     }
 
+    // NATURALEZA
+    if (title.contains('naturaleza') || title.contains('flora')) {
+      return 'assets/images/cerro_castillo_laguna.jpg';
+    }
+
+    // DEFAULT
     return 'assets/images/cerro_castillo_panoramico.jpg';
   }
 
@@ -402,8 +454,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           Text(
             isSpanish
-                ? 'No hay tours disponibles actualmente.'
-                : 'There are currently no tours available.',
+                ? 'No hay actividades disponibles actualmente.'
+                : 'There are currently no activities available.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _iceDark,
@@ -417,7 +469,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // ================================================================
-  // ERROR
+  // ERROR ACTIVIDADES
   // ================================================================
 
   Widget _buildActivitiesError(bool isSpanish) {
@@ -435,8 +487,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           Text(
             isSpanish
-                ? 'No fue posible cargar los tours.'
-                : 'Unable to load tours.',
+                ? 'No fue posible cargar las actividades.'
+                : 'Unable to load activities.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _iceDark,
