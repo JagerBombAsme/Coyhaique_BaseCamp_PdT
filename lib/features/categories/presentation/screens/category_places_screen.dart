@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/category_model.dart';
-import '../../../../core/utils/language_provider.dart';
+import '../../../../core/providers/language_provider.dart';
 import '../../data/providers/places_provider.dart';
 import 'category_list_screen.dart';
 

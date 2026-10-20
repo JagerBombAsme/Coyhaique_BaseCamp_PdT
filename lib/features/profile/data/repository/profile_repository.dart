@@ -3,62 +3,90 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile_dto.dart';
 
 class ProfileRepository {
-  final SupabaseClient _client = Supabase.instance.client;
-  static ProfileDto? _cachedProfile;
+  final SupabaseClient _client;
 
-  Future<ProfileDto> getProfile() async {
+  ProfileRepository({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
+
+  ProfileDto? _cachedProfile;
+
+  // ================================================================
+  // OBTENER PERFIL
+  // ================================================================
+
+  Future<ProfileDto?> getProfile({required String userId}) async {
     try {
-      final user = _client.auth.currentUser;
-      if (user != null) {
-        final response = await _client
-            .from('profiles')
-            .select()
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (response != null) {
-          _cachedProfile = ProfileDto.fromJson(response);
-          return _cachedProfile!;
-        }
-      }
-
       final response = await _client
           .from('profiles')
           .select()
-          .limit(1)
+          .eq('id', userId)
           .maybeSingle();
 
-      if (response != null) {
-        _cachedProfile = ProfileDto.fromJson(response);
-        return _cachedProfile!;
+      // El usuario existe en Auth, pero todavía no tiene
+      // una fila de perfil creada.
+      if (response == null) {
+        return null;
       }
-    } catch (_) {
-      // Fallback a perfil en caché o predeterminado
-    }
 
-    return _cachedProfile ??
-        const ProfileDto(
-          id: 'local_user',
-          fullName: 'Budiarti Ramlan',
-          username: 'budiarti12',
-          biography: 'Explorando las maravillas naturales de Coyhaique y la Patagonia.',
-          language: 'es',
-          role: 'Explorador',
-          isVerified: true,
-          city: 'Coyhaique',
-          country: 'Chile',
-        );
+      final profile = ProfileDto.fromJson(response);
+
+      _cachedProfile = profile;
+
+      return profile;
+    } catch (error) {
+      // Solo utilizamos caché si pertenece al mismo usuario.
+      if (_cachedProfile != null && _cachedProfile!.id == userId) {
+        return _cachedProfile;
+      }
+
+      // Un error de red/backend NO debe confundirse
+      // con "usuario sin cuenta".
+      rethrow;
+    }
   }
 
-  Future<void> updateProfile(ProfileDto profile) async {
-    _cachedProfile = profile;
-    try {
-      await _client
-          .from('profiles')
-          .update(profile.toJson())
-          .eq('id', profile.id);
-    } catch (_) {
-      // Guardado local en caso de estar offline o sin sesión remota
+  // ================================================================
+  // ACTUALIZAR PERFIL EXISTENTE
+  // ================================================================
+
+  Future<void> updateProfile({
+    required String userId,
+    required ProfileDto profile,
+  }) async {
+    if (profile.id != userId) {
+      throw StateError('El perfil no corresponde al usuario autenticado.');
     }
+
+    await _client.from('profiles').update(profile.toJson()).eq('id', userId);
+
+    _cachedProfile = profile;
+  }
+
+  // ================================================================
+  // CREAR O ACTUALIZAR PERFIL
+  //
+  // Lo utilizaremos posteriormente cuando construyamos
+  // "Personaliza tu perfil".
+  // ================================================================
+
+  Future<void> upsertProfile({
+    required String userId,
+    required ProfileDto profile,
+  }) async {
+    if (profile.id != userId) {
+      throw StateError('El perfil no corresponde al usuario autenticado.');
+    }
+
+    await _client.from('profiles').upsert(profile.toJson(), onConflict: 'id');
+
+    _cachedProfile = profile;
+  }
+
+  // ================================================================
+  // LIMPIAR CACHÉ
+  // ================================================================
+
+  void clearCache() {
+    _cachedProfile = null;
   }
 }

@@ -28,10 +28,18 @@ class RouteDto {
       id: json['id']?.toString() ?? '',
       titleEs: json['title_es'] ?? json['title'] ?? json['titulo_es'] ?? '',
       titleEn: json['title_en'] ?? json['titulo_en'],
-      descriptionEs: json['description_es'] ?? json['description'] ?? json['descripcion_es'] ?? '',
+      descriptionEs:
+          json['description_es'] ??
+          json['description'] ??
+          json['descripcion_es'] ??
+          '',
       descriptionEn: json['description_en'] ?? json['descripcion_en'],
-      duration: json['duration'] ?? json['duracion'] ?? '2h 00m',
-      difficultyEs: json['difficulty_es'] ?? json['difficulty'] ?? json['dificultad_es'] ?? 'Media',
+      duration: json['duration']?.toString() ?? '',
+      difficultyEs:
+          json['difficulty_es'] ??
+          json['difficulty'] ??
+          json['dificultad_es'] ??
+          json['difficulty_es']?.toString() ?? '',
       difficultyEn: json['difficulty_en'] ?? json['dificultad_en'],
       distanceKm: (json['distance_km'] as num?)?.toDouble(),
       imageUrl: json['image_url'],

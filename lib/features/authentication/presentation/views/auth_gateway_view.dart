@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/utils/language_provider.dart';
+import '../../../../core/providers/language_provider.dart';
 
 /// Pantalla de acceso:
 /// - Continuar como invitado
@@ -31,7 +31,7 @@ class AuthGatewayView extends ConsumerWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/onboarding');
+              context.go('/language-selection');
             }
           },
         ),

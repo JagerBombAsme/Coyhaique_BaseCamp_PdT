@@ -47,10 +47,12 @@ class GlassIconButton extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: active
-                    ? Colors.white.withValues(alpha: 0.18)
-                    : Colors.black.withValues(alpha: 0.30),
+                    ? HomeVisualTokens.iceBlue.withValues(alpha: 0.92)
+                    : Colors.white.withValues(alpha: 0.72),
                 borderRadius: radius,
-                border: Border.all(color: HomeVisualTokens.outline),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.86),
+                ),
               ),
               child: child,
             ),

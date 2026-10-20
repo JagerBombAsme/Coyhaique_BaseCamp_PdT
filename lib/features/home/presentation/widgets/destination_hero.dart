@@ -87,12 +87,11 @@ class _DestinationHeroState extends State<DestinationHero> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: const [0.0, 0.20, 0.52, 0.76, 1.0],
+                stops: const [0.0, 0.20, 0.52, 1.0],
                 colors: [
-                  const Color(0x99000000),
-                  const Color(0x22000000),
-                  const Color(0x00000000),
-                  HomeVisualTokens.background.withValues(alpha: 0.6),
+                  HomeVisualTokens.deepIce.withValues(alpha: 0.58),
+                  HomeVisualTokens.deepIce.withValues(alpha: 0.16),
+                  HomeVisualTokens.deepIce.withValues(alpha: 0.02),
                   HomeVisualTokens.background,
                 ],
               ),
@@ -138,7 +137,7 @@ class _DestinationHeroState extends State<DestinationHero> {
                       fontSize: 38,
                       height: 1.02,
                       fontWeight: FontWeight.w800,
-                      color: HomeVisualTokens.textPrimary,
+                      color: Colors.white,
                       letterSpacing: -1.1,
                       shadows: [
                         Shadow(
