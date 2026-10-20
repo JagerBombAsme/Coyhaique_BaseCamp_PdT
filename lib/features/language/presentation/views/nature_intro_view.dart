@@ -115,7 +115,7 @@ class _NatureIntroViewState extends State<NatureIntroView>
     _returnController.forward(from: 0.0).then((_) {
       if (!mounted) return;
       // Navegar a la pantalla de selección de idioma
-      context.go('/onboarding');
+      context.go('/language-selection');
     });
   }
 

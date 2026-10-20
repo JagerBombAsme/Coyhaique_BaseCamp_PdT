@@ -36,7 +36,7 @@ class HomeSurface extends StatelessWidget {
                 left: -45,
                 child: _Glow(
                   size: 190,
-                  color: HomeVisualTokens.sage.withValues(alpha: 0.16),
+                  color: HomeVisualTokens.iceBlueMedium.withValues(alpha: 0.34),
                 ),
               ),
               Positioned(
@@ -44,7 +44,7 @@ class HomeSurface extends StatelessWidget {
                 bottom: -105,
                 child: _Glow(
                   size: 210,
-                  color: Colors.white.withValues(alpha: 0.035),
+                  color: HomeVisualTokens.iceBlue.withValues(alpha: 0.48),
                 ),
               ),
             ],

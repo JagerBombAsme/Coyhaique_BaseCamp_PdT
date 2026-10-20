@@ -42,8 +42,6 @@ class ToursSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // La altura crece con el tamaño de texto del sistema para que el
-    // título/subtítulo de las tarjetas no se desborde.
     final textScale =
         (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(1.0, 1.6);
     final listHeight = math.max(310.0, 240.0 + 60.0 * textScale);

@@ -71,7 +71,7 @@ class _CountBadge extends StatelessWidget {
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: HomeVisualTokens.iceBlue,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: HomeVisualTokens.outline),
         ),
@@ -97,7 +97,7 @@ class _ViewAllButton extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
         padding: const EdgeInsets.fromLTRB(14, 9, 12, 9),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
+          color: HomeVisualTokens.surfaceElevated,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: HomeVisualTokens.outline),
         ),
@@ -107,7 +107,7 @@ class _ViewAllButton extends StatelessWidget {
             Text(
               text,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.84),
+                color: HomeVisualTokens.accentStrong,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -116,7 +116,7 @@ class _ViewAllButton extends StatelessWidget {
             Icon(
               Icons.arrow_forward_rounded,
               size: 16,
-              color: Colors.white.withValues(alpha: 0.68),
+              color: HomeVisualTokens.accentStrong.withValues(alpha: 0.82),
             ),
           ],
         ),

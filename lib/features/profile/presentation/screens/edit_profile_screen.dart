@@ -2,8 +2,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../core/providers/auth/auth_user_provider.dart';
+import '../../../../core/providers/language_provider.dart';
+
 import '../../../authentication/data/providers/auth_controller.dart';
-import '../../../../core/utils/language_provider.dart';
+
 import '../../data/models/profile_dto.dart';
 import '../../data/providers/profile_provider.dart';
 
@@ -15,11 +19,27 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
-  bool _pauseNotifications = true;
+  bool _pauseNotifications = false;
   bool _darkMode = false;
+
+  bool _isSaving = false;
+  bool _isLoggingOut = false;
+
+  // ================================================================
+  // CERRAR SESIÓN
+  // ================================================================
+
   Future<void> _handleLogOut(BuildContext context, bool isSpanish) async {
+    if (_isLoggingOut) return;
+
+    setState(() {
+      _isLoggingOut = true;
+    });
+
     try {
       await ref.read(authControllerProvider.notifier).signOut();
+
+      ref.invalidate(profileProvider);
 
       if (!mounted) return;
 
@@ -36,46 +56,76 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoggingOut = false;
+        });
+      }
     }
   }
+
+  // ================================================================
+  // BUILD
+  // ================================================================
 
   @override
   Widget build(BuildContext context) {
     final locale = ref.watch(languageProvider);
     final isSpanish = locale.languageCode == 'es';
-    final profileAsync = ref.watch(profileProvider);
+
+    final authUserAsync = ref.watch(authUserProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFF111113),
       body: SafeArea(
-        child: profileAsync.when(
-          data: (profile) => _buildSettingsContent(context, profile, isSpanish),
+        child: authUserAsync.when(
+          data: (user) {
+            // =========================================================
+            // SIN SESIÓN
+            // =========================================================
+
+            if (user == null) {
+              return _buildNoSessionContent(context, isSpanish);
+            }
+
+            // =========================================================
+            // CON SESIÓN
+            // =========================================================
+
+            final profileAsync = ref.watch(profileProvider);
+
+            return profileAsync.when(
+              data: (profile) {
+                // Cuenta existente, pero todavía sin fila en profiles.
+                if (profile == null) {
+                  return _buildSettingsWithoutProfile(context, isSpanish);
+                }
+
+                return _buildSettingsContent(context, profile, isSpanish);
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+              error: (error, stackTrace) {
+                return _buildProfileError(context, error, isSpanish);
+              },
+            );
+          },
           loading: () => const Center(
             child: CircularProgressIndicator(color: Colors.white),
           ),
-          error: (error, _) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Error al cargar configuración',
-                  style: TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => ref.invalidate(profileProvider),
-                  child: const Text(
-                    'Reintentar',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          error: (error, stackTrace) {
+            return _buildProfileError(context, error, isSpanish);
+          },
         ),
       ),
     );
   }
+
+  // ================================================================
+  // CONFIGURACIÓN CON PERFIL
+  // ================================================================
 
   Widget _buildSettingsContent(
     BuildContext context,
@@ -84,172 +134,66 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   ) {
     return Column(
       children: [
-        // 1. Top Navigation Bar
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              InkWell(
-                onTap: () => context.pop(),
-                borderRadius: BorderRadius.circular(22),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF202024),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  isSpanish ? 'Settings' : 'Settings',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(
-                width: 44,
-              ), // Espaciador de balance para centrar título
-            ],
-          ),
-        ),
+        _buildTopBar(context, isSpanish),
 
-        // 2. Body List
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20.0,
-              vertical: 8.0,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Column(
               children: [
-                // Tarjeta 1: Perfil de usuario (Clickeable para editar datos)
                 _buildProfileCard(context, profile, isSpanish),
+
                 const SizedBox(height: 18),
 
-                // Grupo 1: Notificaciones y General
+                // ====================================================
+                // CONFIGURACIÓN GENERAL
+                // ====================================================
                 _buildCardGroup([
                   _buildSwitchTile(
                     icon: Icons.notifications_none_rounded,
                     title: isSpanish
-                        ? 'Pause notifications'
+                        ? 'Pausar notificaciones'
                         : 'Pause notifications',
                     value: _pauseNotifications,
-                    activeColor: const Color(
-                      0xFFC7F32D,
-                    ), // Verde lima exacto al mockup
-                    onChanged: (val) {
-                      setState(() => _pauseNotifications = val);
+                    activeColor: const Color(0xFFC7F32D),
+                    onChanged: (value) {
+                      setState(() {
+                        _pauseNotifications = value;
+                      });
                     },
                   ),
+
                   _buildDivider(),
+
                   _buildNavigationTile(
                     icon: Icons.tune_rounded,
-                    title: isSpanish ? 'General settings' : 'General settings',
+                    title: isSpanish
+                        ? 'Editar información'
+                        : 'Edit information',
                     onTap: () {
                       _showEditProfileModal(context, profile, isSpanish);
                     },
                   ),
                 ]),
+
                 const SizedBox(height: 16),
 
-                // Grupo 2: Preferencias (Dark mode, Language, Contact)
-                _buildCardGroup([
-                  _buildSwitchTile(
-                    icon: Icons.dark_mode_outlined,
-                    title: isSpanish ? 'Dark mode' : 'Dark mode',
-                    value: _darkMode,
-                    activeColor: Colors.white,
-                    onChanged: (val) {
-                      setState(() => _darkMode = val);
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildNavigationTile(
-                    icon: Icons.translate_rounded,
-                    title: isSpanish ? 'Language' : 'Language',
-                    onTap: () => context.push('/onboarding'),
-                  ),
-                  _buildDivider(),
-                  _buildNavigationTile(
-                    icon: Icons.people_outline_rounded,
-                    title: isSpanish ? 'My Contact' : 'My Contact',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            isSpanish
-                                ? 'Contacto: soporte@coyhaiquebasecamp.cl'
-                                : 'Contact: support@coyhaiquebasecamp.cl',
-                          ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  ),
-                ]),
+                // ====================================================
+                // PREFERENCIAS
+                // ====================================================
+                _buildPreferencesGroup(context, isSpanish),
+
                 const SizedBox(height: 16),
 
-                // Grupo 3: FAQ, Términos, Políticas
-                _buildCardGroup([
-                  _buildNavigationTile(
-                    icon: Icons.help_outline_rounded,
-                    title: 'FAQ',
-                    onTap: () {
-                      _showInfoDialog(
-                        context,
-                        'FAQ',
-                        isSpanish
-                            ? 'Coyhaique BaseCamp es tu guía turística e informativa de Coyhaique y la región de Aysén.'
-                            : 'Coyhaique BaseCamp is your tourist and informational guide for Coyhaique and Aysén.',
-                      );
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildNavigationTile(
-                    icon: Icons.info_outline_rounded,
-                    title: isSpanish ? 'Terms of service' : 'Terms of service',
-                    onTap: () {
-                      _showInfoDialog(
-                        context,
-                        isSpanish
-                            ? 'Términos del servicio'
-                            : 'Terms of service',
-                        isSpanish
-                            ? 'El uso de esta aplicación implica la aceptación de los términos y condiciones de turismo responsable en la Patagonia.'
-                            : 'Using this app implies acceptance of responsible tourism terms in Patagonia.',
-                      );
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildNavigationTile(
-                    icon: Icons.privacy_tip_outlined,
-                    title: isSpanish ? 'User policy' : 'User policy',
-                    onTap: () {
-                      _showInfoDialog(
-                        context,
-                        isSpanish ? 'Política de privacidad' : 'User policy',
-                        isSpanish
-                            ? 'Tus datos están protegidos y sólo se usan para enriquecer tu experiencia en Coyhaique.'
-                            : 'Your data is protected and used solely to enhance your Coyhaique experience.',
-                      );
-                    },
-                  ),
-                ]),
+                // ====================================================
+                // INFORMACIÓN Y LEGAL
+                // ====================================================
+                _buildLegalGroup(context, isSpanish),
+
                 const SizedBox(height: 28),
 
-                // Botón inferior blanco de Log Out con texto e ícono rojo
                 _buildLogOutButton(context, isSpanish),
+
                 const SizedBox(height: 24),
               ],
             ),
@@ -259,16 +203,289 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
+  // ================================================================
+  // CONFIGURACIÓN SIN PERFIL
+  // ================================================================
+
+  Widget _buildSettingsWithoutProfile(BuildContext context, bool isSpanish) {
+    return Column(
+      children: [
+        _buildTopBar(context, isSpanish),
+
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Column(
+              children: [
+                // ====================================================
+                // CUENTA ACTIVA
+                // ====================================================
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E22),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF2A2A30),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person_outline_rounded,
+                          color: Colors.white70,
+                          size: 32,
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      Text(
+                        isSpanish
+                            ? 'Perfil sin personalizar'
+                            : 'Profile not personalized',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      Text(
+                        isSpanish
+                            ? 'Tu cuenta está activa. Puedes personalizar tu perfil cuando quieras.'
+                            : 'Your account is active. You can personalize your profile whenever you want.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 18),
+
+                // ====================================================
+                // CONFIGURACIÓN GENERAL
+                // ====================================================
+                _buildCardGroup([
+                  _buildSwitchTile(
+                    icon: Icons.notifications_none_rounded,
+                    title: isSpanish
+                        ? 'Pausar notificaciones'
+                        : 'Pause notifications',
+                    value: _pauseNotifications,
+                    activeColor: const Color(0xFFC7F32D),
+                    onChanged: (value) {
+                      setState(() {
+                        _pauseNotifications = value;
+                      });
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildPreferencesGroup(context, isSpanish),
+
+                const SizedBox(height: 16),
+
+                _buildLegalGroup(context, isSpanish),
+
+                const SizedBox(height: 28),
+
+                // ====================================================
+                // CERRAR SESIÓN
+                // ====================================================
+                _buildLogOutButton(context, isSpanish),
+
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================================================================
+  // TOP BAR
+  // ================================================================
+
+  Widget _buildTopBar(BuildContext context, bool isSpanish) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => context.pop(),
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFF202024),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Text(
+              isSpanish ? 'Configuración' : 'Settings',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 44),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // PREFERENCIAS
+  // ================================================================
+
+  Widget _buildPreferencesGroup(BuildContext context, bool isSpanish) {
+    return _buildCardGroup([
+      _buildSwitchTile(
+        icon: Icons.dark_mode_outlined,
+        title: isSpanish ? 'Modo oscuro' : 'Dark mode',
+        value: _darkMode,
+        activeColor: Colors.white,
+        onChanged: (value) {
+          setState(() {
+            _darkMode = value;
+          });
+        },
+      ),
+
+      _buildDivider(),
+
+      _buildNavigationTile(
+        icon: Icons.translate_rounded,
+        title: isSpanish ? 'Idioma' : 'Language',
+        onTap: () {
+          context.push('/profile/language');
+        },
+      ),
+
+      _buildDivider(),
+
+      _buildNavigationTile(
+        icon: Icons.people_outline_rounded,
+        title: isSpanish ? 'Contacto' : 'Contact',
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isSpanish
+                    ? 'Contacto: soporte@coyhaiquebasecamp.cl'
+                    : 'Contact: support@coyhaiquebasecamp.cl',
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        },
+      ),
+    ]);
+  }
+
+  // ================================================================
+  // LEGAL Y AYUDA
+  // ================================================================
+
+  Widget _buildLegalGroup(BuildContext context, bool isSpanish) {
+    return _buildCardGroup([
+      _buildNavigationTile(
+        icon: Icons.help_outline_rounded,
+        title: isSpanish ? 'Preguntas frecuentes' : 'FAQ',
+        onTap: () {
+          _showInfoDialog(
+            context,
+            isSpanish ? 'Preguntas frecuentes' : 'FAQ',
+            isSpanish
+                ? 'Coyhaique BaseCamp es una aplicación turística e informativa orientada a Coyhaique.'
+                : 'Coyhaique BaseCamp is a tourist and informational app focused on Coyhaique.',
+          );
+        },
+      ),
+
+      _buildDivider(),
+
+      _buildNavigationTile(
+        icon: Icons.info_outline_rounded,
+        title: isSpanish ? 'Términos del servicio' : 'Terms of service',
+        onTap: () {
+          _showInfoDialog(
+            context,
+            isSpanish ? 'Términos del servicio' : 'Terms of service',
+            isSpanish
+                ? 'Los términos y condiciones definitivos se incorporarán en esta sección.'
+                : 'The final terms and conditions will be included in this section.',
+          );
+        },
+      ),
+
+      _buildDivider(),
+
+      _buildNavigationTile(
+        icon: Icons.privacy_tip_outlined,
+        title: isSpanish ? 'Política de privacidad' : 'Privacy policy',
+        onTap: () {
+          _showInfoDialog(
+            context,
+            isSpanish ? 'Política de privacidad' : 'Privacy policy',
+            isSpanish
+                ? 'La política de privacidad definitiva se incorporará en esta sección.'
+                : 'The final privacy policy will be included in this section.',
+          );
+        },
+      ),
+    ]);
+  }
+
+  // ================================================================
+  // PERFIL CARD
+  // ================================================================
+
   Widget _buildProfileCard(
     BuildContext context,
     ProfileDto profile,
     bool isSpanish,
   ) {
     return InkWell(
-      onTap: () => _showEditProfileModal(context, profile, isSpanish),
+      onTap: () {
+        _showEditProfileModal(context, profile, isSpanish);
+      },
       borderRadius: BorderRadius.circular(22),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E22),
           borderRadius: BorderRadius.circular(22),
@@ -276,7 +493,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ),
         child: Row(
           children: [
-            // Avatar con borde vibrante amarillo / mostaza tal como la imagen
             Container(
               width: 52,
               height: 52,
@@ -304,7 +520,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       ),
               ),
             ),
+
             const SizedBox(width: 14),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,17 +535,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '@${profile.username ?? 'coyhaique_user'}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 13,
+
+                  if (profile.username != null &&
+                      profile.username!.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+
+                    Text(
+                      '@${profile.username}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
+
             const Icon(
               Icons.chevron_right_rounded,
               color: Colors.white38,
@@ -338,6 +562,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ),
     );
   }
+
+  // ================================================================
+  // CARD GROUP
+  // ================================================================
 
   Widget _buildCardGroup(List<Widget> children) {
     return Container(
@@ -350,6 +578,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
+  // ================================================================
+  // NAVIGATION TILE
+  // ================================================================
+
   Widget _buildNavigationTile({
     required IconData icon,
     required String title,
@@ -359,11 +591,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 15.0),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
         child: Row(
           children: [
             Icon(icon, color: Colors.white70, size: 21),
+
             const SizedBox(width: 14),
+
             Expanded(
               child: Text(
                 title,
@@ -374,6 +608,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
               ),
             ),
+
             const Icon(
               Icons.chevron_right_rounded,
               color: Colors.white38,
@@ -385,6 +620,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
+  // ================================================================
+  // SWITCH TILE
+  // ================================================================
+
   Widget _buildSwitchTile({
     required IconData icon,
     required String title,
@@ -393,11 +632,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     required ValueChanged<bool> onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       child: Row(
         children: [
           Icon(icon, color: Colors.white70, size: 21),
+
           const SizedBox(width: 14),
+
           Expanded(
             child: Text(
               title,
@@ -408,6 +649,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               ),
             ),
           ),
+
           Switch(
             value: value,
             onChanged: onChanged,
@@ -431,9 +673,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
+  // ================================================================
+  // LOGOUT
+  // ================================================================
+
   Widget _buildLogOutButton(BuildContext context, bool isSpanish) {
     return InkWell(
-      onTap: () => _confirmLogOut(context, isSpanish),
+      onTap: _isLoggingOut
+          ? null
+          : () {
+              _confirmLogOut(context, isSpanish);
+            },
       borderRadius: BorderRadius.circular(28),
       child: Container(
         height: 54,
@@ -450,31 +700,42 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ],
         ),
         alignment: Alignment.center,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.logout_rounded,
-              color: Color(0xFFE53935),
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              isSpanish ? 'Log Out' : 'Log Out',
-              style: const TextStyle(
-                color: Color(0xFFE53935),
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+        child: _isLoggingOut
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFE53935),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFE53935),
+                    size: 20,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Text(
+                    isSpanish ? 'Cerrar sesión' : 'Log out',
+                    style: const TextStyle(
+                      color: Color(0xFFE53935),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   void _confirmLogOut(BuildContext context, bool isSpanish) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -499,6 +760,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 style: const TextStyle(color: Colors.white60),
               ),
             ),
+
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE53935),
@@ -517,22 +779,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
-  void _showInfoDialog(BuildContext context, String title, String message) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E22),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(message, style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
+  // ================================================================
+  // EDITAR PERFIL
+  // ================================================================
 
   void _showEditProfileModal(
     BuildContext context,
@@ -540,29 +789,33 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     bool isSpanish,
   ) {
     final nameController = TextEditingController(text: profile.fullName);
+
     final usernameController = TextEditingController(
       text: profile.username ?? '',
     );
+
     final bioController = TextEditingController(text: profile.biography ?? '');
+
     final cityController = TextEditingController(text: profile.city ?? '');
+
     final countryController = TextEditingController(
       text: profile.country ?? '',
     );
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1E1E22),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (ctx) {
+      builder: (sheetContext) {
         return Padding(
           padding: EdgeInsets.only(
             left: 24,
             right: 24,
             top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -579,33 +832,43 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 18),
+
                 Text(
-                  isSpanish ? 'Editar Información' : 'Edit Information',
+                  isSpanish ? 'Editar información' : 'Edit information',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
+
                 const SizedBox(height: 16),
+
                 _buildModalTextField(
                   label: isSpanish ? 'Nombre completo' : 'Full name',
                   controller: nameController,
                 ),
+
                 const SizedBox(height: 12),
+
                 _buildModalTextField(
                   label: isSpanish ? 'Nombre de usuario' : 'Username',
                   controller: usernameController,
                   prefix: '@',
                 ),
+
                 const SizedBox(height: 12),
+
                 _buildModalTextField(
                   label: isSpanish ? 'Biografía' : 'Biography',
                   controller: bioController,
-                  maxLines: 2,
+                  maxLines: 3,
                 ),
+
                 const SizedBox(height: 12),
+
                 Row(
                   children: [
                     Expanded(
@@ -614,7 +877,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         controller: cityController,
                       ),
                     ),
+
                     const SizedBox(width: 12),
+
                     Expanded(
                       child: _buildModalTextField(
                         label: isSpanish ? 'País' : 'Country',
@@ -623,7 +888,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 24),
+
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -635,50 +902,37 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                     ),
-                    onPressed: () async {
-                      final updated = ProfileDto(
-                        id: profile.id,
-                        fullName: nameController.text.trim().isNotEmpty
-                            ? nameController.text.trim()
-                            : profile.fullName,
-                        username: usernameController.text.trim().isNotEmpty
-                            ? usernameController.text.trim()
-                            : profile.username,
-                        biography: bioController.text.trim(),
-                        city: cityController.text.trim(),
-                        country: countryController.text.trim(),
-                        avatarUrl: profile.avatarUrl,
-                        language: profile.language,
-                        role: profile.role,
-                        isVerified: profile.isVerified,
-                      );
-
-                      final messenger = ScaffoldMessenger.of(context);
-                      Navigator.pop(ctx);
-
-                      final repo = ref.read(profileRepositoryProvider);
-                      await repo.updateProfile(updated);
-                      ref.invalidate(profileProvider);
-
-                      if (!mounted) return;
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            isSpanish
-                                ? 'Perfil actualizado con éxito'
-                                : 'Profile updated successfully',
+                    onPressed: _isSaving
+                        ? null
+                        : () async {
+                            await _saveProfile(
+                              context,
+                              sheetContext,
+                              profile,
+                              nameController,
+                              usernameController,
+                              bioController,
+                              cityController,
+                              countryController,
+                              isSpanish,
+                            );
+                          },
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : Text(
+                            isSpanish ? 'Guardar cambios' : 'Save changes',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      isSpanish ? 'Guardar Cambios' : 'Save Changes',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
                   ),
                 ),
               ],
@@ -688,6 +942,118 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       },
     );
   }
+
+  // ================================================================
+  // GUARDAR PERFIL
+  // ================================================================
+
+  Future<void> _saveProfile(
+    BuildContext context,
+    BuildContext sheetContext,
+    ProfileDto profile,
+    TextEditingController nameController,
+    TextEditingController usernameController,
+    TextEditingController bioController,
+    TextEditingController cityController,
+    TextEditingController countryController,
+    bool isSpanish,
+  ) async {
+    final user = ref.read(authUserProvider).value;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'Debes iniciar sesión para actualizar tu perfil.'
+                : 'You must log in to update your profile.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final name = nameController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'El nombre completo es obligatorio.'
+                : 'Full name is required.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final updatedProfile = ProfileDto(
+        id: user.id,
+        fullName: name,
+        username: usernameController.text.trim().isEmpty
+            ? null
+            : usernameController.text.trim(),
+        biography: bioController.text.trim(),
+        city: cityController.text.trim(),
+        country: countryController.text.trim(),
+        avatarUrl: profile.avatarUrl,
+        language: profile.language,
+        role: profile.role,
+        isVerified: profile.isVerified,
+      );
+
+      final repository = ref.read(profileRepositoryProvider);
+
+      await repository.updateProfile(userId: user.id, profile: updatedProfile);
+
+      ref.invalidate(profileProvider);
+
+      if (!mounted) return;
+
+      Navigator.of(sheetContext).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'Perfil actualizado correctamente.'
+                : 'Profile updated successfully.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'No fue posible actualizar el perfil.'
+                : 'Unable to update profile.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  // ================================================================
+  // TEXT FIELD
+  // ================================================================
 
   Widget _buildModalTextField({
     required String label,
@@ -713,6 +1079,132 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // INFO DIALOG
+  // ================================================================
+
+  void _showInfoDialog(BuildContext context, String title, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E22),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text(message, style: const TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('OK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ================================================================
+  // SIN SESIÓN
+  // ================================================================
+
+  Widget _buildNoSessionContent(BuildContext context, bool isSpanish) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.lock_outline_rounded,
+              color: Colors.white70,
+              size: 58,
+            ),
+
+            const SizedBox(height: 16),
+
+            Text(
+              isSpanish
+                  ? 'Debes crear una cuenta para acceder a esta configuración.'
+                  : 'You need an account to access these settings.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton(
+              onPressed: () {
+                context.go('/auth-gateway');
+              },
+              child: Text(isSpanish ? 'Crear cuenta' : 'Create account'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // ERROR
+  // ================================================================
+
+  Widget _buildProfileError(
+    BuildContext context,
+    Object error,
+    bool isSpanish,
+  ) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 58),
+
+            const SizedBox(height: 16),
+
+            Text(
+              isSpanish
+                  ? 'No fue posible cargar el perfil.'
+                  : 'Unable to load profile.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+
+            const SizedBox(height: 20),
+
+            TextButton(
+              onPressed: () {
+                ref.invalidate(profileProvider);
+              },
+              child: Text(
+                isSpanish ? 'Reintentar' : 'Retry',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
         ),
       ),
     );

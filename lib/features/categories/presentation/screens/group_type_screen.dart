@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_theme.dart';
-import '../../../../../core/utils/language_provider.dart';
+import '../../../../core/providers/language_provider.dart';
 import '../../../../../core/widgets/category_card.dart';
 import '../../data/providers/places_provider.dart';
 import 'category_places_screen.dart';

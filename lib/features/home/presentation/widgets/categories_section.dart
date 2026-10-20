@@ -77,8 +77,8 @@ class CategoriesSection extends StatelessWidget {
                             end: Alignment.bottomCenter,
                             stops: const [0.2, 1],
                             colors: [
-                              Colors.black.withValues(alpha: 0.10),
-                              Colors.black.withValues(alpha: 0.74),
+                              HomeVisualTokens.deepIce.withValues(alpha: 0.04),
+                              HomeVisualTokens.deepIce.withValues(alpha: 0.82),
                             ],
                           ),
                         ),
@@ -90,7 +90,7 @@ class CategoriesSection extends StatelessWidget {
                             children: [
                               DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
+                                  color: Colors.white.withValues(alpha: 0.78),
                                   borderRadius: chipRadius,
                                   border: Border.all(
                                     color: HomeVisualTokens.outline,
@@ -101,7 +101,7 @@ class CategoriesSection extends StatelessWidget {
                                   child: Icon(
                                     cat.icon,
                                     size: 16,
-                                    color: Colors.white,
+                                    color: HomeVisualTokens.deepIce,
                                   ),
                                 ),
                               ),

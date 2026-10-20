@@ -6,7 +6,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'app/router/app_router.dart';
 import 'core/config/app_config.dart';
 import 'core/theme/app_theme.dart';
-import 'core/utils/language_provider.dart';
+import 'core/providers/language_provider.dart';
 
 class CoyhaiqueApp extends ConsumerWidget {
   const CoyhaiqueApp({

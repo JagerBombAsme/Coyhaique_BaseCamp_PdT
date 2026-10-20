@@ -26,8 +26,8 @@ class DestinationImage extends StatelessWidget {
     this.showOutline = true,
     this.overlay,
     this.placeholderColors = const [
-      Color(0xFF8B9CB3),
-      Color(0xFF2C567A),
+      Color(0xFFDDF3FC),
+      Color(0xFFBFE6F4),
       HomeVisualTokens.background,
     ],
   });
@@ -114,7 +114,7 @@ class DestinationImage extends StatelessWidget {
         child: Icon(
           Icons.landscape_outlined,
           size: 44,
-          color: Colors.white38,
+          color: HomeVisualTokens.accentStrong,
         ),
       ),
     );
