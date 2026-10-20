@@ -9,24 +9,17 @@ import '../../../../core/widgets/glass_auth_card.dart';
 import '/features/authentication/data/providers/auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({
-    super.key,
-    this.onBack,
-    this.onLogin,
-    this.onSignUp,
-  });
+  const LoginScreen({super.key, this.onBack, this.onLogin, this.onSignUp});
 
   final VoidCallback? onBack;
   final VoidCallback? onLogin;
   final VoidCallback? onSignUp;
 
   @override
-  ConsumerState<LoginScreen> createState() =>
-      _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState
-    extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
@@ -46,32 +39,23 @@ class _LoginScreenState
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      _showMessage(
-        'Debes ingresar correo y contraseña.',
-      );
+      _showMessage('Debes ingresar correo y contraseña.');
       return;
     }
 
     if (!_isValidEmail(email)) {
-      _showMessage(
-        'Ingresa un correo electrónico válido.',
-      );
+      _showMessage('Ingresa un correo electrónico válido.');
       return;
     }
 
     final success = await ref
         .read(authControllerProvider.notifier)
-        .signIn(
-          email: email,
-          password: password,
-        );
+        .signIn(email: email, password: password);
 
     if (!mounted) return;
 
     if (success) {
-      _showMessage(
-        'Inicio de sesión correcto.',
-      );
+      _showMessage('Inicio de sesión correcto.');
 
       // La pantalla no decide a dónde navegar.
       // El router o pantalla padre manejará esa decisión.
@@ -85,25 +69,17 @@ class _LoginScreenState
     final error = authState.error;
 
     if (error is AuthException) {
-      _showMessage(
-        _translateAuthError(error),
-      );
+      _showMessage(_translateAuthError(error));
     } else {
-      _showMessage(
-        'No fue posible iniciar sesión.',
-      );
+      _showMessage('No fue posible iniciar sesión.');
     }
   }
 
   bool _isValidEmail(String email) {
-    return RegExp(
-      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    ).hasMatch(email);
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
   }
 
-  String _translateAuthError(
-    AuthException error,
-  ) {
+  String _translateAuthError(AuthException error) {
     final message = error.message.toLowerCase();
 
     if (message.contains('invalid login credentials')) {
@@ -127,17 +103,13 @@ class _LoginScreenState
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState =
-        ref.watch(authControllerProvider);
+    final authState = ref.watch(authControllerProvider);
 
     final isLoading = authState.isLoading;
 
@@ -184,37 +156,20 @@ class _LoginScreenState
                   top: 14,
                   left: 18,
                   child: _BackButton(
-                    onPressed:
-                        isLoading ? null : widget.onBack,
+                    onPressed: isLoading ? null : widget.onBack,
                   ),
                 ),
 
                 Center(
                   child: SingleChildScrollView(
-                    padding:
-                        const EdgeInsets.fromLTRB(
-                      24,
-                      22,
-                      24,
-                      22,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
                     child: ConstrainedBox(
-                      constraints:
-                          const BoxConstraints(
-                        maxWidth: 350,
-                      ),
+                      constraints: const BoxConstraints(maxWidth: 350),
                       child: GlassAuthCard(
                         child: Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(
-                            22,
-                            34,
-                            28,
-                            30,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(22, 34, 28, 30),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
                                 'Bienvenido',
@@ -222,131 +177,86 @@ class _LoginScreenState
                                   color: Colors.white,
                                   fontSize: 34,
                                   height: 1.05,
-                                  fontWeight:
-                                      FontWeight.w800,
+                                  fontWeight: FontWeight.w800,
                                   letterSpacing: -1.0,
                                 ),
                               ),
 
-                              const SizedBox(
-                                height: 10,
-                              ),
+                              const SizedBox(height: 10),
 
                               Text(
                                 'Inicia sesión para continuar explorando Coyhaique Basecamp.',
                                 style: TextStyle(
-                                  color: Colors.white
-                                      .withValues(
-                                    alpha: 0.82,
-                                  ),
+                                  color: Colors.white.withValues(alpha: 0.82),
                                   fontSize: 15,
                                   height: 1.45,
                                 ),
                               ),
 
-                              const SizedBox(
-                                height: 30,
-                              ),
+                              const SizedBox(height: 30),
 
                               AuthTextField(
-                                controller:
-                                    _emailController,
-                                label:
-                                    'Correo electrónico',
-                                keyboardType:
-                                    TextInputType
-                                        .emailAddress,
-                                prefixIcon: Icons
-                                    .person_outline_rounded,
+                                controller: _emailController,
+                                label: 'Correo electrónico',
+                                keyboardType: TextInputType.emailAddress,
+                                prefixIcon: Icons.person_outline_rounded,
                               ),
 
-                              const SizedBox(
-                                height: 14,
-                              ),
+                              const SizedBox(height: 14),
 
                               AuthTextField(
-                                controller:
-                                    _passwordController,
+                                controller: _passwordController,
                                 label: 'Contraseña',
-                                obscureText:
-                                    _obscurePassword,
-                                prefixIcon: Icons
-                                    .lock_outline_rounded,
-                                suffixIcon:
-                                    _obscurePassword
-                                        ? Icons
-                                            .visibility_off_outlined
-                                        : Icons
-                                            .visibility_outlined,
-                                onSuffixPressed:
-                                    isLoading
-                                        ? null
-                                        : () {
-                                            setState(
-                                              () {
-                                                _obscurePassword =
-                                                    !_obscurePassword;
-                                              },
-                                            );
-                                          },
+                                obscureText: _obscurePassword,
+                                prefixIcon: Icons.lock_outline_rounded,
+                                suffixIcon: _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                onSuffixPressed: isLoading
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
                               ),
 
-                              const SizedBox(
-                                height: 16,
-                              ),
+                              const SizedBox(height: 16),
 
                               Row(
                                 children: [
                                   _RememberCheckbox(
-                                    value:
-                                        _rememberMe,
-                                    enabled:
-                                        !isLoading,
-                                    onChanged: (
-                                      value,
-                                    ) {
+                                    value: _rememberMe,
+                                    enabled: !isLoading,
+                                    onChanged: (value) {
                                       setState(() {
-                                        _rememberMe =
-                                            value;
+                                        _rememberMe = value;
                                       });
                                     },
                                   ),
 
-                                  const SizedBox(
-                                    width: 10,
-                                  ),
+                                  const SizedBox(width: 10),
 
                                   Expanded(
                                     child: Text(
                                       'Recordarme',
-                                      style:
-                                          TextStyle(
-                                        color: Colors
-                                            .white
-                                            .withValues(
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
                                           alpha: 0.88,
                                         ),
                                         fontSize: 14,
-                                        fontWeight:
-                                            FontWeight
-                                                .w500,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
 
                                   TextButton(
                                     // Recuperación se conectará después.
-                                    onPressed:
-                                        isLoading
-                                            ? null
-                                            : () {},
+                                    onPressed: isLoading ? null : () {},
                                     child: Text(
                                       '¿Olvidaste tu contraseña?',
-                                      style:
-                                          TextStyle(
-                                        color: Colors
-                                            .white
-                                            .withValues(
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
                                           alpha: 0.72,
                                         ),
                                         fontSize: 12,
@@ -356,58 +266,39 @@ class _LoginScreenState
                                 ],
                               ),
 
-                              const SizedBox(
-                                height: 22,
-                              ),
+                              const SizedBox(height: 22),
 
                               _AuthPrimaryButton(
                                 text: isLoading
                                     ? 'Ingresando...'
                                     : 'Iniciar sesión',
-                                isLoading:
-                                    isLoading,
-                                onPressed:
-                                    isLoading
-                                        ? null
-                                        : _handleLogin,
+                                isLoading: isLoading,
+                                onPressed: isLoading ? null : _handleLogin,
                               ),
 
-                              const SizedBox(
-                                height: 18,
-                              ),
+                              const SizedBox(height: 18),
 
                               Center(
                                 child: Wrap(
-                                  crossAxisAlignment:
-                                      WrapCrossAlignment
-                                          .center,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                       '¿No tienes una cuenta? ',
-                                      style:
-                                          TextStyle(
-                                        color: Colors
-                                            .white
-                                            .withValues(
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
                                           alpha: 0.72,
                                         ),
                                         fontSize: 14,
                                       ),
                                     ),
                                     TextButton(
-                                      onPressed:
-                                          isLoading
-                                              ? null
-                                              : widget
-                                                  .onSignUp,
-                                      child:
-                                          const Text(
+                                      onPressed: isLoading
+                                          ? null
+                                          : widget.onSignUp,
+                                      child: const Text(
                                         'Crear cuenta',
-                                        style:
-                                            TextStyle(
-                                          fontWeight:
-                                              FontWeight
-                                                  .w700,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
                                           fontSize: 14,
                                         ),
                                       ),
@@ -416,23 +307,16 @@ class _LoginScreenState
                                 ),
                               ),
 
-                              const SizedBox(
-                                height: 22,
-                              ),
+                              const SizedBox(height: 22),
 
                               Center(
                                 child: Text(
                                   'Coyhaique Basecamp',
                                   style: TextStyle(
-                                    color: Colors.white
-                                        .withValues(
-                                      alpha: 0.48,
-                                    ),
+                                    color: Colors.white.withValues(alpha: 0.48),
                                     fontSize: 12,
-                                    fontWeight:
-                                        FontWeight.w500,
-                                    letterSpacing:
-                                        0.5,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ),
@@ -452,8 +336,7 @@ class _LoginScreenState
   }
 }
 
-class _AuthPrimaryButton
-    extends StatelessWidget {
+class _AuthPrimaryButton extends StatelessWidget {
   const _AuthPrimaryButton({
     required this.text,
     required this.onPressed,
@@ -472,29 +355,22 @@ class _AuthPrimaryButton
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor:
-              const Color(0xFF7D9A58),
+          backgroundColor: const Color(0xFF7D9A58),
           foregroundColor: Colors.white,
-          disabledBackgroundColor:
-              const Color(0xFF7D9A58)
-                  .withValues(alpha: 0.65),
-          disabledForegroundColor:
-              Colors.white70,
+          disabledBackgroundColor: const Color(
+            0xFF7D9A58,
+          ).withValues(alpha: 0.65),
+          disabledForegroundColor: Colors.white70,
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         child: isLoading
             ? const SizedBox(
                 width: 22,
                 height: 22,
-                child:
-                    CircularProgressIndicator(
+                child: CircularProgressIndicator(
                   strokeWidth: 2.4,
                   color: Colors.white,
                 ),
@@ -505,8 +381,7 @@ class _AuthPrimaryButton
   }
 }
 
-class _RememberCheckbox
-    extends StatelessWidget {
+class _RememberCheckbox extends StatelessWidget {
   const _RememberCheckbox({
     required this.value,
     required this.onChanged,
@@ -520,37 +395,26 @@ class _RememberCheckbox
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: enabled
-          ? () => onChanged(!value)
-          : null,
-      borderRadius:
-          BorderRadius.circular(8),
+      onTap: enabled ? () => onChanged(!value) : null,
+      borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
-        duration:
-            const Duration(milliseconds: 140),
+        duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
         width: 24,
         height: 24,
         decoration: BoxDecoration(
           color: value
               ? const Color(0xFF7D9A58)
-              : Colors.white
-                  .withValues(alpha: 0.08),
-          borderRadius:
-              BorderRadius.circular(7),
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(7),
           border: Border.all(
             color: value
                 ? const Color(0xFF91AF6A)
-                : Colors.white
-                    .withValues(alpha: 0.30),
+                : Colors.white.withValues(alpha: 0.30),
           ),
         ),
         child: value
-            ? const Icon(
-                Icons.check_rounded,
-                size: 17,
-                color: Colors.white,
-              )
+            ? const Icon(Icons.check_rounded, size: 17, color: Colors.white)
             : null,
       ),
     );
@@ -558,29 +422,21 @@ class _RememberCheckbox
 }
 
 class _BackButton extends StatelessWidget {
-  const _BackButton({
-    required this.onPressed,
-  });
+  const _BackButton({required this.onPressed});
 
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius:
-          BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: 12,
-          sigmaY: 12,
-        ),
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Material(
-          color: Colors.black
-              .withValues(alpha: 0.20),
+          color: Colors.black.withValues(alpha: 0.20),
           child: InkWell(
             onTap: onPressed,
-            borderRadius:
-                BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             child: const SizedBox(
               width: 48,
               height: 48,

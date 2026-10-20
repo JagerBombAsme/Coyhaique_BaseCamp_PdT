@@ -2,27 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/bottom_nav_bar.dart';
-
 import '../../features/authentication/presentation/screens/login_screen.dart';
 import '../../features/authentication/presentation/views/auth_gateway_view.dart';
-
 import '../../features/attractions/presentation/views/attraction_detail_view.dart';
 import '../../features/attractions/presentation/views/attractions_list_view.dart';
-
 import '../../features/categories/presentation/screens/category_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/location/presentation/views/initial_location_view.dart';
 import '../../features/map/presentation/screens/map_screen.dart';
-
 import '../../features/onboarding/presentation/views/language_selection_view.dart';
 import '../../features/onboarding/presentation/views/nature_intro_view.dart';
 import '../../features/onboarding/presentation/views/splash_view.dart';
-
 import '../../features/planner/presentation/screens/planificacion_screen.dart';
-
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
-
 import '../../features/routes/presentation/screens/route_detail_screen.dart';
 import '../../features/routes/presentation/screens/route_screen.dart';
 
@@ -53,10 +46,6 @@ final GoRouter appRouter = GoRouter(
         return const LanguageSelectionView();
       },
     ),
-
-    // =============================================================
-    // 2. AUTENTICACIÓN
-    // =============================================================
     GoRoute(
       path: '/auth',
       builder: (context, state) {
@@ -65,12 +54,12 @@ final GoRouter appRouter = GoRouter(
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/onboarding');
+              context.go('/auth-gateway');
             }
           },
 
           onLogin: () {
-            context.go('/auth-gateway');
+            context.go('/initial-location');
           },
 
           onSignUp: () {
@@ -80,7 +69,6 @@ final GoRouter appRouter = GoRouter(
         );
       },
     ),
-
     GoRoute(
       path: '/auth-gateway',
       builder: (context, state) {
@@ -103,17 +91,13 @@ final GoRouter appRouter = GoRouter(
         final isHome = navigationShell.currentIndex == 0;
 
         return Scaffold(
+          extendBody: true, 
           backgroundColor: isHome
               ? const Color(0xFF211F22)
               : const Color(0xFFF6F7F5),
-
           body: navigationShell,
-
-          bottomNavigationBar: BottomNavBar(
+          bottomNavigationBar: GlassNavBar(
             currentIndex: navigationShell.currentIndex,
-
-            isDark: isHome,
-
             onTap: (index) {
               navigationShell.goBranch(
                 index,
@@ -123,11 +107,7 @@ final GoRouter appRouter = GoRouter(
           ),
         );
       },
-
       branches: [
-        // ---------------------------------------------------------
-        // PESTAÑA 0: HOME
-        // ---------------------------------------------------------
         StatefulShellBranch(
           routes: [
             GoRoute(

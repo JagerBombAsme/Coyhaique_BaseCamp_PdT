@@ -1,69 +1,93 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 
-class BottomNavBar extends StatelessWidget {
+/// Barra inferior dividida en dos:
+/// - Píldora izquierda con 3 pestañas (índices 0, 1, 2)
+/// - Botón circular derecho (índice 3)
+class GlassNavBar extends StatelessWidget {
+  const GlassNavBar({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    this.isDark = true,
+  });
+
   final int currentIndex;
   final ValueChanged<int> onTap;
   final bool isDark;
 
-  const BottomNavBar({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-    this.isDark = false,
-  });
+  static const double _height = 64;
 
   @override
   Widget build(BuildContext context) {
-    final dark = isDark || currentIndex == 0;
+    final accent = isDark ? const Color.fromARGB(255, 79, 170, 255) : const Color.fromARGB(255, 33, 31, 158);
+    final inactive = isDark ? const Color.fromARGB(179, 122, 122, 122) : const Color.fromARGB(136, 0, 0, 0);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-      child: SafeArea(
-        top: false,
-        child: Container(
-          height: 68,
-          decoration: BoxDecoration(
-            color: dark ? const Color(0xFF333036) : Colors.white,
-            borderRadius: BorderRadius.circular(26),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: dark ? 0.35 : 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+        child: SizedBox(
+          height: _height,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _NavBarItem(
-                icon: Icons.home_rounded,
-                label: 'Inicio',
-                isSelected: currentIndex == 0,
-                isDark: dark,
-                onTap: () => onTap(0),
+              Expanded(
+                child: _Glass(
+                  isDark: isDark,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _NavItem(
+                          icon: Icons.home_rounded,
+                          label: 'Home',
+                          selected: currentIndex == 0,
+                          accent: accent,
+                          inactive: inactive,
+                          isDark: isDark,
+                          onTap: () => onTap(0),
+                        ),
+                        _NavItem(
+                          icon: Icons.event_note_rounded,
+                          label: 'Plan',
+                          selected: currentIndex == 1,
+                          accent: accent,
+                          inactive: inactive,
+                          isDark: isDark,
+                          onTap: () => onTap(1),
+                        ),
+                        _NavItem(
+                          icon: Icons.map_rounded,
+                          label: 'Mapa',
+                          selected: currentIndex == 2,
+                          accent: accent,
+                          inactive: inactive,
+                          isDark: isDark,
+                          onTap: () => onTap(2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              _NavBarItem(
-                icon: Icons.directions_bus_rounded,
-                label: 'Planificador',
-                isSelected: currentIndex == 1,
-                isDark: dark,
-                onTap: () => onTap(1),
-              ),
-              _NavBarItem(
-                icon: Icons.map_rounded,
-                label: 'Mapa',
-                isSelected: currentIndex == 2,
-                isDark: dark,
-                onTap: () => onTap(2),
-              ),
-              _NavBarItem(
-                icon: Icons.person_rounded,
-                label: 'Perfil',
-                isSelected: currentIndex == 3,
-                isDark: dark,
+              const SizedBox(width: 12),
+              // ---- Derecha: círculo (Perfil) ----
+              GestureDetector(
                 onTap: () => onTap(3),
+                child: _Glass(
+                  isDark: isDark,
+                  highlighted: currentIndex == 3,
+                  child: SizedBox(
+                    width: _height,
+                    height: _height,
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 28,
+                      color: currentIndex == 3 ? accent : inactive,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -73,77 +97,103 @@ class BottomNavBar extends StatelessWidget {
   }
 }
 
-class _NavBarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _NavBarItem({
+class _NavItem extends StatelessWidget {
+  const _NavItem({
     required this.icon,
     required this.label,
-    required this.isSelected,
+    required this.selected,
+    required this.accent,
+    required this.inactive,
     required this.isDark,
     required this.onTap,
   });
 
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final Color accent;
+  final Color inactive;
+  final bool isDark;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    if (isDark) {
-      return Semantics(
-        selected: isSelected,
-        label: label,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              icon,
-              color: isSelected ? const Color(0xFF211F22) : Colors.white70,
-              size: 24,
-            ),
+    final selectedBg = (isDark ? Colors.white : Colors.black).withOpacity(
+      isDark ? 0.14 : 0.08,
+    );
+
+    return Expanded(
+      flex: selected ? 3 : 2,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: selected ? selectedBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(40),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 26, color: selected ? accent : inactive),
+              if (selected) ...[
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+}
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryDark : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : const Color(0xFFC8C8C8),
-              size: 24,
+class _Glass extends StatelessWidget {
+  const _Glass({
+    required this.child,
+    required this.isDark,
+    this.highlighted = false,
+  });
+
+  final Widget child;
+  final bool isDark;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = isDark ? Colors.white : Colors.black;
+    final radius = BorderRadius.circular(40);
+
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                base.withOpacity(highlighted ? 0.28 : (isDark ? 0.22 : 0.10)),
+                base.withOpacity(highlighted ? 0.12 : (isDark ? 0.06 : 0.04)),
+              ],
             ),
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ],
+            border: Border.all(color: base.withOpacity(isDark ? 0.18 : 0.10)),
+          ),
+          child: child,
         ),
       ),
     );

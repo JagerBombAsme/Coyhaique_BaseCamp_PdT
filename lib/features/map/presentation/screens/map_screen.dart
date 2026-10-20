@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../../../../core/theme/app_theme.dart';
-
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -10,13 +10,28 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
+
+  MapboxMap? _mapboxMap;
+
   String _selectedLocation = 'Coyhaique Centro';
 
   final List<Map<String, dynamic>> _quickLocations = [
-    {'name': 'SERNATUR', 'icon': Icons.info_outline, 'sub': 'Información Turística'},
-    {'name': 'Plaza de Armas', 'icon': Icons.park_outlined, 'sub': 'Centro Urbano'},
-    {'name': 'Reserva Nacional', 'icon': Icons.forest_outlined, 'sub': 'Naturaleza'},
-    {'name': 'Cerro Mackay', 'icon': Icons.landscape_outlined, 'sub': 'Mirador'},
+    {
+      'name': 'SERNATUR',
+      'icon': Icons.info_outline,
+    },
+    {
+      'name': 'Plaza de Armas',
+      'icon': Icons.park_outlined,
+    },
+    {
+      'name': 'Reserva Nacional',
+      'icon': Icons.forest_outlined,
+    },
+    {
+      'name': 'Cerro Mackay',
+      'icon': Icons.landscape_outlined,
+    },
   ];
 
   @override
@@ -30,69 +45,37 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Interactive Map Simulation View
-          Container(
-            color: const Color(0xFFE5E9EC),
-            width: double.infinity,
-            height: double.infinity,
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.map,
-                        size: 100,
-                        color: Color(0xFFB0BEC5),
+          // =====================================================
+          // MAPBOX
+          // =====================================================
+          Positioned.fill(
+            child: MapWidget(
+              onMapCreated: (mapboxMap) {
+                _mapboxMap = mapboxMap;
+                mapboxMap.setCamera(
+                  CameraOptions(
+                    center: Point(
+                      coordinates: Position(
+                        -72.0683,
+                        -45.5712,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Mapa Turístico de Coyhaique',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey[800],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Ubicación actual: $_selectedLocation',
-                        style: const TextStyle(
-                          color: AppTheme.primaryDark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                    ),
+                    zoom: 12.5,
                   ),
-                ),
-                // Simulated Pin Marker
-                Positioned(
-                  top: MediaQuery.of(context).size.height * 0.45,
-                  left: MediaQuery.of(context).size.width * 0.45,
-                  child: const Column(
-                    children: [
-                      Icon(Icons.location_on, size: 48, color: Colors.redAccent),
-                      Card(
-                        elevation: 4,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Text(
-                            'Coyhaique',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
-          // Top Search bar & quick chips
+
+          // =====================================================
+          // BUSCADOR Y ACCESOS RÁPIDOS
+          // =====================================================
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
               child: Column(
                 children: [
                   Container(
@@ -101,7 +84,9 @@ class _MapScreenState extends State<MapScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
+                          color: Colors.black.withValues(
+                            alpha: 0.10,
+                          ),
                           blurRadius: 10,
                         ),
                       ],
@@ -109,41 +94,68 @@ class _MapScreenState extends State<MapScreen> {
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: 'Buscar destinos, servicios en el mapa...',
-                        prefixIcon: const Icon(Icons.search, color: AppTheme.primaryDark),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {});
-                                },
-                              )
-                            : null,
+                        hintText:
+                            'Buscar destinos, servicios en el mapa...',
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: AppTheme.primaryDark,
+                        ),
+                        suffixIcon:
+                            _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+
+                                      setState(() {});
+                                    },
+                                  )
+                                : null,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                        contentPadding:
+                            const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
                       ),
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) {
+                        setState(() {});
+                      },
                     ),
                   ),
+
                   const SizedBox(height: 12),
+
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children: _quickLocations.map((location) {
+                      children:
+                          _quickLocations.map((location) {
                         return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
+                          padding: const EdgeInsets.only(
+                            right: 8.0,
+                          ),
                           child: ActionChip(
-                            avatar: Icon(location['icon'] as IconData, size: 18, color: AppTheme.primaryDark),
+                            avatar: Icon(
+                              location['icon'] as IconData,
+                              size: 18,
+                              color: AppTheme.primaryDark,
+                            ),
                             label: Text(
                               location['name'] as String,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                             backgroundColor: Colors.white,
                             elevation: 2,
                             onPressed: () {
                               setState(() {
-                                _selectedLocation = location['name'] as String;
+                                _selectedLocation =
+                                    location['name']
+                                        as String;
                               });
                             },
                           ),
@@ -155,21 +167,98 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
-          // Floating location button
+
+          // =====================================================
+          // UBICACIÓN SELECCIONADA
+          // =====================================================
           Positioned(
-            bottom: 30,
+            left: 16,
+            bottom: 110,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(
+                  alpha: 0.92,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: 0.10,
+                    ),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.location_on,
+                    color: AppTheme.primaryDark,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _selectedLocation,
+                    style: const TextStyle(
+                      color: AppTheme.primaryDark,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // =====================================================
+          // BOTÓN DE UBICACIÓN
+          // =====================================================
+          Positioned(
+            bottom: 110,
             right: 20,
             child: FloatingActionButton(
+              heroTag: 'map_location_button',
               backgroundColor: AppTheme.primaryDark,
-              onPressed: () {
-                setState(() {
-                  _selectedLocation = 'Coyhaique Centro';
-                });
-              },
-              child: const Icon(Icons.my_location, color: Colors.white),
+              onPressed: _goToCoyhaiqueCenter,
+              child: const Icon(
+                Icons.my_location,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _goToCoyhaiqueCenter() async {
+    final mapboxMap = _mapboxMap;
+
+    if (mapboxMap == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedLocation = 'Coyhaique Centro';
+    });
+
+    await mapboxMap.flyTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(
+            -72.0683,
+            -45.5712,
+          ),
+        ),
+        zoom: 13,
+      ),
+      MapAnimationOptions(
+        duration: 1000,
       ),
     );
   }
