@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/providers/language_provider.dart';
-import '../../../routes/data/models/activity_dto.dart';
-import '../../../routes/data/providers/activity_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../routes/data/models/activity_dto.dart';
+import '../../routes/data/providers/activity_provider.dart';
 
 class ActivityScreen extends ConsumerWidget {
   const ActivityScreen({super.key});
