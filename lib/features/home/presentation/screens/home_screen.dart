@@ -8,10 +8,13 @@ import '../../../../core/providers/language_provider.dart';
 
 import '../../../categories/data/providers/places_provider.dart'
   hide activitiesProvider;
+import '../../../categories/presentation/widgets/place_search_delegate.dart';
 
 import '../../../routes/data/models/activity_dto.dart';
 import '../../../routes/data/providers/activity_provider.dart';
 
+import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../widgets/catalog_status_card.dart';
 import '../widgets/categories_section.dart';
 import '../widgets/destination_hero.dart';
 import '../widgets/glass_icon_button.dart';
@@ -34,23 +37,36 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Aviso de uso seguro al entrar al inicio, una vez por sesión (RNF-14).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      TripNotice.show(
+        context,
+        kind: TripNoticeKind.home,
+        oncePerSession: true,
+      );
+    });
+  }
+
   static const _statusBarStyle = SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
   );
 
-  static const Color _snowWhite = Color(0xFFF8FCFE);
+  // Paleta única: todo sale de HomeVisualTokens.
+  static const Color _snowWhite = HomeVisualTokens.background;
 
-  static const Color _pureWhite = Color(0xFFFFFFFF);
+  static const Color _pureWhite = HomeVisualTokens.surface;
 
-  static const Color _iceBlue = Color(0xFFDFF4FF);
+  static const Color _iceBlue = HomeVisualTokens.iceBlue;
 
-  static const Color _iceBlueMedium = Color(0xFFBFE8F8);
+  static const Color _iceAccent = HomeVisualTokens.accentStrong;
 
-  static const Color _iceAccent = Color(0xFF5FA8C6);
-
-  static const Color _iceDark = Color(0xFF2E5F73);
+  static const Color _iceDark = HomeVisualTokens.deepIce;
 
   @override
   Widget build(BuildContext context) {
@@ -138,6 +154,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ? 'Coyhaique ofrece vistas a la montaña, ríos patagónicos y un entorno natural inigualable. Perfecto tanto para descansar como para la aventura.'
                           : 'Coyhaique offers mountain views, Patagonian rivers, and an unmatched natural setting. Perfect for both relaxing and active trips.',
                       imagePath: 'assets/images/cerro_castillo_laguna.jpg',
+                      // Búsqueda de lugares y actividades (HU-04)
+                      trailingAction: GlassIconButton(
+                        semanticLabel: isSpanish ? 'Buscar' : 'Search',
+                        onTap: () => showSearch<void>(
+                          context: context,
+                          delegate: PlaceSearchDelegate(isSpanish: isSpanish),
+                        ),
+                        // Ícono oscuro: el vidrio es blanco al 72 %.
+                        child: const Icon(
+                          Icons.search_rounded,
+                          size: 24,
+                          color: _iceDark,
+                        ),
+                      ),
                     ),
 
                     // =================================================
@@ -145,33 +175,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     // =================================================
                     Transform.translate(
                       offset: const Offset(0, -18),
+                      // HomeSurface ya trae su sombra en capas.
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: HomeVisualTokens.sectionMargin,
                         ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(28),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _iceAccent.withValues(alpha: 0.12),
-                                blurRadius: 24,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: HomeSurface(
-                            child: _buildActivitiesSection(
-                              context,
-                              activitiesAsync,
-                              isSpanish,
-                            ),
+                        child: HomeSurface(
+                          child: _buildActivitiesSection(
+                            context,
+                            activitiesAsync,
+                            isSpanish,
                           ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: HomeVisualTokens.sectionGap),
+                    // =================================================
+                    // INFORMACIÓN DESCARGADA (HU-09, HU-10)
+                    // =================================================
+                    const CatalogStatusCard(),
+
+                    // =================================================
+                    // ANTES DE TU VIAJE (HU-25, RNF-14)
+                    // =================================================
+                    const TripInfoEntryCard(),
+
+                    const SizedBox(height: HomeVisualTokens.sectionGap + 4),
 
                     // =================================================
                     // CATEGORÍAS
@@ -180,25 +209,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       padding: const EdgeInsets.symmetric(
                         horizontal: HomeVisualTokens.sectionMargin,
                       ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _iceBlueMedium.withValues(alpha: 0.35),
-                              blurRadius: 28,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: HomeSurface(
-                          ambientGlow: true,
-                          child: CategoriesSection(
-                            title: isSpanish ? 'Explorar' : 'Explore',
-                            categories: categoryList,
-                            language: language,
-                            onCategoryTap: widget.onNavigate,
-                          ),
+                      child: HomeSurface(
+                        ambientGlow: true,
+                        child: CategoriesSection(
+                          title: isSpanish ? 'Explorar' : 'Explore',
+                          categories: categoryList,
+                          language: language,
+                          onCategoryTap: widget.onNavigate,
                         ),
                       ),
                     ),
@@ -215,25 +232,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Positioned(
               top: DestinationHero.controlTop(context),
               left: HomeVisualTokens.pagePadding,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _iceDark.withValues(alpha: 0.18),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: GlassIconButton(
-                  semanticLabel: isSpanish ? 'Perfil' : 'Profile',
-                  onTap: widget.onProfileClick,
-                  child: const Icon(
-                    Icons.person_outline_rounded,
-                    size: 24,
-                    color: Colors.white,
-                  ),
+              // GlassIconButton ya trae softShadow; la sombra circular
+              // anterior no coincidía con su forma redondeada.
+              child: GlassIconButton(
+                semanticLabel: isSpanish ? 'Perfil' : 'Profile',
+                onTap: widget.onProfileClick,
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  size: 24,
+                  color: _iceDark,
                 ),
               ),
             ),
@@ -435,13 +442,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
 
-          TextButton(
+          TextButton.icon(
             onPressed: () {
               ref.invalidate(activitiesProvider);
             },
-            child: Text(isSpanish ? 'Reintentar' : 'Retry'),
+            style: TextButton.styleFrom(
+              foregroundColor: _iceDark,
+              backgroundColor: _iceBlue,
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              shape: const StadiumBorder(),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: Text(isSpanish ? 'Reintentar' : 'Retry'),
           ),
         ],
       ),

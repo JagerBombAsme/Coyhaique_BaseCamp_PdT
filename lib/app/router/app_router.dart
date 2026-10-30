@@ -28,6 +28,8 @@ import '../../features/language/presentation/views/nature_intro_view.dart';
 import '../../features/language/presentation/views/splash_view.dart';
 
 import '../../features/planner/presentation/screens/planificacion_screen.dart';
+import '../../features/trip_info/presentation/screens/trip_info_screen.dart';
+import '../../features/trip_info/presentation/widgets/trip_notice.dart';
 
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
@@ -279,6 +281,14 @@ GoRouter _createRouter() {
       ),
 
       // =============================================================
+      // ANTES DE TU VIAJE (HU-25, RNF-14)
+      // =============================================================
+      GoRoute(
+        path: tripInfoRoute,
+        builder: (context, state) => const TripInfoScreen(),
+      ),
+
+      // =============================================================
       // CATEGORÍAS
       // =============================================================
       GoRoute(
@@ -286,7 +296,12 @@ GoRouter _createRouter() {
         builder: (context, state) {
           final slug = state.pathParameters['slug'] ?? '';
 
-          return Scaffold(
+          // Aviso de transporte referencial al abrir categorías de
+          // transporte, una vez por sesión (RNF-14).
+          return TripNoticeOnOpen(
+            kind: TripNoticeKind.transport,
+            enabled: slug.toLowerCase().contains('transp'),
+            child: Scaffold(
             appBar: AppBar(title: Text(slug.toUpperCase())),
 
             body: CategoryScreen(
@@ -299,6 +314,7 @@ GoRouter _createRouter() {
               onRoutesClick: () {
                 context.push('/routes');
               },
+            ),
             ),
           );
         },

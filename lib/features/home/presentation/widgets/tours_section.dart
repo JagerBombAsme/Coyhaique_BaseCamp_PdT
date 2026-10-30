@@ -44,7 +44,7 @@ class ToursSection extends StatelessWidget {
 
     final textScale =
         (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(1.0, 1.6);
-    final listHeight = math.max(310.0, 240.0 + 60.0 * textScale);
+    final listHeight = math.max(250.0, 190.0 + 55.0 * textScale);
 
     return Padding(
       padding: HomeVisualTokens.sectionPadding,

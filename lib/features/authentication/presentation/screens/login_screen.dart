@@ -121,7 +121,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Image.asset(
             'assets/images/cultura_gaucho.jpg',
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) {
+            errorBuilder: (_, _, _) {
               return const ColoredBox(
                 color: Color(0xFF1B2421),
                 child: Center(

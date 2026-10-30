@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../trip_info/presentation/widgets/trip_notice.dart';
 import 'mapbox_directions_services.dart';
 
 // ===============================================================
@@ -313,6 +314,9 @@ class _MapScreenState extends State<MapScreen> {
         _route = route;
         _routeLabel = '${from.name} → ${to.name}';
       });
+
+      // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
+      TripNotice.show(context, kind: TripNoticeKind.route);
     } catch (e) {
       debugPrint('ERROR RUTA: $e');
       _showMessage('No se pudo calcular la ruta');
