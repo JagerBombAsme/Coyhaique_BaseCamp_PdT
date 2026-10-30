@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/models/category_model.dart';
 import '../../../../core/models/informational_content_dto.dart';
 import '../models/place_dto.dart';
@@ -7,7 +8,12 @@ import '../repository/places_repository.dart';
 
 final placesRepositoryProvider =
     Provider<PlacesRepository>((ref) {
-  return PlacesRepository();
+  return PlacesRepository(
+    localDb: ref.read(catalogLocalDbProvider),
+    onDataSource: (usingOfflineData) => ref
+        .read(catalogStatusProvider.notifier)
+        .setUsingOfflineData(usingOfflineData),
+  );
 });
 
 /// Todas las categorías activas desde categories_v2.

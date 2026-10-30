@@ -6,7 +6,7 @@ import 'pressable_scale.dart';
 
 class TourCard extends StatelessWidget {
   static const double width = 188;
-  static const double imageHeight = 220;
+  static const double imageHeight = 172;
 
   final String title;
   final String imagePath;

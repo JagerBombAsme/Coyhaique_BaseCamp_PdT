@@ -1,27 +1,31 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Barra inferior dividida en dos:
 /// - Píldora izquierda con 3 pestañas (índices 0, 1, 2)
 /// - Botón circular derecho (índice 3)
+///
+/// El único aspecto dinámico es el COLOR, resuelto desde el
+/// [NavGlassColors] del tema actual (modo claro/oscuro). La geometría,
+/// tamaño y posición son fijos; la navegación se conserva intacta.
 class GlassNavBar extends StatelessWidget {
   const GlassNavBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.isDark = true,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
-  final bool isDark;
 
   static const double _height = 64;
 
   @override
   Widget build(BuildContext context) {
-    final accent = isDark ? const Color.fromARGB(255, 79, 170, 255) : const Color.fromARGB(255, 33, 31, 158);
-    final inactive = isDark ? const Color.fromARGB(179, 122, 122, 122) : const Color.fromARGB(136, 0, 0, 0);
+    final glass = Theme.of(context).extension<NavGlassColors>() ??
+        NavGlassColors.light;
 
     return SafeArea(
       top: false,
@@ -33,7 +37,8 @@ class GlassNavBar extends StatelessWidget {
             children: [
               Expanded(
                 child: _Glass(
-                  isDark: isDark,
+                  gradient: [glass.scrimTop, glass.scrimBottom],
+                  borderColor: glass.border,
                   child: Padding(
                     padding: const EdgeInsets.all(6),
                     child: Row(
@@ -43,27 +48,21 @@ class GlassNavBar extends StatelessWidget {
                           icon: Icons.home_rounded,
                           label: 'Home',
                           selected: currentIndex == 0,
-                          accent: accent,
-                          inactive: inactive,
-                          isDark: isDark,
+                          colors: glass,
                           onTap: () => onTap(0),
                         ),
                         _NavItem(
                           icon: Icons.event_note_rounded,
                           label: 'Plan',
                           selected: currentIndex == 1,
-                          accent: accent,
-                          inactive: inactive,
-                          isDark: isDark,
+                          colors: glass,
                           onTap: () => onTap(1),
                         ),
                         _NavItem(
                           icon: Icons.map_rounded,
                           label: 'Mapa',
                           selected: currentIndex == 2,
-                          accent: accent,
-                          inactive: inactive,
-                          isDark: isDark,
+                          colors: glass,
                           onTap: () => onTap(2),
                         ),
                       ],
@@ -76,16 +75,32 @@ class GlassNavBar extends StatelessWidget {
               GestureDetector(
                 onTap: () => onTap(3),
                 child: _Glass(
-                  isDark: isDark,
-                  highlighted: currentIndex == 3,
+                  gradient: [glass.scrimTop, glass.scrimBottom],
+                  borderColor: glass.border,
+                  fill: currentIndex == 3 ? glass.selectedContainer : null,
                   child: SizedBox(
                     width: _height,
                     height: _height,
-                    child: Icon(
-                      Icons.person_rounded,
-                      size: 28,
-                      color: currentIndex == 3 ? accent : inactive,
-                    ),
+                    child: currentIndex == 3
+                        ? Icon(
+                            Icons.person_rounded,
+                            size: 28,
+                            color: glass.selectedForeground,
+                          )
+                        : Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: glass.unselectedBackdrop,
+                            ),
+                            child: Icon(
+                              Icons.person_rounded,
+                              size: 24,
+                              color: glass.unselectedForeground,
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -102,26 +117,18 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.selected,
-    required this.accent,
-    required this.inactive,
-    required this.isDark,
+    required this.colors,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
-  final Color accent;
-  final Color inactive;
-  final bool isDark;
+  final NavGlassColors colors;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final selectedBg = (isDark ? Colors.white : Colors.black).withOpacity(
-      isDark ? 0.14 : 0.08,
-    );
-
     return Expanded(
       flex: selected ? 3 : 2,
       child: GestureDetector(
@@ -131,13 +138,25 @@ class _NavItem extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            color: selected ? selectedBg : Colors.transparent,
+            color: selected ? colors.selectedContainer : Colors.transparent,
             borderRadius: BorderRadius.circular(40),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 26, color: selected ? accent : inactive),
+              if (selected)
+                Icon(icon, size: 26, color: colors.selectedForeground)
+              else
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.unselectedBackdrop,
+                  ),
+                  child: Icon(icon, size: 24, color: colors.unselectedForeground),
+                ),
               if (selected) ...[
                 const SizedBox(width: 8),
                 Flexible(
@@ -145,7 +164,7 @@ class _NavItem extends StatelessWidget {
                     label,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: accent,
+                      color: colors.selectedForeground,
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                     ),
@@ -163,18 +182,22 @@ class _NavItem extends StatelessWidget {
 class _Glass extends StatelessWidget {
   const _Glass({
     required this.child,
-    required this.isDark,
-    this.highlighted = false,
+    required this.gradient,
+    required this.borderColor,
+    this.fill,
   });
 
   final Widget child;
-  final bool isDark;
-  final bool highlighted;
+  final List<Color> gradient;
+  final Color borderColor;
+
+  /// Si no es nulo, reemplaza el degradado por un color sólido
+  /// (usado para el estado seleccionado del botón de perfil).
+  final Color? fill;
 
   @override
   Widget build(BuildContext context) {
-    final base = isDark ? Colors.white : Colors.black;
-    final radius = BorderRadius.circular(40);
+    const radius = BorderRadius.all(Radius.circular(40));
 
     return ClipRRect(
       borderRadius: radius,
@@ -183,15 +206,15 @@ class _Glass extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: radius,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                base.withOpacity(highlighted ? 0.28 : (isDark ? 0.22 : 0.10)),
-                base.withOpacity(highlighted ? 0.12 : (isDark ? 0.06 : 0.04)),
-              ],
-            ),
-            border: Border.all(color: base.withOpacity(isDark ? 0.18 : 0.10)),
+            color: fill,
+            gradient: fill == null
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: gradient,
+                  )
+                : null,
+            border: Border.all(color: borderColor),
           ),
           child: child,
         ),

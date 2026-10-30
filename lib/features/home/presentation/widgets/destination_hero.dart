@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
-import 'animated_icon_swap.dart';
 import 'destination_image.dart';
-import 'glass_icon_button.dart';
 import 'home_visual_tokens.dart';
 
 class DestinationHero extends StatefulWidget {
   final String title;
   final String description;
   final String imagePath;
-  final VoidCallback? onBookmarkToggle;
-  final bool initialBookmarked;
+
+  /// Acción opcional en la esquina superior derecha (búsqueda, HU-04).
+  /// Reemplaza al botón de favoritos, que no forma parte de la Versión 1.0:
+  /// la Evaluación 1 no declara favoritos (trabajo futuro).
+  final Widget? trailingAction;
 
   const DestinationHero({
     super.key,
@@ -18,8 +19,7 @@ class DestinationHero extends StatefulWidget {
     this.description =
         'Coyhaique ofrece vistas a la montaña, ríos patagónicos y un entorno natural inigualable. Perfecto tanto para descansar como para la aventura.',
     this.imagePath = 'assets/images/cerro_castillo_laguna.jpg',
-    this.onBookmarkToggle,
-    this.initialBookmarked = false,
+    this.trailingAction,
   });
 
   /// Offset superior compartido con el botón de perfil del Home,
@@ -32,40 +32,6 @@ class DestinationHero extends StatefulWidget {
 }
 
 class _DestinationHeroState extends State<DestinationHero> {
-  late bool _isBookmarked;
-
-  @override
-  void initState() {
-    super.initState();
-    _isBookmarked = widget.initialBookmarked;
-  }
-
-  void _handleBookmark() {
-    setState(() {
-      _isBookmarked = !_isBookmarked;
-    });
-
-    if (widget.onBookmarkToggle != null) {
-      widget.onBookmarkToggle!();
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 1),
-          backgroundColor: HomeVisualTokens.surfaceElevated,
-          content: Text(
-            _isBookmarked
-                ? 'Destino guardado en favoritos'
-                : 'Destino eliminado de favoritos',
-          ),
-        ),
-      );
-  }
-
   @override
   Widget build(BuildContext context) {
     final heroHeight =
@@ -97,29 +63,12 @@ class _DestinationHeroState extends State<DestinationHero> {
               ),
             ),
           ),
-          Positioned(
-            top: DestinationHero.controlTop(context),
-            right: HomeVisualTokens.pagePadding,
-            child: GlassIconButton(
-              active: _isBookmarked,
-              semanticLabel: _isBookmarked
-                  ? 'Quitar de favoritos'
-                  : 'Guardar en favoritos',
-              onTap: _handleBookmark,
-              child: AnimatedIconSwap(
-                child: Icon(
-                  _isBookmarked
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded,
-                  key: ValueKey(_isBookmarked),
-                  size: 24,
-                  color: _isBookmarked
-                      ? HomeVisualTokens.accent
-                      : Colors.white,
-                ),
-              ),
+          if (widget.trailingAction != null)
+            Positioned(
+              top: DestinationHero.controlTop(context),
+              right: HomeVisualTokens.pagePadding,
+              child: widget.trailingAction!,
             ),
-          ),
           Positioned(
             left: HomeVisualTokens.pagePadding,
             right: HomeVisualTokens.pagePadding,
