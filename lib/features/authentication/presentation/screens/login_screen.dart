@@ -2,18 +2,29 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/widgets/auth_text_field.dart';
 import '../../../../core/widgets/glass_auth_card.dart';
+import '../../../../core/providers/language_provider.dart';
+import '/features/authentication/data/auth_error_messages.dart';
+import '/features/authentication/data/auth_validators.dart';
 import '/features/authentication/data/providers/auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key, this.onBack, this.onLogin, this.onSignUp});
+  const LoginScreen({
+    super.key,
+    this.onBack,
+    this.onLogin,
+    this.onSignUp,
+    this.onForgotPassword,
+  });
 
   final VoidCallback? onBack;
   final VoidCallback? onLogin;
   final VoidCallback? onSignUp;
+
+  /// Recibe el correo escrito, para no tener que escribirlo de nuevo.
+  final ValueChanged<String>? onForgotPassword;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -43,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    if (!_isValidEmail(email)) {
+    if (!AuthValidators.isValidEmail(email)) {
       _showMessage('Ingresa un correo electrónico válido.');
       return;
     }
@@ -64,37 +75,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final authState = ref.read(authControllerProvider);
+    // Sin conexión, Supabase lanza AuthRetryableFetchException con el texto
+    // «ClientException with SocketException: Failed host lookup». Se traduce
+    // a un mensaje claro y nunca se muestra el texto técnico.
+    final error = ref.read(authControllerProvider).error;
+    final isSpanish = ref.read(languageProvider).languageCode == 'es';
 
-    final error = authState.error;
-
-    if (error is AuthException) {
-      _showMessage(_translateAuthError(error));
-    } else {
-      _showMessage('No fue posible iniciar sesión.');
-    }
-  }
-
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
-  }
-
-  String _translateAuthError(AuthException error) {
-    final message = error.message.toLowerCase();
-
-    if (message.contains('invalid login credentials')) {
-      return 'Correo o contraseña incorrectos.';
-    }
-
-    if (message.contains('email not confirmed')) {
-      return 'Debes confirmar tu correo electrónico.';
-    }
-
-    if (message.contains('too many requests')) {
-      return 'Demasiados intentos. Intenta nuevamente más tarde.';
-    }
-
-    return error.message;
+    _showMessage(
+      error == null
+          ? 'No fue posible iniciar sesión.'
+          : authErrorMessage(error, isSpanish: isSpanish),
+    );
   }
 
   void _showMessage(String message) {
@@ -251,8 +242,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
 
                                   TextButton(
-                                    // Recuperación se conectará después.
-                                    onPressed: isLoading ? null : () {},
+                                    onPressed: isLoading
+                                        ? null
+                                        : () => widget.onForgotPassword?.call(
+                                              _emailController.text.trim(),
+                                            ),
                                     child: Text(
                                       '¿Olvidaste tu contraseña?',
                                       style: TextStyle(

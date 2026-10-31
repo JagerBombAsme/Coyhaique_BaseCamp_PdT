@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sistema Coyhaique BaseCamp (BcColors). -->
+    <color name="bc_fog">#E8EBED</color>
+    <color name="bc_ink">#121416</color>
+</resources>

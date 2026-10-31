@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <defs>
+    <mask id="m">
+      <rect width="1000" height="1000" fill="black"/>
+      <circle cx="500" cy="500" r="500" fill="white"/>
+      <!-- boca de la C -->
+      <path d="M815 335 H1010 V665 H815 Q765 665 765 615 V385 Q765 335 815 335 Z" fill="black"/>
+      <g fill="black">
+        <path d="M372 420 C 340 380, 310 335, 268 292" stroke="black" stroke-width="34" fill="none" stroke-linecap="round"/>
+        <path d="M268 292 C 205 225, 228 130, 330 88 C 392 170, 362 262, 268 292 Z"/>
+        <path d="M268 292 C 205 230, 112 240, 92 322 C 165 380, 240 365, 268 292 Z"/>
+        <circle cx="490" cy="545" r="192"/>
+        <path d="M600 680 L 622 728 L 650 694 L 690 718 L 680 674 L 724 660 L 672 636 Z"/>
+      </g>
+      <g fill="none" stroke="white" stroke-linecap="round" stroke-width="13">
+        <path d="M268 292 C 285 225, 305 160, 325 100"/>
+        <path d="M268 292 C 205 292, 150 302, 100 320"/>
+        <path d="M375 470 A 135 135 0 0 1 462 402" stroke-width="24"/>
+      </g>
+    </mask>
+  </defs>
+  <rect width="1000" height="1000" fill="#121416" mask="url(#m)"/>
+</svg>

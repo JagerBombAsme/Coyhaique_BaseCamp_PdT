@@ -6,12 +6,7 @@ import '../../../../core/utils/text_normalizer.dart';
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
 
-/// Búsqueda de lugares y actividades desde el inicio (HU-04).
-///
-/// Busca en el nombre (español e inglés), la categoría y la dirección o punto
-/// de encuentro, sin distinguir mayúsculas ni tildes. Usa los mismos
-/// providers del catálogo, así que también funciona sin conexión con la
-/// copia descargada (HU-10).
+
 class PlaceSearchDelegate extends SearchDelegate<void> {
   PlaceSearchDelegate({required this.isSpanish})
       : super(

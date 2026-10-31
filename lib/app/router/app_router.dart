@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/basecamp_tokens.dart';
+
 import '../../core/widgets/bottom_nav_bar.dart';
 
+import '../../features/authentication/presentation/screens/forgot_password_screen.dart';
 import '../../features/authentication/presentation/screens/login_screen.dart';
+import '../../features/authentication/presentation/screens/register_screen.dart';
 import '../../features/authentication/presentation/views/auth_gateway_view.dart';
 
 import '../../features/attractions/presentation/views/attraction_detail_view.dart';
@@ -28,10 +32,12 @@ import '../../features/language/presentation/views/nature_intro_view.dart';
 import '../../features/language/presentation/views/splash_view.dart';
 
 import '../../features/planner/presentation/screens/planificacion_screen.dart';
+import '../../features/planner/presentation/screens/saved_itineraries_screen.dart';
 import '../../features/trip_info/presentation/screens/trip_info_screen.dart';
 import '../../features/trip_info/presentation/widgets/trip_notice.dart';
 
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/profile/presentation/screens/interests_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 
 import '../../features/routes/presentation/screens/route_detail_screen.dart';
@@ -40,6 +46,30 @@ import '../../features/routes/presentation/screens/route_screen.dart';
 // ================================================================
 // CREACIÓN DEL ROUTER
 // ================================================================
+
+/// Ruta de retorno tras iniciar sesión. Solo acepta rutas internas de la
+/// aplicación; cualquier otro valor vuelve al inicio.
+String _safeReturnPath(String? from) {
+  if (from == null || !from.startsWith('/') || from.startsWith('//')) {
+    return '/home';
+  }
+  if (from.startsWith('/auth') ||
+      from.startsWith('/register') ||
+      from.startsWith('/forgot-password')) {
+    return '/home';
+  }
+  return from;
+}
+
+/// Ruta de una pantalla de cuenta que conserva la ruta de retorno.
+String _authPath(String path, GoRouterState state, {String? email}) {
+  final from = state.uri.queryParameters['from'];
+  final query = <String, String>{
+    if (from != null && from.isNotEmpty) 'from': from,
+    if (email != null && email.isNotEmpty) 'email': email,
+  };
+  return Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
+}
 
 GoRouter _createRouter() {
   String? lastLocation;
@@ -88,6 +118,11 @@ GoRouter _createRouter() {
       // IDIOMA - PERFIL
       // =============================================================
       GoRoute(
+        path: interestsRoute,
+        builder: (context, state) => const InterestsScreen(),
+      ),
+
+      GoRoute(
         path: '/profile/language',
         builder: (context, state) {
           return const ProfileLanguageScreen();
@@ -129,13 +164,68 @@ GoRouter _createRouter() {
               }
             },
 
+            // Vuelve a la pantalla que pidió iniciar sesión (por ejemplo,
+            // la planificación al guardar un itinerario, HU-07).
             onLogin: () {
-              context.go('/home');
+              context.go(_safeReturnPath(state.uri.queryParameters['from']));
             },
 
             onSignUp: () {
-              // Futuro:
-              // context.push('/register');
+              context.push(_authPath('/register', state));
+            },
+
+            onForgotPassword: (email) {
+              context.push(_authPath('/forgot-password', state, email: email));
+            },
+          );
+        },
+      ),
+
+      // =============================================================
+      // REGISTRO (HU-16)
+      // =============================================================
+      GoRoute(
+        path: '/register',
+        builder: (context, state) {
+          return RegisterScreen(
+            onBack: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/auth-gateway');
+              }
+            },
+            onSignedIn: () {
+              context.go(_safeReturnPath(state.uri.queryParameters['from']));
+            },
+            onGoToLogin: () {
+              // Reemplaza la pila para no dejar dos pantallas de login.
+              context.go(_authPath('/auth', state));
+            },
+            onForgotPassword: () {
+              context.push(_authPath('/forgot-password', state));
+            },
+          );
+        },
+      ),
+
+      // =============================================================
+      // RECUPERAR CONTRASEÑA (HU-16)
+      // =============================================================
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) {
+          return ForgotPasswordScreen(
+            initialEmail: state.uri.queryParameters['email'],
+            onBack: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/auth');
+              }
+            },
+            onDone: () {
+              context.go(_safeReturnPath(state.uri.queryParameters['from']));
             },
           );
         },
@@ -146,14 +236,11 @@ GoRouter _createRouter() {
       // =============================================================
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          final isHome = navigationShell.currentIndex == 0;
 
           return Scaffold(
             extendBody: true,
 
-            backgroundColor: isHome
-                ? const Color(0xFFF8FCFE)
-                : const Color(0xFFF6F7F5),
+            backgroundColor: BcColors.fog,
 
             body: navigationShell,
 
@@ -284,6 +371,11 @@ GoRouter _createRouter() {
       // ANTES DE TU VIAJE (HU-25, RNF-14)
       // =============================================================
       GoRoute(
+        path: savedItinerariesRoute,
+        builder: (context, state) => const SavedItinerariesScreen(),
+      ),
+
+      GoRoute(
         path: tripInfoRoute,
         builder: (context, state) => const TripInfoScreen(),
       ),
@@ -298,23 +390,18 @@ GoRouter _createRouter() {
 
           // Aviso de transporte referencial al abrir categorías de
           // transporte, una vez por sesión (RNF-14).
+          // CategoryScreen trae su propia cabecera; sin AppBar aquí.
           return TripNoticeOnOpen(
             kind: TripNoticeKind.transport,
             enabled: slug.toLowerCase().contains('transp'),
-            child: Scaffold(
-            appBar: AppBar(title: Text(slug.toUpperCase())),
-
-            body: CategoryScreen(
+            child: CategoryScreen(
               category: slug,
-
               onPlaceClick: (placeId) {
                 context.push('/attractions/$placeId');
               },
-
               onRoutesClick: () {
                 context.push('/routes');
               },
-            ),
             ),
           );
         },

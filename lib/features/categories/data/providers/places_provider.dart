@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/models/category_model.dart';
+import '../../../../core/providers/interests_provider.dart';
 import '../../../../core/models/informational_content_dto.dart';
 import '../models/place_dto.dart';
 import '../repository/places_repository.dart';
@@ -125,48 +126,91 @@ final groupTypesProvider =
   return groups;
 });
 
-/// Obtiene las categorías pertenecientes
-/// a un determinado group_type.
+/// true cuando la base ya tiene la jerarquía de categorías
+/// (migración 2026-10-30: principales + subcategorías con parent_id).
+bool hasCategoryTree(List<CategoryModel> categories) =>
+    categories.any((c) => c.parentId != null);
+
+/// Cantidad de lugares y actividades activos por categoría.
+final placeCountByCategoryProvider =
+    FutureProvider<Map<String, int>>((ref) async {
+  final results = await Future.wait([
+    ref.watch(placesProvider.future),
+    ref.watch(activitiesProvider.future),
+  ]);
+
+  final counts = <String, int>{};
+  for (final place in [...results[0], ...results[1]]) {
+    counts[place.categoryId] = (counts[place.categoryId] ?? 0) + 1;
+  }
+  return counts;
+});
+
+/// Categorías principales (Atractivos, Actividades y tours, Gastronomía,
+/// Alojamiento, Transporte, Servicios), en su orden.
 ///
-/// Ejemplo:
+/// Si la base todavía no tiene la jerarquía, devuelve todas las activas,
+/// como antes.
+final mainCategoriesProvider =
+    FutureProvider<List<CategoryModel>>((ref) async {
+  final categories = await ref.watch(categoriesProvider.future);
+  final active = categories.where((c) => c.isActive).toList();
+
+  if (!hasCategoryTree(active)) return active;
+
+  final parentIds = active.map((c) => c.parentId).whereType<String>().toSet();
+  return active.where((c) => c.isMain && parentIds.contains(c.id)).toList()
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+});
+
+/// Intereses guardados que todavía corresponden a una categoría principal.
+/// Descarta identificadores de categorías eliminadas o reorganizadas.
+final validInterestsProvider = Provider<Set<String>>((ref) {
+  final saved = ref.watch(interestsProvider);
+  final mains = ref.watch(mainCategoriesProvider).valueOrNull;
+  if (mains == null) return saved;
+  final valid = mains.map((c) => c.id).toSet();
+  return saved.where(valid.contains).toSet();
+});
+
+/// Subcategorías de un grupo (group_type), en su orden.
 ///
-/// categoriesByGroupProvider('transporte')
+/// Con la jerarquía: solo subcategorías con al menos un lugar o actividad
+/// (las vacías quedan ocultas hasta que se carguen datos). Sin la
+/// jerarquía: todas las categorías activas del grupo, como antes.
 ///
-/// devuelve:
-/// - Bus interurbano
-/// - Bus Rural e Interurbano
-/// - Rent a Car
+/// Ejemplo: categoriesByGroupProvider('gastronomia') devuelve
+/// Cafeterías, Restaurantes, Comida tradicional y patagónica.
 final categoriesByGroupProvider =
-    FutureProvider.family<
-        List<CategoryModel>,
-        String>(
+    FutureProvider.family<List<CategoryModel>, String>(
   (ref, groupType) async {
-    final categories =
-        await ref.watch(categoriesProvider.future);
+    final categories = await ref.watch(categoriesProvider.future);
+    final normalizedGroup = groupType.trim().toLowerCase();
 
-    final normalizedGroup =
-        groupType.trim().toLowerCase();
-
-    final result = categories.where(
-      (category) {
-        final categoryGroup =
-            category.groupType
-                ?.trim()
-                .toLowerCase();
-
-        return category.isActive &&
-            categoryGroup == normalizedGroup;
-      },
-    ).toList();
-
-    result.sort(
-      (a, b) => a.nombreEs
-          .toLowerCase()
-          .compareTo(
-            b.nombreEs.toLowerCase(),
-          ),
+    final inGroup = categories.where(
+      (c) =>
+          c.isActive &&
+          c.groupType?.trim().toLowerCase() == normalizedGroup,
     );
 
-    return result;
+    if (!hasCategoryTree(categories)) {
+      return inGroup.toList()
+        ..sort(
+          (a, b) => a.nombreEs.toLowerCase().compareTo(b.nombreEs.toLowerCase()),
+        );
+    }
+
+    Map<String, int> counts;
+    try {
+      counts = await ref.watch(placeCountByCategoryProvider.future);
+    } catch (_) {
+      counts = const {};
+    }
+
+    return inGroup
+        .where((c) => !c.isMain)
+        .where((c) => counts.isEmpty || (counts[c.id] ?? 0) > 0)
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   },
 );
