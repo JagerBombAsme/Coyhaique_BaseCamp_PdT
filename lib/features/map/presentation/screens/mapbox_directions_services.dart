@@ -42,7 +42,7 @@ class RouteProfile {
 
 class MapboxDirectionsService {
   MapboxDirectionsService({required this.accessToken, http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final String accessToken;
   final http.Client _client;
@@ -67,9 +67,9 @@ class MapboxDirectionsService {
       },
     );
 
-    final response = await _client.get(uri).timeout(
-          const Duration(seconds: 15),
-        );
+    final response = await _client
+        .get(uri)
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception('Directions API: HTTP ${response.statusCode}');

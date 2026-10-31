@@ -13,6 +13,14 @@ class CategoryModel {
   final String route;
   final bool isActive;
 
+  /// Categoría principal a la que pertenece (null en las principales).
+  final String? parentId;
+
+  /// Orden de presentación dentro de su nivel.
+  final int sortOrder;
+
+  bool get isMain => parentId == null;
+
   const CategoryModel({
     required this.id,
     required this.slug,
@@ -25,6 +33,8 @@ class CategoryModel {
     required this.icon,
     required this.route,
     this.isActive = true,
+    this.parentId,
+    this.sortOrder = 0,
   });
 
   factory CategoryModel.fromJson(
@@ -64,6 +74,10 @@ class CategoryModel {
 
       isActive:
           json['is_active'] as bool? ?? true,
+
+      parentId: _nullableId(json['parent_id']),
+
+      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -78,7 +92,15 @@ class CategoryModel {
       'group_type': groupType,
       'image_url': imageUrl,
       'is_active': isActive,
+      'parent_id': parentId,
+      'sort_order': sortOrder,
     };
+  }
+
+  static String? _nullableId(Object? value) {
+    final text = value?.toString();
+    if (text == null || text.isEmpty || text == 'null') return null;
+    return text;
   }
 
   String get nameEs => nombreEs;

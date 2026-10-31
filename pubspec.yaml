@@ -60,12 +60,13 @@ dependencies:
   # Fuentes
   google_fonts: ^6.2.1
   mapbox_maps_flutter: ^2.31.1
+  flutter_lints: ^6.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_lints: ^6.0.0
+
 
   # SQLite en el computador para las pruebas de la copia local
   sqflite_common_ffi: ^2.3.4
@@ -76,3 +77,6 @@ flutter:
   assets:
     - .env
     - assets/images/
+    - assets/google_fonts/
+  
+ 

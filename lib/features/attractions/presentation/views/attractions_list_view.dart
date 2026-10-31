@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../categories/data/providers/places_provider.dart';
 
@@ -83,9 +84,9 @@ class AttractionsListView extends ConsumerWidget {
                                 ? Image.network(
                                     place.imageUrl!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+                                    errorBuilder: (_, _, _) => const BcLogoPlaceholder(),
                                   )
-                                : const Icon(Icons.place, color: AppTheme.primaryDark),
+                                : const BcLogoPlaceholder(),
                           ),
                         ),
                         const SizedBox(width: 14),

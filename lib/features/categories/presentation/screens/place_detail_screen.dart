@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../data/models/place_dto.dart';
@@ -27,10 +28,6 @@ class _PlaceDetailScreenState
     extends ConsumerState<PlaceDetailScreen> {
   bool _isFavorite = false;
   bool _isReloading = false;
-
-  // ================================================================
-  // RECARGAR DETALLE
-  // ================================================================
 
   Future<void> _reloadPlace({
     bool showMessage = false,
@@ -112,9 +109,6 @@ class _PlaceDetailScreenState
     }
   }
 
-  // ================================================================
-  // BUILD
-  // ================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -136,9 +130,6 @@ class _PlaceDetailScreenState
           const Color(0xFFFDFCFB),
 
       body: placeAsync.when(
-        // ==========================================================
-        // DATA
-        // ==========================================================
 
         data: (place) {
           if (place == null) {
@@ -1000,29 +991,11 @@ class _PlaceDetailScreenState
                                 );
                               },
 
-                              errorWidget:
-                                  (
-                                context,
-                                url,
-                                error,
-                              ) {
-                                return Container(
-                                  width:
-                                      140,
-
-                                  color:
-                                      Colors
-                                          .grey[
-                                    200
-                                  ],
-
-                                  child:
-                                      const Icon(
-                                    Icons
-                                        .broken_image_outlined,
-                                  ),
-                                );
-                              },
+                              errorWidget: (context, url, error) =>
+                                  const SizedBox(
+                                width: 140,
+                                child: BcLogoPlaceholder(),
+                              ),
                             ),
                           );
                         },
@@ -1116,86 +1089,16 @@ class _PlaceDetailScreenState
   // IMAGEN PRINCIPAL
   // ================================================================
 
-  Widget _buildMainImage(
-    String? imageUrl,
-  ) {
-    if (!_hasValue(
-      imageUrl,
-    )) {
-      return Container(
-        color:
-            AppTheme.primaryDark,
-
-        child:
-            const Center(
-          child:
-              Icon(
-            Icons
-                .landscape_rounded,
-
-            color:
-                Colors.white70,
-
-            size:
-                64,
-          ),
-        ),
-      );
-    }
+  Widget _buildMainImage(String? imageUrl) {
+    // Sin foto o con error: logo BC sobre tinta (sistema Coyhaique BaseCamp).
+    if (!_hasValue(imageUrl)) return const BcLogoPlaceholder();
 
     return CachedNetworkImage(
-      imageUrl:
-          imageUrl!,
-
-      fit:
-          BoxFit.cover,
-
-      placeholder:
-          (
-        context,
-        url,
-      ) {
-        return Container(
-          color:
-              AppTheme.primaryDark,
-
-          child:
-              const Center(
-            child:
-                CircularProgressIndicator(
-              color:
-                  Colors.white,
-            ),
-          ),
-        );
-      },
-
-      errorWidget:
-          (
-        context,
-        url,
-        error,
-      ) {
-        return Container(
-          color:
-              AppTheme.primaryDark,
-
-          child:
-              const Center(
-            child:
-                Icon(
-              Icons
-                  .broken_image_outlined,
-
-              color:
-                  Colors.white70,
-
-              size:
-                  56,
-            ),
-          ),
-        );
-      },
+      imageUrl: imageUrl!,
+      fit: BoxFit.cover,
+      placeholder: (context, url) =>
+          const BcLogoPlaceholder(showProgress: true),
+      errorWidget: (context, url, error) => const BcLogoPlaceholder(),
     );
   }
 

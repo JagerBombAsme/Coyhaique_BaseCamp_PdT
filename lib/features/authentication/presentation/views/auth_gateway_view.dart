@@ -1,184 +1,165 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
+import '../../../../core/widgets/basecamp/bc_widgets.dart';
 
-/// Pantalla de acceso:
-/// - Continuar como invitado
-/// - Iniciar sesión
-/// - Crear cuenta
+/// Bienvenida: continuar como invitado, iniciar sesión o crear cuenta.
+/// La foto ocupa toda la pantalla (sistema Coyhaique BaseCamp).
 class AuthGatewayView extends ConsumerWidget {
   const AuthGatewayView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final locale = ref.watch(languageProvider);
-    final isSpanish = locale.languageCode == 'es';
+    final isSpanish = ref.watch(languageProvider).languageCode == 'es';
+    final top = MediaQuery.paddingOf(context).top;
 
-    return Scaffold(
-      backgroundColor: AppTheme.slateLight,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
-          tooltip: isSpanish
-              ? 'Volver al selector de idioma'
-              : 'Back to language selector',
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/language-selection');
-            }
-          },
-        ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: const BoxDecoration(
-                    color: AppTheme.primaryDark,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.explore_rounded,
-                    size: 48,
-                    color: Colors.white,
-                  ),
+      child: Scaffold(
+        backgroundColor: BcColors.ink,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const BcPhotoImage(
+              source: BcPhoto.montanistas,
+              alignment: Alignment(0.28, 0),
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0, 0.18, 0.42, 0.62, 0.8],
+                  colors: [
+                    Color(0x73121416),
+                    Color(0x00121416),
+                    Color(0x00121416),
+                    Color(0x8C121416),
+                    BcColors.photoShade,
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              Text(
-                isSpanish
-                    ? 'Explora Coyhaique a tu manera'
-                    : 'Explore Coyhaique your way',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary,
-                  height: 1.2,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Text(
-                isSpanish
-                    ? 'Inicia sesión para guardar tus itinerarios favoritos o explora directamente como invitado.'
-                    : 'Log in to save your favorite itineraries, or explore directly as a guest.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-
-              const Spacer(),
-
-              // =====================================================
-              // 1. CONTINUAR COMO INVITADO
-              // =====================================================
-              ElevatedButton(
-                onPressed: () {
-                  context.push('/initial-location');
+            ),
+            Positioned(
+              left: BcSpace.gutter,
+              top: top + 14,
+              child: BcCornerButton(
+                icon: Icons.arrow_back_rounded,
+                semanticLabel: isSpanish
+                    ? 'Volver al selector de idioma'
+                    : 'Back to language selector',
+                onTap: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/language-selection');
+                  }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryDark,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  isSpanish ? 'Continuar como invitado' : 'Continue as guest',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
               ),
-
-              const SizedBox(height: 12),
-
-              // =====================================================
-              // 2. INICIAR SESIÓN
-              // =====================================================
-              OutlinedButton(
-                onPressed: () {
-                  context.push('/auth');
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.primaryDark,
-                  side: const BorderSide(
-                    color: AppTheme.primaryDark,
-                    width: 1.5,
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  BcSpace.gutter,
+                  0,
+                  BcSpace.gutter,
+                  24,
                 ),
-                child: Text(
-                  isSpanish ? 'Iniciar sesión' : 'Sign In',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // =====================================================
-              // 3. CREAR CUENTA
-              // =====================================================
-              TextButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        isSpanish
-                            ? 'El registro se implementará en el siguiente módulo.'
-                            : 'Sign up will be implemented in the next module.',
-                      ),
-                      duration: const Duration(seconds: 2),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const BcTag(
+                      'Patagonia',
+                      lead: 'Aysén',
+                      style: BcTagStyle.ink,
                     ),
-                  );
+                    const SizedBox(height: 12),
+                    Semantics(
+                      header: true,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          isSpanish
+                              ? 'EXPLORA\nCOYHAIQUE'
+                              : 'EXPLORE\nCOYHAIQUE',
+                          style: BcText.display(62, color: BcColors.onPhoto),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      isSpanish
+                          ? 'Inicia sesión para guardar tus itinerarios o explora directamente como invitado.'
+                          : 'Sign in to save your itineraries, or explore directly as a guest.',
+                      style: BcText.body(
+                        color: BcColors.onPhoto.withValues(alpha: 0.88),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
-                  // Futuro:
-                  // context.push('/register');
-                },
-                child: Text(
-                  isSpanish
-                      ? '¿No tienes cuenta? Regístrate'
-                      : "Don't have an account? Sign up",
-                  style: const TextStyle(
-                    color: AppTheme.primaryDark,
-                    fontWeight: FontWeight.w600,
-                  ),
+                    // 1. Invitado: la consulta no exige cuenta (HU-16).
+                    BcButton(
+                      icon: Icons.hiking_rounded,
+                      label: isSpanish
+                          ? 'Continuar como invitado'
+                          : 'Continue as guest',
+                      onPressed: () => context.push('/initial-location'),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 2. Iniciar sesión.
+                    BcButton(
+                      style: BcButtonStyle.surface,
+                      label: isSpanish ? 'Iniciar sesión' : 'Sign in',
+                      onPressed: () => context.push('/auth'),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 3. Crear cuenta.
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.push('/register'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: BcColors.onPhoto,
+                          minimumSize: const Size(48, 48),
+                        ),
+                        child: Text.rich(
+                          TextSpan(
+                            style: BcText.body(color: BcColors.onPhoto),
+                            children: [
+                              TextSpan(
+                                text: isSpanish
+                                    ? '¿No tienes cuenta? '
+                                    : "Don't have an account? ",
+                              ),
+                              TextSpan(
+                                text: isSpanish ? 'Regístrate' : 'Sign up',
+                                style: BcText.title(color: BcColors.onPhoto)
+                                    .copyWith(
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: BcColors.glacier,
+                                  decorationThickness: 2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 16),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
