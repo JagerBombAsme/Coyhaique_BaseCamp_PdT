@@ -288,7 +288,7 @@ class _PlannerForm extends ConsumerWidget {
                 padding: EdgeInsets.all(8),
                 child: LinearProgressIndicator(),
               ),
-              error: (_, __) => Text(
+              error: (_, _) => Text(
                 isSpanish
                     ? 'No se pudieron cargar las categorías. Puedes generar la propuesta sin intereses.'
                     : 'Categories could not be loaded. You can create the proposal without interests.',
@@ -743,7 +743,7 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                       ? Center(child: Text(es ? 'Sin resultados.' : 'No results.'))
                       : ListView.separated(
                           itemCount: options.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final place = options[index];
                             return ListTile(
