@@ -35,6 +35,11 @@ import '../../features/planner/presentation/screens/planificacion_screen.dart';
 import '../../features/planner/presentation/screens/saved_itineraries_screen.dart';
 import '../../features/trip_info/presentation/screens/trip_info_screen.dart';
 import '../../features/trip_info/presentation/widgets/trip_notice.dart';
+import '../../features/transport/domain/transfer_request.dart';
+import '../../features/transport/presentation/screens/transfer_code_screen.dart';
+import '../../features/transport/presentation/screens/transfer_request_screen.dart';
+import '../../features/transport/presentation/screens/transfers_screen.dart';
+import '../../features/transport/presentation/widgets/transfer_widgets.dart';
 
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/profile/presentation/screens/interests_screen.dart';
@@ -309,7 +314,10 @@ GoRouter _createRouter() {
               GoRoute(
                 path: '/map',
                 builder: (context, state) {
-                  return const MapScreen();
+                  return MapScreen(
+                    routeFromAirport:
+                        state.uri.queryParameters['ruta'] == 'aeropuerto',
+                  );
                 },
               ),
             ],
@@ -378,6 +386,30 @@ GoRouter _createRouter() {
       GoRoute(
         path: tripInfoRoute,
         builder: (context, state) => const TripInfoScreen(),
+      ),
+
+      // =============================================================
+      // TRANSFER DESDE EL AEROPUERTO (HU-18)
+      // =============================================================
+      GoRoute(
+        path: transfersRoute,
+        builder: (context, state) => const TransfersScreen(),
+      ),
+
+      GoRoute(
+        path: '$transfersRoute/:id',
+        builder: (context, state) => TransferRequestScreen(
+          serviceId: state.pathParameters['id'] ?? '',
+        ),
+      ),
+
+      GoRoute(
+        path: transferCodeRoute,
+        builder: (context, state) => TransferCodeScreen(
+          request: state.extra is TransferRequest
+              ? state.extra as TransferRequest
+              : null,
+        ),
       ),
 
       // =============================================================

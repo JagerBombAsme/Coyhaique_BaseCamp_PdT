@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/transport/data/repository/transfer_repository.dart';
 import 'catalog_local_db.dart';
 
 /// Resultado de una descarga completa del catálogo.
@@ -74,6 +75,12 @@ class CatalogSyncService {
       informationalContent: infoRows,
       syncedAt: syncedAt,
     );
+
+    // Fichas de transfer (HU-18): copia aparte para usarlas al bajar del
+    // avión sin señal. Si falla, el catálogo ya quedó guardado igual.
+    try {
+      await TransferRepository(client: _client).refreshCache();
+    } catch (_) {}
 
     return CatalogSyncResult(
       categories: categoryRows.length,

@@ -64,6 +64,15 @@ class _InitialLocationViewState extends ConsumerState<InitialLocationView> {
 
   void _continueFromCenter() => context.go('/home');
 
+  /// Transporte desde el aeropuerto: transfer y arriendo de vehículos.
+  void _airportTransport() {
+    context.go('/home');
+    context.push('/categories/transporte');
+  }
+
+  /// Transporte propio: ruta Aeropuerto Balmaceda → Plaza de Armas.
+  void _airportRoute() => context.go('/map?ruta=aeropuerto');
+
   @override
   Widget build(BuildContext context) {
     final isSpanish = ref.watch(languageProvider).languageCode == 'es';
@@ -206,6 +215,50 @@ class _InitialLocationViewState extends ConsumerState<InitialLocationView> {
                             ? 'Continuar desde Coyhaique Centro'
                             : 'Continue from downtown Coyhaique',
                         onPressed: _isLoading ? null : _continueFromCenter,
+                      ),
+                      const SizedBox(height: 22),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          isSpanish
+                              ? 'RECIÉN LLEGAS A AYSÉN'
+                              : 'JUST ARRIVED IN AYSÉN',
+                          style: BcText.label(color: BcColors.muted),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: BcInfoTile(
+                                icon: Icons.flight_land_rounded,
+                                dark: true,
+                                title: isSpanish
+                                    ? '¿Estás en el aeropuerto?'
+                                    : 'Are you at the airport?',
+                                subtitle: isSpanish
+                                    ? 'Conoce cómo llegar: transfer y arriendo de vehículos'
+                                    : 'See how to get there: transfers and car rental',
+                                onTap: _isLoading ? null : _airportTransport,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: BcInfoTile(
+                                icon: Icons.directions_car_rounded,
+                                title: isSpanish
+                                    ? '¿Viajas en transporte propio?'
+                                    : 'Travelling with your own driver?',
+                                subtitle: isSpanish
+                                    ? 'Dale estas indicaciones a tu chofer: ruta del aeropuerto al centro de Coyhaique'
+                                    : 'Give your driver these directions: route from the airport to downtown Coyhaique',
+                                onTap: _isLoading ? null : _airportRoute,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Row(
