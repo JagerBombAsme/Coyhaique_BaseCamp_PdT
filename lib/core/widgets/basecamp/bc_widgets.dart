@@ -602,7 +602,7 @@ class BcInfoTile extends StatelessWidget {
               children: [
                 Icon(icon, color: dark ? BcColors.glacier : BcColors.ink),
                 const Spacer(),
-                if (trailing != null) trailing!,
+                ?trailing,
               ],
             ),
             const SizedBox(height: 16),

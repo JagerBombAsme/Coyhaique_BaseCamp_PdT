@@ -12,7 +12,6 @@ import '../../features/authentication/presentation/views/auth_gateway_view.dart'
 
 import '../../features/attractions/presentation/views/attraction_detail_view.dart';
 import '../../features/attractions/presentation/views/attractions_list_view.dart';
-import '../../features/activities/presentation/activity_detail_screen.dart';
 
 import '../../features/categories/presentation/screens/category_screen.dart';
 
