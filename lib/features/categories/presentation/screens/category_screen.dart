@@ -10,6 +10,7 @@ import '../../../../core/utils/text_normalizer.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
+import '../../../transport/presentation/widgets/transfer_widgets.dart';
 
 /// Pantalla de una categoría principal (HU-01, HU-02).
 ///
@@ -286,6 +287,23 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                         onTap: () => setState(() => _selectedId = sub.id),
                       ),
                   ],
+                ),
+              ),
+            ),
+
+          // Transfer desde el aeropuerto (HU-18), solo en Transporte.
+          if (resolved.groupType == 'transporte')
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  BcSpace.gutter,
+                  12,
+                  BcSpace.gutter,
+                  4,
+                ),
+                child: TransferEntryCard(
+                  isSpanish: isSpanish,
+                  onTap: () => context.push(transfersRoute),
                 ),
               ),
             ),

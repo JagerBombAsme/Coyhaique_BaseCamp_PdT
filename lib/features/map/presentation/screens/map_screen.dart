@@ -51,7 +51,11 @@ enum MapStyleOption {
 }
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({super.key, this.routeFromAirport = false});
+
+  /// Abre el mapa con la ruta Aeropuerto Balmaceda → Plaza de Armas
+  /// (pantalla «¿Desde dónde partes?», viaje en transporte propio).
+  final bool routeFromAirport;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -149,11 +153,38 @@ class _MapScreenState extends State<MapScreen> {
   String? _routeLabel;
   bool _loadingRoute = false;
 
+  /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
+  late bool _pendingAirportRoute = widget.routeFromAirport;
+
   /// Lugares filtrados según el texto del buscador.
   List<MapPlace> get _filteredPlaces {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return _places;
     return _places.where((p) => p.name.toLowerCase().contains(query)).toList();
+  }
+
+  @override
+  void didUpdateWidget(covariant MapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // La pestaña del mapa se conserva: si llega una nueva petición de ruta,
+    // se dibuja de inmediato o al terminar de cargar el estilo.
+    if (widget.routeFromAirport && !oldWidget.routeFromAirport) {
+      if (_markerManager != null) {
+        _showAirportRoute();
+      } else {
+        _pendingAirportRoute = true;
+      }
+    }
+  }
+
+  /// Ruta Aeropuerto Balmaceda → Plaza de Armas de Coyhaique.
+  Future<void> _showAirportRoute() async {
+    final airport = _places.firstWhere(
+      (p) => p.name == 'Aeropuerto Balmaceda',
+      orElse: () => _center,
+    );
+    if (identical(airport, _center)) return;
+    await _showRoute(from: airport, to: _plaza);
   }
 
   @override
@@ -226,6 +257,11 @@ class _MapScreenState extends State<MapScreen> {
     final route = _route;
     if (route != null) {
       await _drawRouteLine(route);
+    }
+
+    if (_pendingAirportRoute) {
+      _pendingAirportRoute = false;
+      await _showAirportRoute();
     }
   }
 
