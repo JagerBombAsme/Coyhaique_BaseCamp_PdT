@@ -1,0 +1,51 @@
+id,name,type
+082a68a4-55ee-4b32-bca0-afa7fa2e2e6b,Turismo Gastronómico / Industrial,atractivo
+0b6b15d7-8a92-4403-811a-55fac503857b,Restaurante / Bar,gastronomia
+0dcbf93c-7dc8-406e-a554-7b8a3033b049,Departamentos Turísticos,alojamiento
+130b34d5-9dce-4fe3-99d1-6503bf9ea5d7,Transporte / Bus interurbano,transporte
+13e02907-66cb-4852-80f8-2e00c17d0278,Restaurante de Gastronomía Patagónica,gastronomia
+13e1900c-caf4-4fe4-b06a-564bad29baab,Restaurante / Sushi y Fusión,gastronomia
+1db4f98d-be8b-4ee1-a336-a16f7b2dde24,Servicios Básicos / Estación de Servicio,servicio
+1fdc79e2-f6a8-4c14-b93d-be1cc7e76709,Centro de Entretención / Casino,atractivo
+21826de5-7286-4aa2-a70a-cac0ec573b02,Transporte / Bus Rural e Interurbano,transporte
+23fb8636-ea50-4f37-ae2c-4a13d1f95444,Hotel,alojamiento
+2e1c601d-b2e9-4d42-a351-cfcc7965e4b8,Transporte / Rent a Car,transporte
+2e871250-339f-4897-8c4a-6f9ad940e123,Institución Cultural,atractivo
+32f034ba-3bd6-46ff-869c-822497064b9b,Tour Operador,actividad
+344c88f3-b252-49a3-8857-0a02e2b30dc1,Plaza,atractivo
+37cb813e-26ff-4b32-989d-3f60583eb311,Recorridos,servicio
+3c9ebdb5-56e8-4ca0-9629-8ebc7f6d5ac3,Atractivo Natural,atractivo
+3f5ed611-967b-4ecb-a156-49d169656af8,Tour / Observación de Naturaleza,actividad
+4edd47d2-bfab-49bb-88fc-e4721bb91058,Atractivo Natural / Lago,atractivo
+4f0071ae-dcaa-42cf-8684-fc94b0968f63,Actividad / Aventura,actividad
+54a5679e-537f-4448-9d9b-ba7330ce2d63,Receptivo y emisivo,servicio
+67fd22be-d26d-4463-a020-5970d6642714,Parque Urbano / Recreación,atractivo
+6c410843-e342-45a4-8f93-07de7e697fc6,Hotel Boutique,alojamiento
+71f9d994-97a9-4913-818a-4e9792185efe,Área Silvestre Protegida,atractivo
+72b02935-0176-42da-9de1-7d4b487ae7c7,Cabañas,alojamiento
+795b7fbc-b612-4062-a8b0-66045208701d,Monumento Histórico,atractivo
+81787d28-ff7d-4856-b461-c9aaf2e4a2ac,Cafetería / Chocolatería,gastronomia
+874f1b15-ddb9-4c01-907b-4cc2bdba42a7,Restaurante / Comida Casera y Tradicional,gastronomia
+8af10b5b-58a0-4ec4-89f6-9a055bba2524,Restaurante / Comida Japonesa y Mexicana,gastronomia
+8f575854-f4da-48a9-bef2-c5083c56c363,Cafetería / Pastelería Alemana,gastronomia
+8f5c9358-c249-4ad5-a337-be44c188f75a,Institución / Espacio Cultural,atractivo
+9b6863ab-9949-4cb2-aa86-337e4c8fdec3,Cafetería / Desayunos,gastronomia
+9f056511-a612-4657-8adb-60d4185e6bf6,Cafetería,gastronomia
+a1af3d9e-60c8-4a90-b6eb-d172a55c23ed,Infraestructura / Estacionamiento Privado,servicio
+a3067b87-e029-49cf-bf67-4d9e234e85ff,Restaurante / Pizzería y Comida Regional,gastronomia
+a5297cc6-c2a2-4f40-9f61-38596c220386,Tour / Excursión,actividad
+a697d0f6-4570-49a7-8041-27cbf6347080,Reserva,atractivo
+a94d89f3-7316-4286-b386-e028281e27e3,Restaurante / Comida Típica y Parrilladas,gastronomia
+add40ab6-a18d-49b2-a789-0e536fa9adb3,Cafetería de Especialidad,gastronomia
+ae7c18c0-5596-46e5-88ae-16d312205720,Restaurante / Comida Chilena y Fusión,gastronomia
+ba003705-4755-4cc7-b09e-bd6e098fda1f,Pesca,servicio
+ba526459-f110-463e-9eca-a41e2661e981,Mirador,atractivo
+c046c6e8-6428-4636-9948-a741b31cbd5c,Monumento / Atractivo Urbano,atractivo
+c720b31a-577d-4d30-934d-2271f340143b,Tour / Ciclismo,actividad
+c99ee9af-b59d-4e2b-aa1b-d579ea158d3c,Lodge / Hotel,alojamiento
+dd29386e-9746-4e2b-ba6b-67da5c84baeb,Tour / Kayak,actividad
+e9109868-5fd8-4405-bfe3-86e99522cd09,Ciclismo,servicio
+ec98b984-7d39-4db5-ba61-acdf4ca3809e,Restaurante / Cocina Fusión,gastronomia
+f80e9ed8-6b94-4b21-bae5-bf12c04d36a4,Museo,atractivo
+fa639054-f805-40bf-8569-a872aacfd0c9,Cafetería / Repostería,gastronomia
+fe49c2db-2e32-4092-b4ae-26bb2afbfeb7,Tour / Turismo Aventura,actividad

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pantalla de arranque nativa (antes de que cargue Flutter):
+     gris niebla con el logo BC, igual que la pantalla de inicio. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/bc_fog" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/bc_launch_logo" />
+    </item>
+</layer-list>

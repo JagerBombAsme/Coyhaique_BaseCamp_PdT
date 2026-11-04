@@ -1,0 +1,82 @@
+name: coyhaique_basecamp_pt
+description: "Aplicación turística informativa para Coyhaique y su entorno."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+
+  # Gestión de estado
+  flutter_riverpod: ^2.6.1
+
+  # Imágenes
+  cached_network_image: ^3.4.1
+
+  # Iconos
+  cupertino_icons: ^1.0.8
+
+  # Backend
+  supabase_flutter: ^2.18.3
+
+  # Variables de entorno
+  flutter_dotenv: ^5.2.1
+
+  # Internacionalización y fechas
+  intl: ^0.20.2
+
+  # Navegación
+  go_router: ^14.8.1
+
+  # Mapas
+  google_maps_flutter: ^2.10.0
+
+  # Permisos del dispositivo
+  permission_handler: ^11.3.1
+
+  # Ubicación GPS
+  geolocator: ^14.1.2
+
+  # Abrir enlaces externos
+  url_launcher: ^6.3.1
+
+  # Almacenamiento local simple (preferencias)
+  shared_preferences: ^2.5.2
+
+  # Copia local del catálogo para consulta sin conexión (HU-09, HU-10)
+  sqflite: ^2.4.1
+  path: ^1.9.0
+
+  # Generación de códigos QR
+  qr_flutter: ^4.1.0
+
+  # Fuentes
+  google_fonts: ^6.2.1
+  mapbox_maps_flutter: ^2.31.1
+  flutter_lints: ^6.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+
+
+  # SQLite en el computador para las pruebas de la copia local
+  sqflite_common_ffi: ^2.3.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/images/
+    - assets/google_fonts/
+  
+ 

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "inception": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Inception Labs",
+      "options": {
+        "baseURL": "https://api.inceptionlabs.ai/v1"
+      },
+      "models": {
+        "mercury-3": {
+          "name": "Mercury 3"
+        }
+      }
+    }
+  }
+}
