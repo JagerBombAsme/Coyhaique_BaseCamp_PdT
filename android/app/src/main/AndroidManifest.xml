@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Sin INTERNET el build release no llega a Supabase ni a Mapbox
+         (Flutter solo lo agrega en debug y profile). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Detectar si hay conexión para mostrar el aviso de sin conexión. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Ubicación para el mapa y las distancias (se pide en la app). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+
     <application
         android:label="Coyhaique BaseCamp"
         android:name="${applicationName}"
