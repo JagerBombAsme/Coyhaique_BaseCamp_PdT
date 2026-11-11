@@ -28,6 +28,7 @@ class OnboardingLanguageScreen extends ConsumerWidget {
 
     return LanguageSelectionScreen(
       mode: LanguageSelectionMode.onboarding,
+      initialLanguage: ref.read(languageProvider).languageCode,
       onConfirm: confirmLanguage,
       onBack: goBack,
     );
