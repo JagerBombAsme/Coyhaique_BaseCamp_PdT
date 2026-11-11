@@ -16,10 +16,9 @@ class PlacesRepository {
   PlacesRepository({
     SupabaseClient? client,
     CatalogLocalDb? localDb,
-    void Function(bool usingOfflineData)? onDataSource,
+    this._onDataSource,
   })  : _client = client ?? Supabase.instance.client,
-        _localDb = localDb ?? CatalogLocalDb.instance,
-        _onDataSource = onDataSource;
+        _localDb = localDb ?? CatalogLocalDb.instance;
 
   final SupabaseClient _client;
   final CatalogLocalDb _localDb;
@@ -193,7 +192,7 @@ class PlacesRepository {
             .select()
             .eq('is_active', true);
         if (hasType) {
-          query = query.eq('content_type', contentType!);
+          query = query.eq('content_type', contentType);
         }
         final response = await query;
         return response.map(InformationalContentDto.fromJson).toList();
