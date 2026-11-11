@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../widgets/itinerary_timeline.dart';
+
 import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/interests_provider.dart';
 import '../../../../core/providers/language_provider.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/utils/text_normalizer.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../data/providers/planner_provider.dart';
@@ -51,11 +53,15 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
     });
 
     return Scaffold(
-      backgroundColor: AppTheme.slateLight,
+      backgroundColor: BcColors.fog,
       appBar: AppBar(
+        backgroundColor: BcColors.fog,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: BcColors.ink,
         title: Text(
           state.savedName ??
               (isSpanish ? 'Planifica tu visita' : 'Plan your visit'),
+          style: BcText.title(),
         ),
         actions: [
           IconButton(
@@ -185,7 +191,7 @@ class _PlannerForm extends ConsumerWidget {
           isSpanish
               ? 'Indica tu tiempo disponible y, si quieres, tus intereses. Te proponemos lugares según tus intereses, la duración estimada de cada visita y la distancia desde el punto de partida.'
               : 'Tell us how much time you have and, if you like, your interests. We suggest places based on your interests, the estimated length of each visit and the distance from your starting point.',
-          style: const TextStyle(color: AppTheme.textSecondary, height: 1.35),
+          style: const TextStyle(color: BcColors.muted, height: 1.35),
         ),
         const SizedBox(height: 16),
 
@@ -237,7 +243,7 @@ class _PlannerForm extends ConsumerWidget {
               isSpanish
                   ? 'Termina cerca de las ${ItineraryPlanner.formatClock(state.startMinute + state.availableMinutes)}, incluido el regreso.'
                   : 'Ends around ${ItineraryPlanner.formatClock(state.startMinute + state.availableMinutes)}, including the way back.',
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              style: const TextStyle(fontSize: 12.5, color: BcColors.muted),
             ),
           ],
         ),
@@ -256,7 +262,7 @@ class _PlannerForm extends ConsumerWidget {
                   : (isSpanish
                       ? 'Se guardan solo en tu teléfono.'
                       : 'They are stored only on your phone.'),
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              style: const TextStyle(fontSize: 12.5, color: BcColors.muted),
             ),
             const SizedBox(height: 8),
             categoriesAsync.when(
@@ -288,7 +294,7 @@ class _PlannerForm extends ConsumerWidget {
                 padding: EdgeInsets.all(8),
                 child: LinearProgressIndicator(),
               ),
-              error: (_, __) => Text(
+              error: (_, _) => Text(
                 isSpanish
                     ? 'No se pudieron cargar las categorías. Puedes generar la propuesta sin intereses.'
                     : 'Categories could not be loaded. You can create the proposal without interests.',
@@ -328,7 +334,7 @@ class _PlannerForm extends ConsumerWidget {
                   : (isSpanish
                       ? 'Desde la Plaza de Armas de Coyhaique.'
                       : 'From the Plaza de Armas in Coyhaique.'),
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              style: const TextStyle(fontSize: 12.5, color: BcColors.muted),
             ),
           ],
         ),
@@ -347,7 +353,7 @@ class _PlannerForm extends ConsumerWidget {
 
         FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: AppTheme.primaryDark,
+            backgroundColor: BcColors.ink,
             minimumSize: const Size.fromHeight(52),
           ),
           onPressed: state.isGenerating ? null : notifier.generate,
@@ -366,7 +372,7 @@ class _PlannerForm extends ConsumerWidget {
               ? 'No necesitas cuenta para generar la propuesta. Solo para guardarla.'
               : 'You do not need an account to create the proposal, only to save it.',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+          style: const TextStyle(fontSize: 12.5, color: BcColors.muted),
         ),
       ],
     );
@@ -397,14 +403,14 @@ class _FormCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, color: AppTheme.primaryDark),
+                Icon(icon, color: BcColors.ink),
                 const SizedBox(width: 8),
                 Text(
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
-                    color: AppTheme.textPrimary,
+                    color: BcColors.ink,
                   ),
                 ),
               ],
@@ -459,7 +465,7 @@ class _ProposalView extends ConsumerWidget {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.primaryDark,
+                  color: BcColors.ink,
                 ),
               ),
               const SizedBox(height: 4),
@@ -473,7 +479,7 @@ class _ProposalView extends ConsumerWidget {
                 state.origin.isUserLocation
                     ? (isSpanish ? 'Desde tu ubicación' : 'From your location')
                     : (isSpanish ? 'Desde la Plaza de Armas de Coyhaique' : 'From the Plaza de Armas in Coyhaique'),
-                style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                style: const TextStyle(fontSize: 12.5, color: BcColors.muted),
               ),
               if (state.locationFallback)
                 _Note(
@@ -516,7 +522,7 @@ class _ProposalView extends ConsumerWidget {
                 isSpanish
                     ? 'Regreso estimado: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}'
                     : 'Estimated way back: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}',
-                style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                style: const TextStyle(fontSize: 12.5, color: BcColors.muted),
               ),
             ),
           OutlinedButton.icon(
@@ -527,7 +533,7 @@ class _ProposalView extends ConsumerWidget {
           const SizedBox(height: 8),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.primaryDark,
+              backgroundColor: BcColors.ink,
               minimumSize: const Size.fromHeight(50),
             ),
             onPressed: isEmpty || state.isSaving ? null : onSave,
@@ -554,85 +560,23 @@ class _ProposalView extends ConsumerWidget {
             isSpanish
                 ? 'Propuesta referencial: no es una reserva ni una ruta de navegación. Los traslados se estiman en línea recta a ${ItineraryPlanner.averageSpeedKmh.round()} km/h y no consideran el estado del camino ni el clima. Confirma horarios con cada lugar.'
                 : 'Reference proposal: it is not a booking or a navigation route. Travel times are estimated in a straight line at ${ItineraryPlanner.averageSpeedKmh.round()} km/h and do not consider road conditions or weather. Confirm opening hours with each place.',
-            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.35),
+            style: const TextStyle(fontSize: 12, color: BcColors.muted, height: 1.35),
           ),
         ],
       ),
     );
 
-    return ReorderableListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-      header: header,
-      footer: footer,
-      buildDefaultDragHandles: false,
-      itemCount: schedule.stops.length,
+    final timeline = ItineraryTimeline(
+      schedule: schedule,
+      isSpanish: isSpanish,
+      onOpen: (place) => context.push('/attractions/${place.id}'),
+      onRemove: notifier.removeAt,
       onReorder: notifier.reorder,
-      itemBuilder: (context, index) {
-        final stop = schedule.stops[index];
-        final place = stop.place;
-        final category = place.categoryName(isSpanish);
-        final details = [
-          isSpanish
-              ? 'Visita ${ItineraryPlanner.formatDuration(place.visitMinutes)}'
-              : 'Visit ${ItineraryPlanner.formatDuration(place.visitMinutes)}',
-          if (stop.travelMinutes > 0)
-            isSpanish
-                ? 'traslado ${ItineraryPlanner.formatDuration(stop.travelMinutes)}'
-                : 'travel ${ItineraryPlanner.formatDuration(stop.travelMinutes)}',
-          if (!place.hasLocation) isSpanish ? 'sin ubicación' : 'no location',
-        ].join(' · ');
+    );
 
-        return Card(
-          key: ValueKey(place.id),
-          color: Colors.white,
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: ListTile(
-            contentPadding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-            onTap: () => context.push('/attractions/${place.id}'),
-            leading: CircleAvatar(
-              backgroundColor: AppTheme.accentLightBlue,
-              child: Text(
-                ItineraryPlanner.formatClock(stop.arrivalMinute),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryDark,
-                ),
-              ),
-            ),
-            title: Text(
-              place.name(isSpanish),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text(
-              [if (category != null && category.isNotEmpty) category, details].join('\n'),
-            ),
-            isThreeLine: category != null && category.isNotEmpty,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: isSpanish ? 'Quitar' : 'Remove',
-                  icon: const Icon(Icons.remove_circle_outline_rounded),
-                  onPressed: () => notifier.removeAt(index),
-                ),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Icon(
-                      Icons.drag_handle_rounded,
-                      semanticLabel: isSpanish ? 'Mover' : 'Move',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+      children: [header, timeline, footer],
     );
   }
 
@@ -659,7 +603,7 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppTheme.textSecondary;
+    final c = color ?? BcColors.muted;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
@@ -743,7 +687,7 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                       ? Center(child: Text(es ? 'Sin resultados.' : 'No results.'))
                       : ListView.separated(
                           itemCount: options.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final place = options[index];
                             return ListTile(

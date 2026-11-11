@@ -51,6 +51,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     'alojamiento': 'assets/images/alojamiento_hotel.jpg',
     'transporte': 'assets/images/cordon_divisadero.jpg',
     'servicio': 'assets/images/miradores_coyhaique.jpg',
+    'todo': 'assets/images/centro_de_coyhaique.png',
   };
 
   Future<void> _refresh() async {
@@ -126,11 +127,11 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     );
   }
 
-  // ================================================================
-  // RESOLVER CATEGORÍA PRINCIPAL Y SUBCATEGORÍAS
-  // ================================================================
-
   _Resolved? _resolve(List<CategoryModel> categories, String normalized) {
+    if (normalized == 'todos' || normalized == 'todo') {
+      return const _Resolved(main: null, groupType: 'todo');
+    }
+
     bool matches(CategoryModel c) =>
         c.slug.toLowerCase() == normalized ||
         c.id.toLowerCase() == normalized ||
@@ -202,11 +203,16 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     String language,
     bool isSpanish,
   ) {
-    final subsAsync = ref.watch(categoriesByGroupProvider(resolved.groupType));
+    final isAll = resolved.groupType == 'todo';
+    final subsAsync = isAll
+        ? ref.watch(categoriesProvider)
+        : ref.watch(categoriesByGroupProvider(resolved.groupType));
     final placesAsync = ref.watch(placesProvider);
     final activitiesAsync = ref.watch(activitiesProvider);
 
-    final subs = subsAsync.valueOrNull ?? const <CategoryModel>[];
+    final subs = (subsAsync.valueOrNull ?? const <CategoryModel>[])
+        .where((c) => !isAll || (c.isActive && !c.isMain))
+        .toList();
     final subIds = subs.map((c) => c.id).toSet();
     final subNames = {for (final c in subs) c.id: c.getNombre(language)};
 
@@ -262,7 +268,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
           ),
 
           // Filtros por subcategoría.
-          if (subs.length > 1)
+          if (subs.length > 1 && !isAll)
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 64,
@@ -417,6 +423,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
       'alojamiento' => isSpanish ? 'Alojamiento' : 'Accommodation',
       'transporte' => isSpanish ? 'Transporte' : 'Transport',
       'servicio' => isSpanish ? 'Servicios' : 'Services',
+      'todo' => isSpanish ? 'Todo lo disponible' : 'Everything available',
       _ => groupType,
     };
   }
@@ -490,7 +497,7 @@ class _Header extends StatelessWidget {
                       : isSpanish
                       ? '$count ${count == 1 ? 'lugar' : 'lugares'}'
                       : '$count ${count == 1 ? 'place' : 'places'}',
-                  lead: 'Aysén',
+                  lead: 'Coyhaique',
                   style: BcTagStyle.ink,
                 ),
                 const SizedBox(height: 12),

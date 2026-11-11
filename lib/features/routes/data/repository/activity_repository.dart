@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/local/catalog_local_db.dart';
+import '../../../../core/network/network_status.dart';
 import '../models/activity_dto.dart';
 
 /// Actividades y recorridos (places_v2 con kind = 'activity').
@@ -21,6 +22,15 @@ class ActivityRepository {
   static const Duration _timeout = Duration(seconds: 15);
 
   Future<List<ActivityDto>> getActivities() async {
+    // Sin red según el sistema: se responde con la copia local.
+    if (!NetworkStatus.instance.isOnline) {
+      if (!await _localDb.hasData()) {
+        throw const CatalogUnavailableException();
+      }
+      final rows = await _localDb.getPlaces(kind: 'activity');
+      return rows.map(ActivityDto.fromJson).toList();
+    }
+
     try {
       final response = await _client
           .from('places_v2')

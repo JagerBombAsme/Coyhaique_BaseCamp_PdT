@@ -59,10 +59,10 @@ class _InitialLocationViewState extends ConsumerState<InitialLocationView> {
       _issue = issue;
     });
 
-    if (issue == null) context.go('/home');
+    if (issue == null) context.go('/guest-profile');
   }
 
-  void _continueFromCenter() => context.go('/home');
+  void _continueFromCenter() => context.go('/guest-profile');
 
   /// Transporte desde el aeropuerto: transfer y arriendo de vehículos.
   void _airportTransport() {

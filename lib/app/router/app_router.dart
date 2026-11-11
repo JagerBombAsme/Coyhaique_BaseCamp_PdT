@@ -12,10 +12,10 @@ import '../../features/authentication/presentation/views/auth_gateway_view.dart'
 
 import '../../features/attractions/presentation/views/attraction_detail_view.dart';
 import '../../features/attractions/presentation/views/attractions_list_view.dart';
-import '../../features/activities/presentation/activity_detail_screen.dart';
 
 import '../../features/categories/presentation/screens/category_screen.dart';
 
+import '../../features/guest/presentation/screens/guest_profile_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 
 import '../../features/location/presentation/views/initial_location_view.dart';
@@ -66,7 +66,6 @@ String _safeReturnPath(String? from) {
   return from;
 }
 
-/// Ruta de una pantalla de cuenta que conserva la ruta de retorno.
 String _authPath(String path, GoRouterState state, {String? email}) {
   final from = state.uri.queryParameters['from'];
   final query = <String, String>{
@@ -83,9 +82,6 @@ GoRouter _createRouter() {
 
   router = GoRouter(
     initialLocation: '/splash',
-
-    // Puedes dejarlo en true mientras desarrollas.
-    // Si la consola se llena demasiado, cámbialo a false.
     debugLogDiagnostics: false,
 
     routes: [
@@ -142,6 +138,14 @@ GoRouter _createRouter() {
         builder: (context, state) {
           return const InitialLocationView();
         },
+      ),
+
+      // =============================================================
+      // INVITADO - PERFIL ANIMAL
+      // =============================================================
+      GoRoute(
+        path: '/guest-profile',
+        builder: (context, state) => const GuestProfileScreen(),
       ),
 
       // =============================================================
@@ -375,9 +379,6 @@ GoRouter _createRouter() {
         },
       ),
 
-      // =============================================================
-      // ANTES DE TU VIAJE (HU-25, RNF-14)
-      // =============================================================
       GoRoute(
         path: savedItinerariesRoute,
         builder: (context, state) => const SavedItinerariesScreen(),

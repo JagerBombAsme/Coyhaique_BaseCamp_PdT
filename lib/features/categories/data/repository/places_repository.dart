@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/local/catalog_local_db.dart';
+import '../../../../core/network/network_status.dart';
 import '../../../../core/models/category_model.dart';
 import '../../../../core/models/informational_content_dto.dart';
 import '../models/place_dto.dart';
@@ -16,10 +17,9 @@ class PlacesRepository {
   PlacesRepository({
     SupabaseClient? client,
     CatalogLocalDb? localDb,
-    void Function(bool usingOfflineData)? onDataSource,
+    this._onDataSource,
   })  : _client = client ?? Supabase.instance.client,
-        _localDb = localDb ?? CatalogLocalDb.instance,
-        _onDataSource = onDataSource;
+        _localDb = localDb ?? CatalogLocalDb.instance;
 
   final SupabaseClient _client;
   final CatalogLocalDb _localDb;
@@ -38,6 +38,16 @@ class PlacesRepository {
     required Future<T> Function() remote,
     required Future<T> Function() local,
   }) async {
+    // Sin red según el sistema: no se intenta Supabase.
+    if (!NetworkStatus.instance.isOnline) {
+      if (!await _localDb.hasData()) {
+        throw const CatalogUnavailableException();
+      }
+      final result = await local();
+      _report(true);
+      return result;
+    }
+
     try {
       final result = await remote().timeout(_timeout);
       _report(false);
@@ -193,7 +203,7 @@ class PlacesRepository {
             .select()
             .eq('is_active', true);
         if (hasType) {
-          query = query.eq('content_type', contentType!);
+          query = query.eq('content_type', contentType);
         }
         final response = await query;
         return response.map(InformationalContentDto.fromJson).toList();

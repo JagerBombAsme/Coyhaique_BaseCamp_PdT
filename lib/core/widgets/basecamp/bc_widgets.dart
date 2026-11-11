@@ -2,16 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../theme/basecamp_tokens.dart';
 
-/// Componentes del sistema de diseño «Coyhaique BaseCamp».
-///
-/// Cada componente corresponde a uno del sistema publicado (Tag,
-/// CornerButton, InfoTile, SectionHeader, CategoryButton, TourCard…).
-
-// =================================================================
-// PULSACIÓN
-// =================================================================
-
-/// Reduce la escala a 0,96 durante la pulsación (estado «presionado»).
 class BcPressable extends StatefulWidget {
   const BcPressable({
     super.key,
@@ -57,12 +47,6 @@ class _BcPressableState extends State<BcPressable> {
   }
 }
 
-// =================================================================
-// FOTOGRAFÍA
-// =================================================================
-
-/// Foto con el tratamiento común del sistema. Acepta un asset
-/// (`assets/...`) o una URL.
 class BcPhotoImage extends StatelessWidget {
   const BcPhotoImage({
     super.key,
@@ -100,8 +84,6 @@ class BcPhotoImage extends StatelessWidget {
   }
 }
 
-/// Relleno para lugares sin foto o con foto que no carga: fondo tinta con
-/// el logo BC tenue. Con [showProgress] muestra además la carga.
 class BcLogoPlaceholder extends StatelessWidget {
   const BcLogoPlaceholder({super.key, this.showProgress = false});
 
@@ -218,7 +200,10 @@ class BcTag extends StatelessWidget {
                   color: isInk ? BcColors.glacier : BcColors.ink,
                 ),
               ),
-            TextSpan(text: text.toUpperCase(), style: BcText.label(color: fg)),
+            TextSpan(
+              text: text.toUpperCase(),
+              style: BcText.label(color: fg),
+            ),
           ],
         ),
       ),
@@ -257,11 +242,6 @@ class BcKicker extends StatelessWidget {
   }
 }
 
-// =================================================================
-// BOTONES
-// =================================================================
-
-/// Botón cuadrado claro de 50 × 50 para las esquinas del hero.
 class BcCornerButton extends StatelessWidget {
   const BcCornerButton({
     super.key,
@@ -301,7 +281,6 @@ class BcCornerButton extends StatelessWidget {
 
 enum BcButtonStyle { glacier, surface, ink }
 
-/// Botón principal de 54 px de alto.
 class BcButton extends StatelessWidget {
   const BcButton({
     super.key,
@@ -373,7 +352,6 @@ class BcButton extends StatelessWidget {
   }
 }
 
-/// Botón de categoría para la grilla de EXPLORAR.
 class BcCategoryButton extends StatelessWidget {
   const BcCategoryButton({
     super.key,
@@ -421,9 +399,45 @@ class BcCategoryButton extends StatelessWidget {
   }
 }
 
-// =================================================================
-// CONTENIDO
-// =================================================================
+/// Chip horizontal de categoría (fila desplazable, estilo «Hiking»).
+class BcCategoryChip extends StatelessWidget {
+  const BcCategoryChip({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return BcPressable(
+      onTap: onTap,
+      semanticLabel: label,
+      child: Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: highlighted ? BcColors.glacier : BcColors.fog,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: BcColors.ink),
+            const SizedBox(width: 8),
+            Text(label, maxLines: 1, style: BcText.title()),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// Encabezado de sección: kicker opcional, título display y «Ver todos».
 class BcSectionHeader extends StatelessWidget {
@@ -489,7 +503,15 @@ class BcSectionHeader extends StatelessWidget {
   }
 }
 
-/// Tarjeta con foto para carruseles (lugares y actividades).
+/// Dato corto de una tarjeta de tour (horario, precio, etc.).
+class BcMetric {
+  const BcMetric(this.icon, this.text);
+
+  final IconData icon;
+  final String text;
+}
+
+/// Tarjeta grande con foto para carruseles: título arriba, datos y flecha abajo.
 class BcTourCard extends StatelessWidget {
   const BcTourCard({
     super.key,
@@ -497,23 +519,23 @@ class BcTourCard extends StatelessWidget {
     required this.image,
     required this.onTap,
     this.tag,
-    this.subtitle,
+    this.metrics = const [],
   });
 
   final String title;
   final String image;
   final VoidCallback onTap;
   final String? tag;
-  final String? subtitle;
+  final List<BcMetric> metrics;
 
-  static const double width = 230;
+  static const double width = 270;
   static const double height = 300;
 
   @override
   Widget build(BuildContext context) {
     return BcPressable(
       onTap: onTap,
-      semanticLabel: subtitle == null ? title : '$title, $subtitle',
+      semanticLabel: [title, ...metrics.map((m) => m.text)].join(', '),
       child: SizedBox(
         width: width,
         height: height,
@@ -523,40 +545,91 @@ class BcTourCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               BcPhotoImage(source: image),
-              const BcPhotoShade(from: 0.4),
-              if (tag != null && tag!.isNotEmpty)
-                Positioned(top: 14, left: 14, child: BcTag(tag!)),
+              const BcPhotoShade(from: 0.35),
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: 16,
+                top: 16,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (tag != null && tag!.isNotEmpty) ...[
+                      BcTag(tag!),
+                      const SizedBox(height: 10),
+                    ],
                     Text(
                       title.toUpperCase(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: BcText.displayCard,
                     ),
-                    if (subtitle != null && subtitle!.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: BcText.caption(
-                          color: BcColors.onPhoto.withValues(alpha: 0.85),
-                        ),
-                      ),
-                    ],
                   ],
+                ),
+              ),
+              Positioned(
+                left: 16,
+                right: 64,
+                bottom: 16,
+                child: _TourMetricsRow(metrics: metrics),
+              ),
+              Positioned(
+                right: 14,
+                bottom: 14,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: BcColors.surface.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: BcColors.onPhoto.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_outward_rounded,
+                    size: 20,
+                    color: BcColors.onPhoto,
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TourMetricsRow extends StatelessWidget {
+  const _TourMetricsRow({required this.metrics});
+
+  final List<BcMetric> metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    if (metrics.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 14,
+      runSpacing: 6,
+      children: [
+        for (final metric in metrics)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(metric.icon, size: 16, color: BcColors.glacier),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  metric.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: BcText.caption(color: BcColors.onPhoto),
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -589,7 +662,12 @@ class BcInfoTile extends StatelessWidget {
       semanticLabel: subtitle == null ? title : '$title. $subtitle',
       child: Container(
         constraints: const BoxConstraints(minHeight: 112),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.only(
+          left: 14,
+          top: 10,
+          right: 14,
+          bottom: 14,
+        ),
         decoration: BoxDecoration(
           color: dark ? BcColors.ink : BcColors.surface,
           borderRadius: BorderRadius.circular(BcRadius.tile),
@@ -602,13 +680,13 @@ class BcInfoTile extends StatelessWidget {
               children: [
                 Icon(icon, color: dark ? BcColors.glacier : BcColors.ink),
                 const Spacer(),
-                if (trailing != null) trailing!,
+                ?trailing,
               ],
             ),
             const SizedBox(height: 16),
             Text(title, style: BcText.title(color: fg)),
             if (subtitle != null) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 1),
               Text(
                 subtitle!,
                 style: BcText.caption(
@@ -760,6 +838,76 @@ class BcMessage extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Tile horizontal: icono a la izquierda y título con subtítulo al lado.
+class BcWideInfoTile extends StatelessWidget {
+  const BcWideInfoTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.dark = false,
+    this.onTap,
+    this.trailing,
+    this.subtitleSize,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool dark;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+  final double? subtitleSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = dark ? BcColors.onPhoto : BcColors.ink;
+
+    return BcPressable(
+      onTap: onTap,
+      semanticLabel: subtitle == null ? title : '$title. $subtitle',
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 88),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        decoration: BoxDecoration(
+          color: dark ? BcColors.ink : BcColors.surface,
+          borderRadius: BorderRadius.circular(BcRadius.tile),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 32, color: dark ? BcColors.glacier : BcColors.ink),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: BcText.title(color: fg).copyWith(fontSize: 13),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: BcText.caption(
+                        color: dark
+                            ? BcColors.onPhoto.withValues(alpha: 0.78)
+                            : BcColors.muted,
+                      ).copyWith(fontSize: subtitleSize),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+          ],
+        ),
       ),
     );
   }

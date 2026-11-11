@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/providers/guest_profile.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 
@@ -41,7 +43,20 @@ class _SplashViewState extends State<SplashView>
   Future<void> _navigateToNext() async {
     await Future.delayed(_duration);
     if (!mounted) return;
-    context.go('/intro');
+
+    // Quien ya entró como invitado o tiene sesión no vuelve a la bienvenida.
+    final returning = await GuestStore.isGuest() || _hasSession();
+    if (!mounted) return;
+
+    context.go(returning ? '/home' : '/intro');
+  }
+
+  bool _hasSession() {
+    try {
+      return Supabase.instance.client.auth.currentSession != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

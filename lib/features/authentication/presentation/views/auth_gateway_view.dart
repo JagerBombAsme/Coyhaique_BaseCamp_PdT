@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/providers/guest_profile.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
@@ -112,7 +113,10 @@ class AuthGatewayView extends ConsumerWidget {
                       label: isSpanish
                           ? 'Continuar como invitado'
                           : 'Continue as guest',
-                      onPressed: () => context.push('/initial-location'),
+                      onPressed: () async {
+                        await GuestStore.markGuest();
+                        if (context.mounted) context.push('/initial-location');
+                      },
                     ),
                     const SizedBox(height: 12),
 

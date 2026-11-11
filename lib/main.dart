@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router/app_router.dart';
 import 'core/config/app_config.dart';
 import 'core/local/catalog_status_provider.dart';
+import 'core/network/network_status.dart';
 import 'core/providers/language_provider.dart';
 import 'core/theme/app_theme.dart';
 
@@ -62,6 +63,10 @@ Future<void> main() async {
   MapboxOptions.setAccessToken(
     const String.fromEnvironment('MAPBOX_ACCESS_TOKEN'),
   );
+
+  // Estado de red de toda la app: los repositorios no intentan Supabase
+  // mientras el sistema informe que no hay red.
+  await NetworkStatus.instance.start();
 
   // Al abrir la aplicación con conexión se descarga el catálogo para
   // consultarlo sin conexión (HU-09). Si no hay conexión, la descarga falla

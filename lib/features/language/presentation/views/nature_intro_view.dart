@@ -23,11 +23,14 @@ class _NatureIntroViewState extends State<NatureIntroView>
 
   late final String _backgroundImage;
 
-  // Parámetros del slider vertical
-  final double _trackHeight = 185.0;
-  final double _trackWidth = 74.0;
-  final double _buttonSize = 58.0;
-  final double _trackPadding = 8.0;
+  // Parámetros del slider horizontal
+  static const double _horizontalMargin = 28.0;
+  static const double _trackHeight = 74.0;
+  static const double _buttonSize = 58.0;
+  static const double _trackPadding = 8.0;
+
+  // Ancho disponible del riel, calculado a partir del ancho de pantalla
+  double _trackWidth = 290.0;
 
   double _dragOffset = 0.0;
   bool _isCompleted = false;
@@ -36,22 +39,23 @@ class _NatureIntroViewState extends State<NatureIntroView>
   late Animation<double> _returnAnimation;
 
   double get _maxDragDistance =>
-      _trackHeight - _buttonSize - (_trackPadding * 2);
+      _trackWidth - _buttonSize - (_trackPadding * 2);
 
   @override
   void initState() {
     super.initState();
-    // 1. Elección aleatoria entre las 5 imágenes cada vez que se abre la app
+    // Elección aleatoria entre las 5 imágenes cada vez que se abre la app
     _backgroundImage = _natureImages[Random().nextInt(_natureImages.length)];
 
-    _returnController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 260),
-    )..addListener(() {
-        setState(() {
-          _dragOffset = _returnAnimation.value;
+    _returnController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 260),
+        )..addListener(() {
+          setState(() {
+            _dragOffset = _returnAnimation.value;
+          });
         });
-      });
   }
 
   @override
@@ -69,13 +73,13 @@ class _NatureIntroViewState extends State<NatureIntroView>
     }
 
     setState(() {
-      // Arrastre hacia arriba (delta.dy negativo aumenta la distancia recorrida)
-      _dragOffset -= details.primaryDelta ?? 0.0;
+      // Arrastre hacia la derecha (delta.dx positivo aumenta la distancia recorrida)
+      _dragOffset += details.primaryDelta ?? 0.0;
       _dragOffset = _dragOffset.clamp(0.0, _maxDragDistance);
     });
 
-    // Si llega al tope mientras arrastra
-    if (_dragOffset >= _maxDragDistance * 0.90 && !_isCompleted) {
+    // Si llega al extremo mientras arrastra
+    if (_dragOffset >= _maxDragDistance * 0.90) {
       _completeSlide();
     }
   }
@@ -83,16 +87,13 @@ class _NatureIntroViewState extends State<NatureIntroView>
   void _onDragEnd(DragEndDetails details) {
     if (_isCompleted) return;
 
-    // Si superó el 75% o la velocidad hacia arriba es alta
+    // Si superó el 70 % del recorrido o la velocidad hacia la derecha es alta
     final velocity = details.primaryVelocity ?? 0.0;
-    if (_dragOffset >= _maxDragDistance * 0.70 || velocity < -500) {
+    if (_dragOffset >= _maxDragDistance * 0.70 || velocity > 500) {
       _completeSlide();
     } else {
-      // Regresar el botón a la posición inicial (abajo)
-      _returnAnimation = Tween<double>(
-        begin: _dragOffset,
-        end: 0.0,
-      ).animate(
+      // Regresar el botón a la posición inicial (izquierda)
+      _returnAnimation = Tween<double>(begin: _dragOffset, end: 0.0).animate(
         CurvedAnimation(parent: _returnController, curve: Curves.easeOutCubic),
       );
       _returnController.forward(from: 0.0);
@@ -105,13 +106,11 @@ class _NatureIntroViewState extends State<NatureIntroView>
 
     HapticFeedback.mediumImpact();
 
-    // Animar hasta el tope
-    _returnAnimation = Tween<double>(
-      begin: _dragOffset,
-      end: _maxDragDistance,
-    ).animate(
-      CurvedAnimation(parent: _returnController, curve: Curves.easeOutQuad),
-    );
+    // Animar hasta el extremo derecho
+    _returnAnimation = Tween<double>(begin: _dragOffset, end: _maxDragDistance)
+        .animate(
+          CurvedAnimation(parent: _returnController, curve: Curves.easeOutQuad),
+        );
     _returnController.forward(from: 0.0).then((_) {
       if (!mounted) return;
       // Navegar a la pantalla de selección de idioma
@@ -121,8 +120,12 @@ class _NatureIntroViewState extends State<NatureIntroView>
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
     final topPadding = MediaQuery.paddingOf(context).top;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
+
+    // El riel ocupa el ancho de la pantalla menos los márgenes laterales
+    _trackWidth = size.width - (_horizontalMargin * 2);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -138,7 +141,11 @@ class _NatureIntroViewState extends State<NatureIntroView>
             errorBuilder: (context, error, stackTrace) => Container(
               color: const Color(0xFF1B2E24),
               child: const Center(
-                child: Icon(Icons.nature_rounded, color: Colors.white24, size: 80),
+                child: Icon(
+                  Icons.nature_rounded,
+                  color: Colors.white24,
+                  size: 80,
+                ),
               ),
             ),
           ),
@@ -160,7 +167,7 @@ class _NatureIntroViewState extends State<NatureIntroView>
             ),
           ),
 
-          // 3. Tipografía superior izquierda exacta a la captura
+          // 3. Tipografía superior izquierda
           Positioned(
             top: topPadding + 44,
             left: 28,
@@ -192,27 +199,29 @@ class _NatureIntroViewState extends State<NatureIntroView>
             ),
           ),
 
-          // 4. Slider vertical estilo píldora translúcida con botón "Go"
+          // 4. Slider horizontal en la parte inferior
           Positioned(
             bottom: bottomPadding + 36,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _buildVerticalSliderTrack(),
-            ),
+            left: _horizontalMargin,
+            right: _horizontalMargin,
+            child: _buildHorizontalSliderTrack(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildVerticalSliderTrack() {
+  Widget _buildHorizontalSliderTrack() {
+    final progress = _maxDragDistance <= 0
+        ? 0.0
+        : (_dragOffset / _maxDragDistance).clamp(0.0, 1.0);
+
     return Container(
       width: _trackWidth,
       height: _trackHeight,
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(_trackWidth / 2),
+        borderRadius: BorderRadius.circular(_trackHeight / 2),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.22),
           width: 1.2,
@@ -226,42 +235,45 @@ class _NatureIntroViewState extends State<NatureIntroView>
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(_trackWidth / 2),
+        borderRadius: BorderRadius.circular(_trackHeight / 2),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Stack(
-            alignment: Alignment.center,
             children: [
-              // Indicador superior de doble flecha hacia arriba
+              // Indicador de doble flecha hacia la derecha, en el extremo derecho
               Positioned(
-                top: _trackPadding + 14,
-                child: Opacity(
-                  opacity: (1.0 - (_dragOffset / _maxDragDistance)).clamp(0.2, 0.9),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.keyboard_arrow_up_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      SizedBox(height: 0),
-                      Icon(
-                        Icons.keyboard_arrow_up_rounded,
-                        color: Colors.white70,
-                        size: 22,
-                      ),
-                    ],
+                right: _trackPadding + 18,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Opacity(
+                    opacity: (1.0 - progress).clamp(0.2, 0.9),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.keyboard_arrow_right_rounded,
+                          color: Colors.white70,
+                          size: 22,
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_right_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
 
               // Botón circular deslizante "Go"
               Positioned(
-                bottom: _trackPadding + _dragOffset,
+                left: _trackPadding + _dragOffset,
+                top: (_trackHeight - _buttonSize) / 2,
                 child: GestureDetector(
-                  onVerticalDragUpdate: _onDragUpdate,
-                  onVerticalDragEnd: _onDragEnd,
+                  onHorizontalDragUpdate: _onDragUpdate,
+                  onHorizontalDragEnd: _onDragEnd,
                   onTap: _completeSlide,
                   child: Container(
                     width: _buttonSize,
