@@ -2,16 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/basecamp_tokens.dart';
 
-/// Componentes del sistema de diseño «Coyhaique BaseCamp».
-///
-/// Cada componente corresponde a uno del sistema publicado (Tag,
-/// CornerButton, InfoTile, SectionHeader, CategoryButton, TourCard…).
 
-// =================================================================
-// PULSACIÓN
-// =================================================================
-
-/// Reduce la escala a 0,96 durante la pulsación (estado «presionado»).
 class BcPressable extends StatefulWidget {
   const BcPressable({
     super.key,
