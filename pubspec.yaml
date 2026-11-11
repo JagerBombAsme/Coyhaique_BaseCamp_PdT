@@ -41,6 +41,12 @@ dependencies:
   # Ubicación GPS
   geolocator: ^14.1.2
 
+  # HTTP para la API de rutas de Mapbox (Directions)
+  http: ^1.2.2
+
+  # Detectar conexión para el aviso de sin conexión
+  connectivity_plus: ^6.1.0
+
   # Abrir enlaces externos
   url_launcher: ^6.3.1
 
