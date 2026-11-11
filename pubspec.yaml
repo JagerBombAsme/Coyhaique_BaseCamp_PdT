@@ -61,6 +61,7 @@ dependencies:
   google_fonts: ^6.2.1
   mapbox_maps_flutter: ^2.31.1
   flutter_lints: ^6.0.0
+  connectivity_plus: ^7.3.1
 
 dev_dependencies:
   flutter_test:
