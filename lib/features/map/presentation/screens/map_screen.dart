@@ -40,11 +40,12 @@ enum MapStyleOption {
 enum _LocationGate { checking, granted, serviceOff, denied, deniedForever }
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key, this.routeFromAirport = false});
+  const MapScreen({super.key, this.routeFromAirport = false, this.onOpenPlace});
 
   /// Abre el mapa con la ruta Aeropuerto Balmaceda → Plaza de Armas
   /// (pantalla «¿Desde dónde partes?», viaje en transporte propio).
   final bool routeFromAirport;
+  final void Function(MapPlace place)? onOpenPlace;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -525,40 +526,40 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Widget _buildMapStack() {
     return Stack(
-        children: [
-          Positioned.fill(
-            child: MapWidget(
-              styleUri: _style.uri,
-              cameraOptions: CameraOptions(
-                center: Point(
-                  coordinates: Position(_center.longitude, _center.latitude),
-                ),
-                zoom: _initialZoom,
+      children: [
+        Positioned.fill(
+          child: MapWidget(
+            styleUri: _style.uri,
+            cameraOptions: CameraOptions(
+              center: Point(
+                coordinates: Position(_center.longitude, _center.latitude),
               ),
-              onMapCreated: _onMapCreated,
-              onStyleLoadedListener: _onStyleLoaded,
+              zoom: _initialZoom,
+            ),
+            onMapCreated: _onMapCreated,
+            onStyleLoadedListener: _onStyleLoaded,
+          ),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              children: [
+                _buildSearchBar(),
+                const SizedBox(height: 12),
+                _buildQuickLocations(),
+              ],
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                children: [
-                  _buildSearchBar(),
-                  const SizedBox(height: 12),
-                  _buildQuickLocations(),
-                ],
-              ),
-            ),
-          ),
+        ),
 
-          // Tarjeta de información del lugar seleccionado.
-          Positioned(left: 16, right: 76, bottom: 110, child: _buildInfoCard()),
+        // Tarjeta de información del lugar seleccionado.
+        Positioned(left: 16, right: 76, bottom: 110, child: _buildInfoCard()),
 
-          // Controles del mapa.
-          Positioned(right: 16, bottom: 110, child: _buildControls()),
-        ],
-      );
+        // Controles del mapa.
+        Positioned(right: 16, bottom: 110, child: _buildControls()),
+      ],
+    );
   }
 
   /// Pantalla que reemplaza al mapa mientras no hay permiso de ubicación.
@@ -569,29 +570,28 @@ class _MapScreenState extends ConsumerState<MapScreen>
       return const Center(child: CircularProgressIndicator());
     }
 
-    final (String text, String action, VoidCallback onAction) =
-        switch (_gate) {
+    final (String text, String action, VoidCallback onAction) = switch (_gate) {
       _LocationGate.serviceOff => (
-          es
-              ? 'Activa la ubicación de tu teléfono para ver el mapa.'
-              : 'Turn on your phone location to see the map.',
-          es ? 'Activar ubicación' : 'Turn on location',
-          () => geolocator.Geolocator.openLocationSettings(),
-        ),
+        es
+            ? 'Activa la ubicación de tu teléfono para ver el mapa.'
+            : 'Turn on your phone location to see the map.',
+        es ? 'Activar ubicación' : 'Turn on location',
+        () => geolocator.Geolocator.openLocationSettings(),
+      ),
       _LocationGate.deniedForever => (
-          es
-              ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes de la aplicación para ver el mapa.'
-              : 'Location permission is blocked. Turn it on in the app settings to see the map.',
-          es ? 'Abrir ajustes' : 'Open settings',
-          () => geolocator.Geolocator.openAppSettings(),
-        ),
+        es
+            ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes de la aplicación para ver el mapa.'
+            : 'Location permission is blocked. Turn it on in the app settings to see the map.',
+        es ? 'Abrir ajustes' : 'Open settings',
+        () => geolocator.Geolocator.openAppSettings(),
+      ),
       _ => (
-          es
-              ? 'Activa los permisos de ubicación para ver el mapa.'
-              : 'Turn on location permissions to see the map.',
-          es ? 'Permitir ubicación' : 'Allow location',
-          () => _checkLocation(requestIfNeeded: true),
-        ),
+        es
+            ? 'Activa los permisos de ubicación para ver el mapa.'
+            : 'Turn on location permissions to see the map.',
+        es ? 'Permitir ubicación' : 'Allow location',
+        () => _checkLocation(requestIfNeeded: true),
+      ),
     };
 
     return ColoredBox(
@@ -718,7 +718,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _circleButton(
           filled: true,
           child: IconButton(
-            tooltip: _isSpanish ? 'Centrar en Coyhaique' : 'Center on Coyhaique',
+            tooltip: _isSpanish
+                ? 'Centrar en Coyhaique'
+                : 'Center on Coyhaique',
             icon: const Icon(Icons.center_focus_strong, color: Colors.white),
             onPressed: () => _goToPlace(_center),
           ),
@@ -865,6 +867,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
               height: 1.3,
             ),
           ),
+          if (place.id != null && widget.onOpenPlace != null) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => widget.onOpenPlace!(place),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: Text(_isSpanish ? 'Ver ficha' : 'View details'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const ui.Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          ],
           ..._buildRouteSection(place),
           if (!place.verified) ...[
             const SizedBox(height: 6),
@@ -883,7 +901,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
       ),
     );
   }
-
   // ===============================================================
   // RUTA EN LA TARJETA
   // ===============================================================

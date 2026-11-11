@@ -15,6 +15,7 @@ class MapPlace {
     required this.latitude,
     this.zoom = 15.0,
     this.verified = true,
+    this.id,
   });
 
   final String nameEs;
@@ -27,7 +28,9 @@ class MapPlace {
   final double zoom;
 
   /// false = coordenadas aproximadas (sin marcador en el mapa y con aviso).
+
   final bool verified;
+  final String? id;
 
   String name({required bool isSpanish}) => isSpanish ? nameEs : nameEn;
 
