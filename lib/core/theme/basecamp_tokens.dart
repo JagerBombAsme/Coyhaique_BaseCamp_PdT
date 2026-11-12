@@ -84,40 +84,40 @@ abstract final class BcText {
       display(50, color: color);
 
   static TextStyle label({Color color = BcColors.ink}) => GoogleFonts.inter(
-    fontSize: 11,
-    height: 1.3,
-    fontWeight: FontWeight.w800,
-    letterSpacing: 0.9,
-    color: color,
-  );
+        fontSize: 11,
+        height: 1.3,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.9,
+        color: color,
+      );
 
   static TextStyle title({Color color = BcColors.ink}) => GoogleFonts.inter(
-    fontSize: 15,
-    height: 1.15,
-    fontWeight: FontWeight.w700,
-    color: color,
-  );
+        fontSize: 15,
+        height: 1.15,
+        fontWeight: FontWeight.w700,
+        color: color,
+      );
 
   static TextStyle body({Color color = BcColors.muted}) => GoogleFonts.inter(
-    fontSize: 14.5,
-    height: 1.45,
-    fontWeight: FontWeight.w400,
-    color: color,
-  );
+        fontSize: 14.5,
+        height: 1.45,
+        fontWeight: FontWeight.w400,
+        color: color,
+      );
 
   static TextStyle caption({Color color = BcColors.muted}) => GoogleFonts.inter(
-    fontSize: 12.5,
-    height: 1.3,
-    fontWeight: FontWeight.w500,
-    color: color,
-  );
+        fontSize: 12.5,
+        height: 1.3,
+        fontWeight: FontWeight.w500,
+        color: color,
+      );
 
   static TextStyle button({Color color = BcColors.ink}) => GoogleFonts.inter(
-    fontSize: 15,
-    height: 1.2,
-    fontWeight: FontWeight.w700,
-    color: color,
-  );
+        fontSize: 15,
+        height: 1.2,
+        fontWeight: FontWeight.w700,
+        color: color,
+      );
 }
 
 /// Tratamiento común de fotografía: desaturada a la mitad, +12 % de
@@ -132,8 +132,6 @@ abstract final class BcPhoto {
 
   /// Foto completa de Laguna Cerro Castillo y su recorte sin cielo (mismo
   /// encuadre), para que las cumbres corten el título del hero.
-  ///
-  static const String mountainHike = 'assets/images/mountain_hike.jpg';
   static const String cerroCastillo = 'assets/images/cerro_castillo_laguna.jpg';
   static const String cerroCastilloRecorte =
       'assets/images/cerro_castillo_recorte.webp';

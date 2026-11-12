@@ -208,11 +208,11 @@ class TransfersScreen extends ConsumerWidget {
                         child: Text(
                           result.savedAt == null
                               ? (isSpanish
-                                    ? 'Sin conexión: mostramos las fichas guardadas.'
-                                    : 'Offline: showing saved listings.')
+                                  ? 'Sin conexión: mostramos las fichas guardadas.'
+                                  : 'Offline: showing saved listings.')
                               : (isSpanish
-                                    ? 'Sin conexión: fichas guardadas el ${formatDate(result.savedAt!)}.'
-                                    : 'Offline: listings saved on ${formatDate(result.savedAt!)}.'),
+                                  ? 'Sin conexión: fichas guardadas el ${formatDate(result.savedAt!)}.'
+                                  : 'Offline: listings saved on ${formatDate(result.savedAt!)}.'),
                           style: BcText.caption(color: BcColors.glacierDeep),
                         ),
                       ),
@@ -240,8 +240,9 @@ class TransfersScreen extends ConsumerWidget {
                           child: _TransferCard(
                             service: service,
                             isSpanish: isSpanish,
-                            onPrepare: () =>
-                                context.push(transferRequestRoute(service.id)),
+                            onPrepare: () => context.push(
+                              transferRequestRoute(service.id),
+                            ),
                           ),
                         );
                       },
@@ -320,17 +321,17 @@ class _TransferCard extends StatelessWidget {
 
     final (tagLead, tagText) = switch (service.verificationLevel) {
       'establecimiento' => (
-        isSpanish ? 'Verificado' : 'Verified',
-        isSpanish ? 'por la empresa' : 'by the company',
-      ),
+          isSpanish ? 'Verificado' : 'Verified',
+          isSpanish ? 'por la empresa' : 'by the company',
+        ),
       'fuente_publica' => (
-        isSpanish ? 'Fuente' : 'Source',
-        isSpanish ? 'pública' : 'public',
-      ),
+          isSpanish ? 'Fuente' : 'Source',
+          isSpanish ? 'pública' : 'public',
+        ),
       _ => (
-        isSpanish ? 'Pendiente' : 'Pending',
-        isSpanish ? 'de validación' : 'validation',
-      ),
+          isSpanish ? 'Pendiente' : 'Pending',
+          isSpanish ? 'de validación' : 'validation',
+        ),
     };
 
     return Container(
@@ -365,8 +366,8 @@ class _TransferCard extends StatelessWidget {
             value: service.capacity == null
                 ? (isSpanish ? 'Por confirmar' : 'To be confirmed')
                 : (isSpanish
-                      ? '${service.capacity} pasajeros'
-                      : '${service.capacity} passengers'),
+                    ? '${service.capacity} pasajeros'
+                    : '${service.capacity} passengers'),
           ),
           if (schedule != null)
             TransferInfoRow(
