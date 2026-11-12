@@ -267,6 +267,7 @@ void main() {
     final confirm = find.text('Confirmar y continuar');
     await tester.ensureVisible(confirm);
     await tester.pumpAndSettle();
+    expect(find.text('CHOOSE YOUR\nLANGUAGE'), findsOneWidget);
     expect(tester.getRect(confirm).bottom, lessThanOrEqualTo(480));
   });
 }
