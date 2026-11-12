@@ -59,7 +59,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isSpanish = language == 'es';
 
     final activitiesAsync = ref.watch(activitiesProvider);
-
+    // Solo las categorías principales (Atractivos, Gastronomía…); las
+    // subcategorías se ven al abrir cada una.
     final categoriesAsync = ref.watch(places.mainCategoriesProvider);
 
     final activeCategories = categoriesAsync.maybeWhen(

@@ -12,7 +12,7 @@ import '../../../home/presentation/widgets/pressable_scale.dart';
 const String tripInfoRoute = '/trip-info';
 
 /// Contexto en que se muestra el aviso (RNF-14).
-enum TripNoticeKind { home, transport, route, walk }
+enum TripNoticeKind { home, transport, route }
 
 /// Aviso de uso seguro en forma de tarjeta flotante.
 ///
@@ -145,14 +145,6 @@ class _TripNoticeCardState extends State<_TripNoticeCard>
               ? 'Horarios y tarifas son referenciales y pueden cambiar. Confirma con cada empresa antes de viajar; la aplicación no hace reservas.'
               : 'Schedules and fares are for reference only and may change. Confirm with each company before travelling; the app does not make bookings.',
           Icons.directions_bus_rounded,
-        );
-      case TripNoticeKind.walk:
-        return (
-          es ? 'Recorrido a pie' : 'Walking route',
-          es
-              ? 'Sal abrigado y con agua: el clima en Aysén cambia rápido. No ingreses a propiedades privadas sin autorización y respeta cercos y animales.'
-              : 'Dress warmly and bring water: Aysén weather changes quickly. Do not enter private property without permission, and respect fences and animals.',
-          Icons.directions_walk_rounded,
         );
       case TripNoticeKind.route:
         return (

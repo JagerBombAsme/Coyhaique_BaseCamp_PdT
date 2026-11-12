@@ -1,45 +1,56 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
-import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
-import '../map_places.dart';
 import 'mapbox_directions_services.dart';
-import 'transport_mode_screen.dart';
+
+// ===============================================================
+// MODELO DE UBICACIÓN
+// ===============================================================
+
+class MapPlace {
+  final String name;
+  final String description;
+  final IconData icon;
+  final double longitude;
+  final double latitude;
+  final double zoom;
+
+  /// false = coordenadas aproximadas (sin marcador en el mapa y con aviso).
+  final bool verified;
+
+  const MapPlace({
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.longitude,
+    required this.latitude,
+    this.zoom = 15.0,
+    this.verified = true,
+  });
+}
 
 // ===============================================================
 // ESTILOS DE MAPA
 // ===============================================================
 
 enum MapStyleOption {
-  outdoors('Terreno', 'Terrain', Icons.terrain, MapboxStyles.OUTDOORS),
-  satellite(
-    'Satélite',
-    'Satellite',
-    Icons.satellite_alt,
-    MapboxStyles.SATELLITE_STREETS,
-  ),
-  streets('Calles', 'Streets', Icons.map_outlined, MapboxStyles.MAPBOX_STREETS);
+  outdoors('Terreno', Icons.terrain, MapboxStyles.OUTDOORS),
+  satellite('Satélite', Icons.satellite_alt, MapboxStyles.SATELLITE_STREETS),
+  streets('Calles', Icons.map_outlined, MapboxStyles.MAPBOX_STREETS);
 
-  const MapStyleOption(this.labelEs, this.labelEn, this.icon, this.uri);
+  const MapStyleOption(this.label, this.icon, this.uri);
 
-  final String labelEs;
-  final String labelEn;
+  final String label;
   final IconData icon;
   final String uri;
-
-  String label({required bool isSpanish}) => isSpanish ? labelEs : labelEn;
 }
 
-/// Estado del permiso de ubicación. Sin permiso no se muestra el mapa.
-enum _LocationGate { checking, granted, serviceOff, denied, deniedForever }
-
-class MapScreen extends ConsumerStatefulWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({super.key, this.routeFromAirport = false});
 
   /// Abre el mapa con la ruta Aeropuerto Balmaceda → Plaza de Armas
@@ -47,24 +58,84 @@ class MapScreen extends ConsumerStatefulWidget {
   final bool routeFromAirport;
 
   @override
-  ConsumerState<MapScreen> createState() => _MapScreenState();
+  State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen>
-    with WidgetsBindingObserver {
+class _MapScreenState extends State<MapScreen> {
   // ===============================================================
   // CONFIGURACIÓN
-  // Los lugares viven en map_places.dart (fuente única para el mapa).
   // ===============================================================
 
-  static const MapPlace _center = MapPlaces.center;
-  static const MapPlace _plaza = MapPlaces.plaza;
-  static const List<MapPlace> _places = MapPlaces.all;
+  static const MapPlace _center = MapPlace(
+    name: 'Coyhaique Centro',
+    description: 'Centro de la ciudad, punto de partida para recorrer Aysén.',
+    icon: Icons.location_city,
+    longitude: -72.068265,
+    latitude: -45.571225,
+    zoom: 13.0,
+  );
 
   static const double _initialZoom = 12.5;
 
-  /// Idioma activo de la app (Riverpod). Sin tocar el estado aquí.
-  bool get _isSpanish => ref.read(languageProvider).languageCode == 'es';
+  // Coordenadas de la ciudad: coinciden con la Plaza de Armas.
+  // Es el punto de partida de las rutas.
+  static const MapPlace _plaza = MapPlace(
+    name: 'Plaza de Armas',
+    description:
+        'Plaza pentagonal de la que parten 10 calles. Aquí está la feria artesanal.',
+    icon: Icons.park_outlined,
+    longitude: -72.068265,
+    latitude: -45.571225,
+    zoom: 16.0,
+  );
+
+  static const List<MapPlace> _places = [
+    _plaza,
+    // Centro de la reserva según Wikipedia (45°30′40″S 71°59′45″W).
+    MapPlace(
+      name: 'Reserva Nacional',
+      description:
+          'Reserva creada en 1948, a menos de 5 km de la ciudad. Tiene lagunas como Laguna Verde y miradores hacia Coyhaique.',
+      icon: Icons.forest_outlined,
+      longitude: -71.99583,
+      latitude: -45.51111,
+      zoom: 12.5,
+    ),
+    // Dirección confirmada por SERNATUR: Bulnes 35, a ~150 m de la plaza.
+    MapPlace(
+      name: 'SERNATUR',
+      description:
+          'Oficina de información turística (Bulnes 35). Pide mapas y consulta el estado de rutas y actividades.',
+      icon: Icons.info_outline,
+      longitude: -72.06757009107555,
+      latitude: -45.56999552963736,
+      zoom: 16.5,
+    ),
+    // Cumbre de 1.205 m (Andeshandbook: 45°36′29.9″S 72°04′32.2″W).
+    // Está al sur de la ciudad, a ~4 km del centro.
+    MapPlace(
+      name: 'Cerro Mackay',
+      description:
+          'La postal más reconocible de Coyhaique (1.205 m), al sur de la ciudad. Trekking y escalada. El acceso cruza terrenos privados: respeta cercos y propietarios.',
+      icon: Icons.landscape_outlined,
+      longitude: -72.075611,
+      latitude: -45.608306,
+      zoom: 13.5,
+    ),
+    // Aeropuerto Balmaceda (BBA), el principal de Aysén.
+    // Wikipedia: 45°54′58″S 71°41′15″W. Está a ~50 km de la ciudad.
+    // Si prefieres el aeródromo Teniente Vidal (a ~3 km al suroeste):
+    //   latitude: -45.59444, longitude: -72.10667
+    MapPlace(
+      name: 'Aeropuerto Balmaceda',
+      description:
+          'Principal aeropuerto de Aysén, a unos 50 km al sureste de Coyhaique. Vuelos a Santiago y Puerto Montt.',
+      icon: Icons.flight,
+      longitude: -71.68750,
+      latitude: -45.91611,
+      zoom: 12.5,
+    ),
+  ];
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -79,62 +150,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // Ruta activa (si hay una dibujada en el mapa).
   PolylineAnnotationManager? _routeManager;
   RouteResult? _route;
-  MapPlace? _routeFrom;
-  MapPlace? _routeTo;
+  String? _routeLabel;
   bool _loadingRoute = false;
 
   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
   late bool _pendingAirportRoute = widget.routeFromAirport;
 
-  /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
-  _LocationGate _gate = _LocationGate.checking;
-
   /// Lugares filtrados según el texto del buscador.
   List<MapPlace> get _filteredPlaces {
-    return _places.where((p) => p.matches(_searchController.text)).toList();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Al abrir el mapa se pide la ubicación (no se muestra el mapa sin ella).
-    _checkLocation(requestIfNeeded: true);
-  }
-
-  /// Al volver de los ajustes del teléfono se revisa de nuevo el permiso.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkLocation(requestIfNeeded: false);
-    }
-  }
-
-  /// Revisa GPS y permiso y actualiza [_gate].
-  Future<void> _checkLocation({required bool requestIfNeeded}) async {
-    var next = _LocationGate.denied;
-    try {
-      if (!await geolocator.Geolocator.isLocationServiceEnabled()) {
-        next = _LocationGate.serviceOff;
-      } else {
-        var permission = await geolocator.Geolocator.checkPermission();
-        if (permission == geolocator.LocationPermission.denied &&
-            requestIfNeeded) {
-          permission = await geolocator.Geolocator.requestPermission();
-        }
-        next = switch (permission) {
-          geolocator.LocationPermission.whileInUse ||
-          geolocator.LocationPermission.always => _LocationGate.granted,
-          geolocator.LocationPermission.deniedForever =>
-            _LocationGate.deniedForever,
-          _ => _LocationGate.denied,
-        };
-      }
-    } catch (_) {
-      next = _LocationGate.denied;
-    }
-    if (!mounted) return;
-    setState(() => _gate = next);
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _places;
+    return _places.where((p) => p.name.toLowerCase().contains(query)).toList();
   }
 
   @override
@@ -152,18 +178,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   /// Ruta Aeropuerto Balmaceda → Plaza de Armas de Coyhaique.
-  /// Es para transporte propio (50 km): se calcula en auto, no a pie.
   Future<void> _showAirportRoute() async {
-    await _showRoute(
-      from: MapPlaces.airport,
-      to: _plaza,
-      profile: RouteProfile.driving,
+    final airport = _places.firstWhere(
+      (p) => p.name == 'Aeropuerto Balmaceda',
+      orElse: () => _center,
     );
+    if (identical(airport, _center)) return;
+    await _showRoute(from: airport, to: _plaza);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -194,9 +219,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// así los marcadores siempre se redibujan.
   Future<void> _onStyleLoaded(StyleLoadedEventData _) async {
     final map = _mapboxMap;
-    if (map == null || !mounted) return;
-
-    await _applyMapLanguage(ref.read(languageProvider).languageCode);
+    if (map == null) return;
 
     final oldManager = _markerManager;
     if (oldManager != null) {
@@ -242,16 +265,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  /// Traduce las etiquetas del propio mapa (calles, ciudades, países). Un
-  /// fallo aquí no debe impedir usar el mapa.
-  Future<void> _applyMapLanguage(String languageCode) async {
-    try {
-      await _mapboxMap?.style.localizeLabels(languageCode, null);
-    } catch (e) {
-      debugPrint('ERROR IDIOMA DEL MAPA: $e');
-    }
-  }
-
   /// Único punto de entrada para mover la cámara y actualizar el estado.
   Future<void> _goToPlace(MapPlace place) async {
     _searchFocus.unfocus();
@@ -294,7 +307,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
   Future<void> _showRoute({
     required MapPlace from,
     required MapPlace to,
-    String profile = RouteProfile.walking,
   }) async {
     final map = _mapboxMap;
     if (map == null || _loadingRoute) return;
@@ -311,12 +323,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
         fromLatitude: from.latitude,
         toLongitude: to.longitude,
         toLatitude: to.latitude,
-        profile: profile,
+        profile: RouteProfile.driving,
       );
       service.dispose();
 
       if (route == null) {
-        _showMessage(_isSpanish ? 'No se encontró una ruta' : 'No route found');
+        _showMessage('No se encontró una ruta');
         return;
       }
 
@@ -336,40 +348,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
       if (!mounted) return;
       setState(() {
         _route = route;
-        _routeFrom = from;
-        _routeTo = to;
+        _routeLabel = '${from.name} → ${to.name}';
       });
 
       // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
-      TripNotice.show(
-        context,
-        kind: profile == RouteProfile.walking
-            ? TripNoticeKind.walk
-            : TripNoticeKind.route,
-      );
+      TripNotice.show(context, kind: TripNoticeKind.route);
     } catch (e) {
       debugPrint('ERROR RUTA: $e');
-      _showMessage(
-        _isSpanish
-            ? 'No se pudo calcular la ruta'
-            : 'The route could not be calculated',
-      );
+      _showMessage('No se pudo calcular la ruta');
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
     }
-  }
-
-  /// Pregunta si la persona anda a pie o en auto y calcula la ruta desde la
-  /// Plaza de Armas con ese medio. Si cierra la pantalla, no pasa nada.
-  Future<void> _chooseTransportAndRoute(MapPlace place) async {
-    final profile = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(
-        fullscreenDialog: true,
-        builder: (_) => const TransportModeScreen(),
-      ),
-    );
-    if (profile == null || !mounted) return;
-    await _showRoute(from: _plaza, to: place, profile: profile);
   }
 
   /// Dibuja la línea de la ruta en el mapa.
@@ -411,8 +400,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (!mounted) return;
     setState(() {
       _route = null;
-      _routeFrom = null;
-      _routeTo = null;
+      _routeLabel = null;
     });
   }
 
@@ -422,9 +410,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (map == null) return;
 
     if (!await geolocator.Geolocator.isLocationServiceEnabled()) {
-      _showMessage(
-        _isSpanish ? 'Activa el GPS de tu teléfono' : 'Turn on your phone GPS',
-      );
+      _showMessage('Activa el GPS de tu teléfono');
       return;
     }
 
@@ -434,11 +420,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
     if (permission == geolocator.LocationPermission.denied ||
         permission == geolocator.LocationPermission.deniedForever) {
-      _showMessage(
-        _isSpanish
-            ? 'Se necesita permiso de ubicación'
-            : 'Location permission is required',
-      );
+      _showMessage('Se necesita permiso de ubicación');
       return;
     }
 
@@ -465,11 +447,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         MapAnimationOptions(duration: 1200),
       );
     } catch (_) {
-      _showMessage(
-        _isSpanish
-            ? 'No se pudo obtener tu ubicación'
-            : 'Your location could not be determined',
-      );
+      _showMessage('No se pudo obtener tu ubicación');
     }
   }
 
@@ -482,9 +460,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final results = _filteredPlaces;
 
     if (results.isEmpty) {
-      _showMessage(
-        _isSpanish ? 'No se encontraron lugares' : 'No places found',
-      );
+      _showMessage('No se encontraron lugares');
       return;
     }
 
@@ -509,22 +485,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Redibuja los textos y traduce el mapa si cambia el idioma: esta pestaña
-    // se conserva mientras el usuario cambia el idioma desde su perfil.
-    ref.watch(languageProvider);
-    ref.listen<Locale>(languageProvider, (_, next) {
-      _applyMapLanguage(next.languageCode);
-    });
-
     return Scaffold(
-      body: _gate == _LocationGate.granted
-          ? _buildMapStack()
-          : _buildLocationGate(),
-    );
-  }
-
-  Widget _buildMapStack() {
-    return Stack(
+      body: Stack(
         children: [
           Positioned.fill(
             child: MapWidget(
@@ -558,89 +520,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
           // Controles del mapa.
           Positioned(right: 16, bottom: 110, child: _buildControls()),
         ],
-      );
-  }
-
-  /// Pantalla que reemplaza al mapa mientras no hay permiso de ubicación.
-  Widget _buildLocationGate() {
-    final es = _isSpanish;
-
-    if (_gate == _LocationGate.checking) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final (String text, String action, VoidCallback onAction) =
-        switch (_gate) {
-      _LocationGate.serviceOff => (
-          es
-              ? 'Activa la ubicación de tu teléfono para ver el mapa.'
-              : 'Turn on your phone location to see the map.',
-          es ? 'Activar ubicación' : 'Turn on location',
-          () => geolocator.Geolocator.openLocationSettings(),
-        ),
-      _LocationGate.deniedForever => (
-          es
-              ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes de la aplicación para ver el mapa.'
-              : 'Location permission is blocked. Turn it on in the app settings to see the map.',
-          es ? 'Abrir ajustes' : 'Open settings',
-          () => geolocator.Geolocator.openAppSettings(),
-        ),
-      _ => (
-          es
-              ? 'Activa los permisos de ubicación para ver el mapa.'
-              : 'Turn on location permissions to see the map.',
-          es ? 'Permitir ubicación' : 'Allow location',
-          () => _checkLocation(requestIfNeeded: true),
-        ),
-    };
-
-    return ColoredBox(
-      color: const Color(0xFFE8EBED),
-      child: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.location_off_rounded,
-                  size: 56,
-                  color: AppTheme.primaryDark,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  es ? 'Ubicación necesaria' : 'Location needed',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, height: 1.4),
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: onAction,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primaryDark,
-                  ),
-                  child: Text(action),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => _checkLocation(requestIfNeeded: false),
-                  child: Text(es ? 'Ya la activé' : 'I turned it on'),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -655,7 +534,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       children: [
         _circleButton(
           child: IconButton(
-            tooltip: _isSpanish ? 'Acercar' : 'Zoom in',
+            tooltip: 'Acercar',
             icon: const Icon(Icons.add, color: AppTheme.primaryDark),
             onPressed: () => _zoomBy(1),
           ),
@@ -663,7 +542,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         const SizedBox(height: 8),
         _circleButton(
           child: IconButton(
-            tooltip: _isSpanish ? 'Alejar' : 'Zoom out',
+            tooltip: 'Alejar',
             icon: const Icon(Icons.remove, color: AppTheme.primaryDark),
             onPressed: () => _zoomBy(-1),
           ),
@@ -671,7 +550,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         const SizedBox(height: 8),
         _circleButton(
           child: PopupMenuButton<MapStyleOption>(
-            tooltip: _isSpanish ? 'Estilo del mapa' : 'Map style',
+            tooltip: 'Estilo del mapa',
             icon: const Icon(
               Icons.layers_outlined,
               color: AppTheme.primaryDark,
@@ -692,7 +571,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          option.label(isSpanish: _isSpanish),
+                          option.label,
                           style: TextStyle(
                             fontWeight: option == _style
                                 ? FontWeight.bold
@@ -709,7 +588,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         const SizedBox(height: 8),
         _circleButton(
           child: IconButton(
-            tooltip: _isSpanish ? 'Mi ubicación' : 'My location',
+            tooltip: 'Mi ubicación',
             icon: const Icon(Icons.my_location, color: AppTheme.primaryDark),
             onPressed: _goToMyLocation,
           ),
@@ -718,7 +597,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _circleButton(
           filled: true,
           child: IconButton(
-            tooltip: _isSpanish ? 'Centrar en Coyhaique' : 'Center on Coyhaique',
+            tooltip: 'Centrar en Coyhaique',
             icon: const Icon(Icons.center_focus_strong, color: Colors.white),
             onPressed: () => _goToPlace(_center),
           ),
@@ -759,9 +638,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         onSubmitted: _onSearchSubmitted,
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
-          hintText: _isSpanish
-              ? 'Buscar destinos, servicios en el mapa...'
-              : 'Search destinations, services on the map...',
+          hintText: 'Buscar destinos, servicios en el mapa...',
           prefixIcon: const Icon(Icons.search, color: AppTheme.primaryDark),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -789,7 +666,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       scrollDirection: Axis.horizontal,
       child: Row(
         children: places.map((place) {
-          final isSelected = identical(place, _selectedPlace);
+          final isSelected = place.name == _selectedPlace.name;
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -800,7 +677,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 color: isSelected ? Colors.white : AppTheme.primaryDark,
               ),
               label: Text(
-                place.name(isSpanish: _isSpanish),
+                place.name,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
@@ -846,7 +723,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  place.name(isSpanish: _isSpanish),
+                  place.name,
                   style: const TextStyle(
                     color: AppTheme.primaryDark,
                     fontWeight: FontWeight.w700,
@@ -858,7 +735,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            place.description(isSpanish: _isSpanish),
+            place.description,
             style: const TextStyle(
               color: Colors.black87,
               fontSize: 12.5,
@@ -868,13 +745,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ..._buildRouteSection(place),
           if (!place.verified) ...[
             const SizedBox(height: 6),
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.info_outline, size: 14, color: Colors.orange),
-                const SizedBox(width: 4),
+                Icon(Icons.info_outline, size: 14, color: Colors.orange),
+                SizedBox(width: 4),
                 Text(
-                  _isSpanish ? 'Ubicación aproximada' : 'Approximate location',
-                  style: const TextStyle(fontSize: 11.5, color: Colors.orange),
+                  'Ubicación aproximada',
+                  style: TextStyle(fontSize: 11.5, color: Colors.orange),
                 ),
               ],
             ),
@@ -893,9 +770,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     // Hay una ruta activa: muestra distancia, tiempo y botón para quitarla.
     if (route != null) {
-      final from = _routeFrom?.name(isSpanish: _isSpanish) ?? '';
-      final to = _routeTo?.name(isSpanish: _isSpanish) ?? '';
-
       return [
         const SizedBox(height: 8),
         Row(
@@ -908,7 +782,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                '$from → $to · ${route.distanceLabel} · ${route.durationLabel}',
+                '${_routeLabel ?? ''} · ${route.distanceLabel} · ${route.durationLabel}',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -923,7 +797,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           child: TextButton.icon(
             onPressed: _clearRoute,
             icon: const Icon(Icons.close, size: 16),
-            label: Text(_isSpanish ? 'Quitar ruta' : 'Remove route'),
+            label: const Text('Quitar ruta'),
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
               minimumSize: const ui.Size(0, 32),
@@ -935,7 +809,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
 
     // La plaza y el centro son el punto de partida: no tienen ruta.
-    if (identical(place, _plaza) || identical(place, _center)) {
+    if (place.name == _plaza.name || place.name == _center.name) {
       return const [];
     }
 
@@ -946,7 +820,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         child: TextButton.icon(
           onPressed: _loadingRoute
               ? null
-              : () => _chooseTransportAndRoute(place),
+              : () => _showRoute(from: _plaza, to: place),
           icon: _loadingRoute
               ? const SizedBox(
                   width: 16,
@@ -954,9 +828,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.directions, size: 18),
-          label: Text(
-            _isSpanish ? '¿Andas a pie o en auto?' : 'On foot or by car?',
-          ),
+          label: const Text('Ruta desde la Plaza de Armas'),
           style: TextButton.styleFrom(
             padding: EdgeInsets.zero,
             minimumSize: const ui.Size(0, 32),
