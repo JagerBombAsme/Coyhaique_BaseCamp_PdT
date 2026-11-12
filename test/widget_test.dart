@@ -19,8 +19,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('WITH US'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
+await tester.pumpWidget(const SizedBox());
     await tester.pump();
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
   });
 }
