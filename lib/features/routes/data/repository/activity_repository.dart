@@ -3,7 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/local/catalog_local_db.dart';
 import '../models/activity_dto.dart';
 
-
+/// Actividades y recorridos (places_v2 con kind = 'activity').
+///
+/// Consulta Supabase y, si no hay conexión, responde con la copia local
+/// descargada (HU-10). Sin conexión ni copia local lanza
 /// [CatalogUnavailableException].
 class ActivityRepository {
   ActivityRepository({
