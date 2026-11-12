@@ -56,24 +56,25 @@ void main() {
     );
   });
 
-  testWidgets('selecting an option updates the copy and is what gets confirmed', (
-    tester,
-  ) async {
-    String? confirmed;
-    await tester.pumpWidget(_screen(onConfirm: (code) => confirmed = code));
+  testWidgets(
+    'selecting an option updates the copy and is what gets confirmed',
+    (tester) async {
+      String? confirmed;
+      await tester.pumpWidget(_screen(onConfirm: (code) => confirmed = code));
 
-    expect(find.text('ELIGE TU\nIDIOMA'), findsOneWidget);
+      expect(find.text('ELIGE TU\nIDIOMA'), findsOneWidget);
 
-    await tester.tap(find.byKey(_englishOption));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(_englishOption));
+      await tester.pumpAndSettle();
 
-    expect(find.text('CHOOSE YOUR\nLANGUAGE'), findsOneWidget);
-    expect(confirmed, isNull);
+      expect(find.text('CHOOSE YOUR\nLANGUAGE'), findsOneWidget);
+      expect(confirmed, isNull);
 
-    await tester.tap(find.text('Confirm & continue'));
+      await tester.tap(find.text('Confirm & continue'));
 
-    expect(confirmed, 'en');
-  });
+      expect(confirmed, 'en');
+    },
+  );
 
   testWidgets('profile mode labels the action as saving', (tester) async {
     String? confirmed;
@@ -101,7 +102,9 @@ void main() {
     expect(backCalls, 1);
   });
 
-  testWidgets('back button label follows the selected language', (tester) async {
+  testWidgets('back button label follows the selected language', (
+    tester,
+  ) async {
     await tester.pumpWidget(_screen());
 
     await tester.tap(find.byKey(_englishOption));
@@ -267,7 +270,7 @@ void main() {
     final confirm = find.text('Confirmar y continuar');
     await tester.ensureVisible(confirm);
     await tester.pumpAndSettle();
-    expect(find.text('CHOOSE YOUR\nLANGUAGE'), findsOneWidget);
+    expect(find.text('ELIGE TU\nIDIOMA'), findsOneWidget);
     expect(tester.getRect(confirm).bottom, lessThanOrEqualTo(480));
   });
 }
