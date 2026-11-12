@@ -20,6 +20,7 @@ void main() {
 
     expect(find.text('WITH US'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+    await tester.pump();
     await tester.pumpAndSettle();
   });
 }
