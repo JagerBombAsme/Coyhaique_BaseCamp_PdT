@@ -72,7 +72,10 @@ String _authPath(String path, GoRouterState state, {String? email}) {
     if (from != null && from.isNotEmpty) 'from': from,
     if (email != null && email.isNotEmpty) 'email': email,
   };
-  return Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
+  return Uri(
+    path: path,
+    queryParameters: query.isEmpty ? null : query,
+  ).toString();
 }
 
 GoRouter _createRouter() {
@@ -240,7 +243,6 @@ GoRouter _createRouter() {
       // =============================================================
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-
           return Scaffold(
             extendBody: true,
 
@@ -316,6 +318,10 @@ GoRouter _createRouter() {
                   return MapScreen(
                     routeFromAirport:
                         state.uri.queryParameters['ruta'] == 'aeropuerto',
+                    onOpenPlace: (place) {
+                      final id = place.id;
+                      if (id != null) context.push('/attractions/$id');
+                    },
                   );
                 },
               ),
@@ -397,9 +403,8 @@ GoRouter _createRouter() {
 
       GoRoute(
         path: '$transfersRoute/:id',
-        builder: (context, state) => TransferRequestScreen(
-          serviceId: state.pathParameters['id'] ?? '',
-        ),
+        builder: (context, state) =>
+            TransferRequestScreen(serviceId: state.pathParameters['id'] ?? ''),
       ),
 
       GoRoute(

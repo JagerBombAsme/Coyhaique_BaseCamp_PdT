@@ -6,6 +6,7 @@ import '../../../core/utils/text_normalizer.dart';
 /// traducción no compila, así que el inglés nunca falta en la aplicación.
 class MapPlace {
   const MapPlace({
+    this.id,
     required this.nameEs,
     required this.nameEn,
     required this.descriptionEs,
@@ -17,6 +18,8 @@ class MapPlace {
     this.verified = true,
   });
 
+  /// ID de places_v2. Null para los puntos fijos del mapa.
+  final String? id;
   final String nameEs;
   final String nameEn;
   final String descriptionEs;
