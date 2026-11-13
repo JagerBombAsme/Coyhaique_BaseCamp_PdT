@@ -141,6 +141,9 @@ abstract final class BcPhoto {
   /// Montañistas: bienvenida y ubicación. [PENDIENTE] reemplazar por una
   /// foto de Aysén con licencia verificada.
   static const String montanistas = 'assets/images/climbers_language.jpg';
+
+  static const String gauchosinr =
+      'assets/images/gaucho_sinrostro.png'; // Gaucho sin rostro, para la sección de ubicación.
 }
 
 /// Logo BC (el excursionista dentro de la B).

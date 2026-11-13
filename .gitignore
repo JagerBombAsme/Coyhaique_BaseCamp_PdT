@@ -50,3 +50,4 @@ docs/ANTIGRAVITY_AI_CONTEXT.md
 flutter_*.png
 .vscode/launch.json
 config/dev.json
+.claude/skills/flutter-animation/SKILL.md
