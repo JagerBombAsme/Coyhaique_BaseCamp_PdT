@@ -21,7 +21,11 @@ const List<EmergencyNumber> emergencyNumbers = [
   EmergencyNumber('130', 'CONAF: incendios forestales', 'CONAF: forest fires'),
   EmergencyNumber('136', 'Socorro Andino', 'Andean rescue'),
   EmergencyNumber('137', 'Rescate marítimo', 'Maritime rescue'),
-  EmergencyNumber('134', 'Policía de Investigaciones (PDI)', 'Investigative police (PDI)'),
+  EmergencyNumber(
+    '134',
+    'Policía de Investigaciones (PDI)',
+    'Investigative police (PDI)',
+  ),
 ];
 
 /// Avisos de uso seguro (RNF-14).
