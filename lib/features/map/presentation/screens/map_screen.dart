@@ -19,7 +19,7 @@ import 'transport_mode_screen.dart';
 // ===============================================================
 
 enum MapStyleOption {
-  outdoors('TerrenoBenjamin', 'Terrain', Icons.terrain, MapboxStyles.OUTDOORS),
+  outdoors('Terreno', 'Terrain', Icons.terrain, MapboxStyles.OUTDOORS),
   satellite(
     'Satélite',
     'Satellite',
