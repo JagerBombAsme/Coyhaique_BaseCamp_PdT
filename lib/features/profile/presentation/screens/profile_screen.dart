@@ -529,6 +529,13 @@ class _PreferencesGroup extends ConsumerWidget {
           value: isSpanish ? 'Español' : 'English',
           onTap: () => context.push('/profile/language'),
         ),
+        // Modo oscuro: planificado para la Versión 2.0. Por ahora solo avisa.
+        BcListRow(
+          icon: Icons.dark_mode_rounded,
+          label: isSpanish ? 'Modo oscuro' : 'Dark mode',
+          value: isSpanish ? 'Versión 2.0' : 'Version 2.0',
+          onTap: () => _showDarkModeSoon(context),
+        ),
         if (includeInterests)
           BcListRow(
             icon: Icons.interests_rounded,
@@ -574,6 +581,21 @@ class _PreferencesGroup extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  /// El modo oscuro llega en la Versión 2.0: siempre muestra el aviso.
+  void _showDarkModeSoon(BuildContext context) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'Disponible en la Versión 2.0. ¡Espéranos y disfruta!'
+                : 'Available in Version 2.0. Stay tuned and enjoy!',
+          ),
+        ),
+      );
   }
 
   Future<void> _download(BuildContext context, WidgetRef ref) async {
