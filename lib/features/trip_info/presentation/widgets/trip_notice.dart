@@ -12,7 +12,7 @@ import '../../../home/presentation/widgets/pressable_scale.dart';
 const String tripInfoRoute = '/trip-info';
 
 /// Contexto en que se muestra el aviso (RNF-14).
-enum TripNoticeKind { home, transport, route }
+enum TripNoticeKind { home, transport, route, walk }
 
 /// Aviso de uso seguro en forma de tarjeta flotante.
 ///
@@ -42,9 +42,11 @@ class TripNotice {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
 
-    final isSpanish = ProviderScope.containerOf(context, listen: false)
-            .read(languageProvider)
-            .languageCode ==
+    final isSpanish =
+        ProviderScope.containerOf(
+          context,
+          listen: false,
+        ).read(languageProvider).languageCode ==
         'es';
     final router = GoRouter.of(context);
 
@@ -146,6 +148,14 @@ class _TripNoticeCardState extends State<_TripNoticeCard>
               : 'Schedules and fares are for reference only and may change. Confirm with each company before travelling; the app does not make bookings.',
           Icons.directions_bus_rounded,
         );
+      case TripNoticeKind.walk:
+        return (
+          es ? 'Recorrido a pie' : 'Walking route',
+          es
+              ? 'Sal abrigado y con agua: el clima en Aysén cambia rápido. No ingreses a propiedades privadas sin autorización y respeta cercos y animales.'
+              : 'Dress warmly and bring water: Aysén weather changes quickly. Do not enter private property without permission, and respect fences and animals.',
+          Icons.directions_walk_rounded,
+        );
       case TripNoticeKind.route:
         return (
           es ? 'Ruta referencial' : 'Reference route',
@@ -209,7 +219,10 @@ class _TripNoticeCardState extends State<_TripNoticeCard>
                         _timer?.cancel();
                         widget.onOpenInfo();
                       },
-                      icon: const Icon(Icons.health_and_safety_rounded, size: 18),
+                      icon: const Icon(
+                        Icons.health_and_safety_rounded,
+                        size: 18,
+                      ),
                       label: Text(
                         es
                             ? 'Información antes de tu viaje'

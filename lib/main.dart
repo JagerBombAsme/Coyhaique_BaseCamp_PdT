@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/router/app_router.dart';
 import 'core/config/app_config.dart';
+import 'core/connectivity/connectivity_gate.dart';
 import 'core/local/catalog_status_provider.dart';
 import 'core/providers/language_provider.dart';
 import 'core/theme/app_theme.dart';
@@ -34,6 +35,8 @@ class CoyhaiqueApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: appRouter,
+      builder: (context, child) =>
+          ConnectivityGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }

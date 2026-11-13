@@ -8,12 +8,7 @@ import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 
-/// Punto de partida (HU-05): permitir la ubicación o partir desde
-/// Coyhaique Centro. La foto ocupa la mitad superior.
-///
-/// «Usar mi ubicación» pide el permiso real de Android. La ubicación no se
-/// guarda: el mapa y el planificador la leen cuando la necesitan para
-/// calcular distancias.
+
 class InitialLocationView extends ConsumerStatefulWidget {
   const InitialLocationView({super.key});
 
@@ -70,7 +65,7 @@ class _InitialLocationViewState extends ConsumerState<InitialLocationView> {
     context.push('/categories/transporte');
   }
 
-  /// Transporte propio: ruta Aeropuerto Balmaceda → Plaza de Armas.
+  /// Transporte propio: ruta Aeropuerto lib/features/map/presentation/screens/map_screen.dart da → Plaza de Armas.
   void _airportRoute() => context.go('/map?ruta=aeropuerto');
 
   @override
@@ -162,9 +157,6 @@ class _InitialLocationViewState extends ConsumerState<InitialLocationView> {
                 ),
               ),
 
-              // =================================================
-              // MITAD INFERIOR: DECISIÓN
-              // =================================================
               SafeArea(
                 top: false,
                 child: Padding(
