@@ -42,9 +42,11 @@ class TripNotice {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
 
-    final isSpanish = ProviderScope.containerOf(context, listen: false)
-            .read(languageProvider)
-            .languageCode ==
+    final isSpanish =
+        ProviderScope.containerOf(
+          context,
+          listen: false,
+        ).read(languageProvider).languageCode ==
         'es';
     final router = GoRouter.of(context);
 
@@ -217,7 +219,10 @@ class _TripNoticeCardState extends State<_TripNoticeCard>
                         _timer?.cancel();
                         widget.onOpenInfo();
                       },
-                      icon: const Icon(Icons.health_and_safety_rounded, size: 18),
+                      icon: const Icon(
+                        Icons.health_and_safety_rounded,
+                        size: 18,
+                      ),
                       label: Text(
                         es
                             ? 'Información antes de tu viaje'
