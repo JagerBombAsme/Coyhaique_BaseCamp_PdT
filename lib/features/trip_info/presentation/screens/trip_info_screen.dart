@@ -19,14 +19,30 @@ class TripInfoScreen extends ConsumerWidget {
 
   /// Orden y títulos de los tipos de contenido informativo.
   static const List<(String, String, String, IconData)> _sections = [
-    ('prevencion', 'Recomendaciones preventivas', 'Safety recommendations',
-        Icons.health_and_safety_rounded),
-    ('restriccion', 'Restricciones de acceso', 'Access restrictions',
-        Icons.block_rounded),
-    ('guia_transporte', 'Guías de transporte', 'Transport guides',
-        Icons.directions_bus_rounded),
-    ('historia', 'Cultura e historia', 'Culture and history',
-        Icons.museum_rounded),
+    (
+      'prevencion',
+      'Recomendaciones preventivas',
+      'Safety recommendations',
+      Icons.health_and_safety_rounded,
+    ),
+    (
+      'restriccion',
+      'Restricciones de acceso',
+      'Access restrictions',
+      Icons.block_rounded,
+    ),
+    (
+      'guia_transporte',
+      'Guías de transporte',
+      'Transport guides',
+      Icons.directions_bus_rounded,
+    ),
+    (
+      'historia',
+      'Cultura e historia',
+      'Culture and history',
+      Icons.museum_rounded,
+    ),
   ];
 
   @override
@@ -69,7 +85,8 @@ class TripInfoScreen extends ConsumerWidget {
                       ),
                       title: Text(isSpanish ? item.nameEs : item.nameEn),
                       trailing: const Icon(Icons.call_rounded, color: _ink),
-                      onTap: () => launchUrl(Uri(scheme: 'tel', path: item.number)),
+                      onTap: () =>
+                          launchUrl(Uri(scheme: 'tel', path: item.number)),
                     ),
                 ],
               ),
@@ -77,7 +94,9 @@ class TripInfoScreen extends ConsumerWidget {
             const SizedBox(height: 20),
             _SectionTitle(
               icon: Icons.warning_amber_rounded,
-              text: isSpanish ? 'Uso seguro de la aplicación' : 'Safe use of the app',
+              text: isSpanish
+                  ? 'Uso seguro de la aplicación'
+                  : 'Safe use of the app',
             ),
             Card(
               child: Padding(
@@ -116,8 +135,9 @@ class TripInfoScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         OutlinedButton(
-                          onPressed: () =>
-                              ref.invalidate(informationalContentProvider(null)),
+                          onPressed: () => ref.invalidate(
+                            informationalContentProvider(null),
+                          ),
                           child: Text(isSpanish ? 'Reintentar' : 'Retry'),
                         ),
                       ],
@@ -141,12 +161,16 @@ class TripInfoScreen extends ConsumerWidget {
 
     for (final (type, titleEs, titleEn, icon) in _sections) {
       final group = items.where((item) => item.contentType == type).toList()
-        ..sort((a, b) => a.getTitle(isSpanish).compareTo(b.getTitle(isSpanish)));
+        ..sort(
+          (a, b) => a.getTitle(isSpanish).compareTo(b.getTitle(isSpanish)),
+        );
       if (group.isEmpty) continue;
 
       widgets
         ..add(_SectionTitle(icon: icon, text: isSpanish ? titleEs : titleEn))
-        ..addAll(group.map((item) => _ContentCard(item: item, isSpanish: isSpanish)))
+        ..addAll(
+          group.map((item) => _ContentCard(item: item, isSpanish: isSpanish)),
+        )
         ..add(const SizedBox(height: 20));
     }
 

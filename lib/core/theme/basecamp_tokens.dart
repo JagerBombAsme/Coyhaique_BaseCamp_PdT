@@ -41,6 +41,46 @@ abstract final class BcColors {
   static const Color danger = Color(0xFFB3261E);
 }
 
+/// Paleta oscura para el modo oscuro de la Versión 2.0.
+///
+/// Aún no se usa en las pantallas: hoy todas leen [BcColors]. Queda definida
+/// para migrar después sin volver a decidir colores. Mismos nombres que
+/// [BcColors] para que el cambio sea uno a uno.
+abstract final class BcDarkColors {
+  /// Texto principal sobre fondos oscuros.
+  static const Color ink = Color(0xFFE8EBED);
+
+  /// Fondo de página.
+  static const Color fog = Color(0xFF121416);
+
+  /// Fondo hundido (detrás del título del hero).
+  static const Color fogDeep = Color(0xFF0B0C0D);
+
+  /// Tarjetas, botones de esquina, búsqueda y campos.
+  static const Color surface = Color(0xFF1E2226);
+
+  /// Acento: se mantiene, con texto oscuro encima.
+  static const Color glacier = Color(0xFF3FA9F5);
+
+  /// Acento como texto o ícono pequeño sobre fondo oscuro.
+  static const Color glacierDeep = Color(0xFF7CC4F8);
+
+  /// Texto secundario.
+  static const Color muted = Color(0xFF9AA3A9);
+
+  /// Bordes de campos y separadores.
+  static const Color line = Color(0xFF2F363B);
+
+  /// Texto sobre foto.
+  static const Color onPhoto = Color(0xFFFFFFFF);
+
+  /// Final del degradado oscuro bajo texto sobre foto.
+  static const Color photoShade = Color(0xD9121416);
+
+  /// Errores y acciones destructivas (versión clara para fondo oscuro).
+  static const Color danger = Color(0xFFF2B8B5);
+}
+
 abstract final class BcRadius {
   static const double tag = 7;
   static const double control = 14;
@@ -141,6 +181,9 @@ abstract final class BcPhoto {
   /// Montañistas: bienvenida y ubicación. [PENDIENTE] reemplazar por una
   /// foto de Aysén con licencia verificada.
   static const String montanistas = 'assets/images/climbers_language.jpg';
+
+  static const String gauchosinr =
+      'assets/images/gaucho_sinrostro.png'; // Gaucho sin rostro, para la sección de ubicación.
 }
 
 /// Logo BC (el excursionista dentro de la B).
