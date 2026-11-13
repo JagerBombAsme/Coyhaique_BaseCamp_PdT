@@ -81,9 +81,12 @@ class TransportModeScreen extends ConsumerWidget {
                               title: es ? 'A pie' : 'On foot',
                               image: BcPhoto.mountainHike,
                               tag: es ? 'Ruta a pie' : 'Walking route',
-                              subtitle: es
-                                  ? 'Plaza, senderos y miradores'
-                                  : 'Plaza, trails and viewpoints',
+                              metrics: [
+                                BcMetric(
+                                  Icons.directions_walk_rounded,
+                                  es ? 'Plaza, senderos y miradores' : 'Plaza, trails and viewpoints',
+                                ),
+                              ],
                               onTap: () => Navigator.of(
                                 context,
                               ).pop(RouteProfile.walking),
@@ -93,9 +96,12 @@ class TransportModeScreen extends ConsumerWidget {
                               title: es ? 'En auto' : 'By car',
                               image: BcPhoto.cerroCastillo,
                               tag: es ? 'Ruta en auto' : 'Driving route',
-                              subtitle: es
-                                  ? 'Carretera y accesos a la ciudad'
-                                  : 'Roads and access to town',
+                              metrics: [
+                                BcMetric(
+                                  Icons.directions_car_rounded,
+                                  es ? 'Carretera y accesos a la ciudad' : 'Roads and access to town',
+                                ),
+                              ],
                               onTap: () => Navigator.of(
                                 context,
                               ).pop(RouteProfile.driving),
