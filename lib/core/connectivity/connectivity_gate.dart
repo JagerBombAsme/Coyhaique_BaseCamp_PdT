@@ -36,10 +36,6 @@ class ConnectivityGate extends ConsumerStatefulWidget {
 class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
   _NetState _state = _NetState.checking;
   DateTime? _lastSync;
-
-  /// En el mapa no se muestra la banda: tapaba el buscador y el mapa tiene
-  /// su propio aviso fijo sin conexión (FIX-002).
-  bool _onMap = false;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
   @override
@@ -71,11 +67,7 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
     }
     if (!mounted) return;
 
-    final onMap = appRouter.routeInformationProvider.value.uri.path
-        .startsWith('/map');
-
     setState(() {
-      _onMap = onMap;
       _lastSync = lastSync;
       _state = online
           ? _NetState.online
@@ -89,21 +81,35 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
   Widget build(BuildContext context) {
     final es = ref.watch(languageProvider).languageCode == 'es';
 
-    return Stack(
-      fit: StackFit.expand,
+    final showBanner = _state == _NetState.offlineWithData;
+
+    // La barra va arriba de todas las pantallas y empuja el contenido hacia
+    // abajo en lugar de taparlo. Los widgets de posición fija se mantienen en
+    // el mismo lugar del árbol para que la navegación no se reinicie.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        widget.child,
-        if (_state == _NetState.offlineWithData && !_onMap)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _OfflineBanner(isSpanish: es, lastSync: _lastSync),
+        if (showBanner)
+          _OfflineBanner(isSpanish: es, lastSync: _lastSync)
+        else
+          const SizedBox.shrink(),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // La barra ya cubre la parte superior (reloj y muesca).
+              MediaQuery.removePadding(
+                context: context,
+                removeTop: showBanner,
+                child: widget.child,
+              ),
+              if (_state == _NetState.offlineNoData)
+                Positioned.fill(
+                  child: _NoConnectionCard(isSpanish: es, onRetry: _refresh),
+                ),
+            ],
           ),
-        if (_state == _NetState.offlineNoData)
-          Positioned.fill(
-            child: _NoConnectionCard(isSpanish: es, onRetry: _refresh),
-          ),
+        ),
       ],
     );
   }
