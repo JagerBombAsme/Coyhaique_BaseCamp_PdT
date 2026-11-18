@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/router/app_router.dart';
@@ -66,10 +67,25 @@ Future<void> main() async {
     const String.fromEnvironment('MAPBOX_ACCESS_TOKEN'),
   );
 
+  // Idioma elegido en una apertura anterior: se lee antes del primer frame
+  // para que la app abra en ese idioma y no pase otra vez por la selección.
+  final prefs = await SharedPreferences.getInstance();
+  final savedLanguage = prefs.getString(languageStorageKey);
+
+  final container = ProviderContainer(
+    overrides: [
+      languageProvider.overrideWith(
+        (ref) => LanguageNotifier(
+          initial: savedLanguage == null ? null : Locale(savedLanguage),
+        ),
+      ),
+      languageSavedProvider.overrideWithValue(savedLanguage != null),
+    ],
+  );
+
   // Al abrir la aplicación con conexión se descarga el catálogo para
   // consultarlo sin conexión (HU-09). Si no hay conexión, la descarga falla
   // en silencio y se conserva la copia anterior.
-  final container = ProviderContainer();
 
   unawaited(container.read(catalogStatusProvider.notifier).download());
 
