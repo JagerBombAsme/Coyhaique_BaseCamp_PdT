@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'dart:ui' as ui;
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../categories/data/models/place_dto.dart';
@@ -105,6 +109,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
   _LocationGate _gate = _LocationGate.checking;
 
+  /// Conexión a internet. Sin conexión el mapa muestra su propio aviso fijo
+  /// y las rutas avisan antes de calcularse (FIX-001, FIX-002).
+  bool _online = true;
+
+  /// Fecha de la última descarga del catálogo, para el aviso sin conexión.
+  DateTime? _lastSync;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+
+  /// El estilo del mapa terminó de cargar. Se reinicia al cambiar de estilo.
+  bool _styleLoaded = false;
+
+  /// El estilo no cargó teniendo conexión: Mapbox no disponible (FIX-010).
+  bool _mapLoadFailed = false;
+
   /// Lugares filtrados según el texto del buscador.
   List<MapPlace> get _filteredPlaces {
     return _places.where((p) => p.matches(_searchController.text)).toList();
@@ -116,6 +134,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
     WidgetsBinding.instance.addObserver(this);
     // Al abrir el mapa se pide la ubicación (no se muestra el mapa sin ella).
     _checkLocation(requestIfNeeded: true);
+
+    // Conexión: estado inicial y cambios mientras el mapa está abierto.
+    _connectivitySub = Connectivity().onConnectivityChanged.listen(
+      _onConnectivityChanged,
+    );
+    unawaited(
+      Connectivity().checkConnectivity().then(_onConnectivityChanged),
+    );
 
     // Carga los lugares de places_v2 y los dibuja cuando llegan.
     ref.listenManual<AsyncValue<List<PlaceDto>>>(placesProvider, (_, next) {
@@ -188,6 +214,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
     return result;
   }
 
+  /// Actualiza el estado de conexión y la fecha de la última descarga.
+  /// Al volver la conexión se reintenta un mapa que no había cargado.
+  Future<void> _onConnectivityChanged(List<ConnectivityResult> results) async {
+    final online = results.any((r) => r != ConnectivityResult.none);
+    DateTime? lastSync;
+    if (!online) {
+      try {
+        lastSync = await ref.read(catalogLocalDbProvider).getLastSyncAt();
+      } catch (_) {
+        lastSync = null;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _online = online;
+      _lastSync = lastSync;
+    });
+    if (online && _mapLoadFailed) await _retryMapLoad();
+  }
+
   /// Al volver de los ajustes del teléfono se revisa de nuevo el permiso.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -250,6 +296,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _connectivitySub?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -282,6 +329,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final map = _mapboxMap;
     if (map == null || !mounted) return;
 
+    setState(() {
+      _styleLoaded = true;
+      _mapLoadFailed = false;
+    });
+
     await _applyMapLanguage(ref.read(languageProvider).languageCode);
 
     await _redrawMarkers();
@@ -296,6 +348,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _pendingAirportRoute = false;
       await _showAirportRoute();
     }
+  }
+
+  /// Error al cargar el mapa. Solo cuenta si el estilo aún no cargó (una
+  /// tesela suelta que falla no impide usar el mapa) y si hay conexión: sin
+  /// conexión ya se muestra el aviso propio del mapa.
+  void _onMapLoadError(MapLoadingErrorEventData _) {
+    if (!mounted || _styleLoaded || !_online) return;
+    setState(() => _mapLoadFailed = true);
+  }
+
+  /// Vuelve a pedir el estilo del mapa (botón «Reintentar»).
+  Future<void> _retryMapLoad() async {
+    if (!mounted) return;
+    setState(() {
+      _mapLoadFailed = false;
+      _styleLoaded = false;
+    });
+    await _mapboxMap?.loadStyleURI(_style.uri);
   }
 
   /// Dibuja un marcador por lugar. Se llama al cargar el mapa, al cambiar el
@@ -396,7 +466,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _changeStyle(MapStyleOption option) async {
     if (option == _style) return;
-    setState(() => _style = option);
+    setState(() {
+      _style = option;
+      _styleLoaded = false;
+    });
     await _mapboxMap?.loadStyleURI(option.uri);
   }
 
@@ -412,6 +485,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }) async {
     final map = _mapboxMap;
     if (map == null || _loadingRoute) return;
+    if (_blockRouteIfOffline()) return;
 
     setState(() => _loadingRoute = true);
 
@@ -476,6 +550,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// Pregunta si la persona anda a pie o en auto y calcula la ruta desde la
   /// Plaza de Armas con ese medio. Si cierra la pantalla, no pasa nada.
   Future<void> _chooseTransportAndRoute(MapPlace place) async {
+    if (_blockRouteIfOffline()) return;
     final profile = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(
         fullscreenDialog: true,
@@ -484,6 +559,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
     if (profile == null || !mounted) return;
     await _showRoute(from: _plaza, to: place, profile: profile);
+  }
+
+  /// Sin conexión las rutas no se calculan (las calcula Mapbox en línea):
+  /// se avisa de inmediato, sin esperar ni mostrar un error (FIX-001).
+  bool _blockRouteIfOffline() {
+    if (_online) return false;
+    _showMessage(
+      _isSpanish
+          ? 'Las rutas necesitan conexión a internet. Mientras tanto, puedes ver dónde está el lugar en el mapa.'
+          : 'Routes need an internet connection. Meanwhile, you can see where the place is on the map.',
+    );
+    return true;
   }
 
   /// Dibuja la línea de la ruta en el mapa.
@@ -651,8 +738,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
             ),
             onMapCreated: _onMapCreated,
             onStyleLoadedListener: _onStyleLoaded,
+            onMapLoadErrorListener: _onMapLoadError,
           ),
         ),
+
+        // Mapa cargando (con conexión): indicador para que no parezca colgado.
+        if (_online && !_styleLoaded && !_mapLoadFailed)
+          const IgnorePointer(
+            child: Center(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: AppTheme.primaryDark,
+                ),
+              ),
+            ),
+          ),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -661,6 +764,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 _buildSearchBar(),
                 const SizedBox(height: 12),
                 _buildQuickLocations(),
+                // Aviso fijo sin conexión, propio del mapa (FIX-002).
+                if (!_online) ...[
+                  const SizedBox(height: 10),
+                  _buildOfflineNotice(),
+                ],
               ],
             ),
           ),
@@ -671,7 +779,96 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
         // Controles del mapa.
         Positioned(right: 16, bottom: 110, child: _buildControls()),
+
+        // El mapa no cargó teniendo conexión (FIX-010).
+        if (_online && _mapLoadFailed)
+          Positioned.fill(child: _buildMapErrorCard()),
       ],
+    );
+  }
+
+  /// Aviso fijo bajo el buscador mientras no hay conexión. El mapa sigue
+  /// usable con lo ya cargado y el GPS, que no necesita internet.
+  Widget _buildOfflineNotice() {
+    final es = _isSpanish;
+    final sync = _lastSync;
+    final date = sync == null ? null : _formatSyncDate(sync);
+    final text = es
+        ? (date == null
+              ? 'Sin conexión. Las rutas necesitan internet.'
+              : 'Sin conexión · Datos del $date. Las rutas necesitan internet.')
+        : (date == null
+              ? 'No connection. Routes need internet.'
+              : 'No connection · Data from $date. Routes need internet.');
+
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryDark,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tarjeta cuando el mapa no carga teniendo conexión, con «Reintentar».
+  /// El resto de la app (pestañas, fichas) sigue disponible.
+  Widget _buildMapErrorCard() {
+    final es = _isSpanish;
+    return ColoredBox(
+      color: const Color(0xFFE8EBED),
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.map_outlined,
+                  size: 56,
+                  color: AppTheme.primaryDark,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  es
+                      ? 'No se pudo cargar el mapa. Revisa tu conexión e inténtalo de nuevo.'
+                      : 'The map could not be loaded. Check your connection and try again.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 15, height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: _retryMapLoad,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryDark,
+                  ),
+                  child: Text(es ? 'Reintentar' : 'Try again'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1090,27 +1287,38 @@ class _MapScreenState extends ConsumerState<MapScreen>
       const SizedBox(height: 6),
       Align(
         alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: _loadingRoute
-              ? null
-              : () => _chooseTransportAndRoute(place),
-          icon: _loadingRoute
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.directions, size: 18),
-          label: Text(
-            _isSpanish ? '¿Andas a pie o en auto?' : 'On foot or by car?',
-          ),
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const ui.Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        // Sin conexión se ve atenuado, pero sigue tocable para explicar por
+        // qué no se puede calcular la ruta (FIX-001).
+        child: Opacity(
+          opacity: _online ? 1 : 0.45,
+          child: TextButton.icon(
+            onPressed: _loadingRoute
+                ? null
+                : () => _chooseTransportAndRoute(place),
+            icon: _loadingRoute
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.directions, size: 18),
+            label: Text(
+              _isSpanish ? '¿Andas a pie o en auto?' : 'On foot or by car?',
+            ),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const ui.Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ),
       ),
     ];
   }
+}
+
+/// Fecha de descarga para el aviso sin conexión (dd-mm-aaaa).
+String _formatSyncDate(DateTime d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(d.day)}-${two(d.month)}-${d.year}';
 }
