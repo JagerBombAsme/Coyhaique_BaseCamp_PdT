@@ -117,7 +117,7 @@ abstract final class BcText {
   }
 
   static TextStyle get displayHero => display(64, color: BcColors.onPhoto);
-  static TextStyle get displaySection => display(46);
+  static TextStyle get displaySection => display(22);
   static TextStyle get displayCard => display(27, color: BcColors.onPhoto);
 
   static TextStyle figure({Color color = BcColors.glacier}) =>

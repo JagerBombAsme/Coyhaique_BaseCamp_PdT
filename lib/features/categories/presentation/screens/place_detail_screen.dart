@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
+import '../widgets/place_distance_card.dart';
+import '../widgets/place_hero_header.dart';
 
 class PlaceDetailScreen extends ConsumerStatefulWidget {
   final String placeId;
@@ -20,18 +23,14 @@ class PlaceDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<PlaceDetailScreen> createState() =>
-      _PlaceDetailScreenState();
+  ConsumerState<PlaceDetailScreen> createState() => _PlaceDetailScreenState();
 }
 
-class _PlaceDetailScreenState
-    extends ConsumerState<PlaceDetailScreen> {
+class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
   bool _isFavorite = false;
   bool _isReloading = false;
 
-  Future<void> _reloadPlace({
-    bool showMessage = false,
-  }) async {
+  Future<void> _reloadPlace({bool showMessage = false}) async {
     if (_isReloading) {
       return;
     }
@@ -41,40 +40,27 @@ class _PlaceDetailScreenState
     });
 
     try {
-      final provider =
-          placeDetailProvider(
-        widget.placeId,
-      );
+      final provider = placeDetailProvider(widget.placeId);
 
       ref.invalidate(provider);
 
-      await ref.read(
-        provider.future,
-      );
+      await ref.read(provider.future);
 
       if (!mounted) {
         return;
       }
 
       if (showMessage) {
-        final locale = ref.read(
-          languageProvider,
-        );
+        final locale = ref.read(languageProvider);
 
-        final isSpanish =
-            locale.languageCode == 'es';
+        final isSpanish = locale.languageCode == 'es';
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isSpanish
-                  ? 'Información actualizada.'
-                  : 'Information updated.',
+              isSpanish ? 'Información actualizada.' : 'Information updated.',
             ),
-            duration: const Duration(
-              milliseconds: 900,
-            ),
+            duration: const Duration(milliseconds: 900),
           ),
         );
       }
@@ -83,15 +69,11 @@ class _PlaceDetailScreenState
         return;
       }
 
-      final locale = ref.read(
-        languageProvider,
-      );
+      final locale = ref.read(languageProvider);
 
-      final isSpanish =
-          locale.languageCode == 'es';
+      final isSpanish = locale.languageCode == 'es';
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             isSpanish
@@ -109,72 +91,61 @@ class _PlaceDetailScreenState
     }
   }
 
+  void _toggleFavorite(bool isSpanish) {
+    setState(() {
+      _isFavorite = !_isFavorite;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isFavorite
+              ? (isSpanish ? 'Añadido a favoritos' : 'Added to favorites')
+              : (isSpanish
+                    ? 'Eliminado de favoritos'
+                    : 'Removed from favorites'),
+        ),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final locale = ref.watch(
-      languageProvider,
-    );
+    final locale = ref.watch(languageProvider);
 
-    final isSpanish =
-        locale.languageCode == 'es';
+    final isSpanish = locale.languageCode == 'es';
 
-    final placeAsync = ref.watch(
-      placeDetailProvider(
-        widget.placeId,
-      ),
-    );
+    final placeAsync = ref.watch(placeDetailProvider(widget.placeId));
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFFDFCFB),
+      backgroundColor: BcColors.fog,
 
       body: placeAsync.when(
-
         data: (place) {
           if (place == null) {
-            return _buildNotFoundWidget(
-              isSpanish,
-            );
+            return _buildNotFoundWidget(isSpanish);
           }
 
-          return _buildContent(
-            context,
-            place,
-            isSpanish,
-          );
+          return _buildContent(context, place, isSpanish);
         },
 
         // ==========================================================
         // LOADING
         // ==========================================================
-
         loading: () {
           return const Center(
-            child:
-                CircularProgressIndicator(
-              color:
-                  AppTheme.primaryDark,
-            ),
+            child: CircularProgressIndicator(color: AppTheme.primaryDark),
           );
         },
 
         // ==========================================================
         // ERROR
         // ==========================================================
+        error: (error, stackTrace) {
+          debugPrint('ERROR PlaceDetailScreen: $error');
 
-        error: (
-          error,
-          stackTrace,
-        ) {
-          debugPrint(
-            'ERROR PlaceDetailScreen: $error',
-          );
-
-          return _buildErrorWidget(
-            error,
-            isSpanish,
-          );
+          return _buildErrorWidget(error, isSpanish);
         },
       ),
     );
@@ -184,28 +155,10 @@ class _PlaceDetailScreenState
   // CONTENIDO
   // ================================================================
 
-  Widget _buildContent(
-    BuildContext context,
-    PlaceDto place,
-    bool isSpanish,
-  ) {
-    final title =
-        place.getTitle(
-      isSpanish,
-    );
+  Widget _buildContent(BuildContext context, PlaceDto place, bool isSpanish) {
+    final subtitle = place.getSubtitle(isSpanish);
 
-    final subtitle =
-        place.getSubtitle(
-      isSpanish,
-    );
-
-    final description =
-        place.getDescription(
-      isSpanish,
-    );
-
-    final imageUrl =
-        place.imageUrl;
+    final description = place.getDescription(isSpanish);
 
     // ==============================================================
     // PULL TO REFRESH
@@ -216,776 +169,185 @@ class _PlaceDetailScreenState
         return _reloadPlace();
       },
 
-      color:
-          AppTheme.primaryDark,
+      color: AppTheme.primaryDark,
 
-      child:
-          SingleChildScrollView(
-        physics:
-            const AlwaysScrollableScrollPhysics(),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
 
-        child:
-            Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
 
           children: [
             // ======================================================
-            // IMAGEN PRINCIPAL
+            // CABECERA (identidad visual: foto, título y botones)
             // ======================================================
+            PlaceHeroHeader(
+              place: place,
+              isSpanish: isSpanish,
+              isFavorite: _isFavorite,
+              onBack: widget.onBack,
+              onToggleFavorite: () => _toggleFavorite(isSpanish),
+            ),
 
-            Stack(
-              children: [
-                Container(
-                  height:
-                      380,
-
-                  width:
-                      double.infinity,
-
-                  color:
-                      AppTheme.primaryDark,
-
-                  child:
-                      _buildMainImage(
-                    imageUrl,
-                  ),
-                ),
-
-                // ==================================================
-                // GRADIENTE
-                // ==================================================
-
-                Container(
-                  height:
-                      380,
-
-                  decoration:
-                      const BoxDecoration(
-                    gradient:
-                        LinearGradient(
-                      begin:
-                          Alignment
-                              .topCenter,
-
-                      end:
-                          Alignment
-                              .bottomCenter,
-
-                      colors: [
-                        Colors.transparent,
-                        Colors.black87,
-                      ],
-
-                      stops: [
-                        0.5,
-                        1.0,
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ==================================================
-                // VOLVER
-                // ==================================================
-
-                Positioned(
-                  top:
-                      48,
-
-                  left:
-                      16,
-
-                  child:
-                      CircleAvatar(
-                    backgroundColor:
-                        Colors.white
-                            .withValues(
-                      alpha:
-                          0.85,
-                    ),
-
-                    child:
-                        IconButton(
-                      icon:
-                          const Icon(
-                        Icons
-                            .arrow_back,
-
-                        color:
-                            AppTheme
-                                .textPrimary,
-                      ),
-
-                      onPressed:
-                          widget
-                              .onBack,
-                    ),
-                  ),
-                ),
-
-                // ==================================================
-                // ACCIONES
-                // ==================================================
-
-                Positioned(
-                  top:
-                      48,
-
-                  right:
-                      16,
-
-                  child:
-                      Row(
-                    children: [
-                      // ============================================
-                      // RECARGAR
-                      // ============================================
-
-                      CircleAvatar(
-                        backgroundColor:
-                            Colors.white
-                                .withValues(
-                          alpha:
-                              0.85,
-                        ),
-
-                        child:
-                            IconButton(
-                          tooltip:
-                              isSpanish
-                                  ? 'Actualizar'
-                                  : 'Refresh',
-
-                          onPressed:
-                              _isReloading
-                                  ? null
-                                  : () {
-                                      _reloadPlace(
-                                        showMessage:
-                                            true,
-                                      );
-                                    },
-
-                          icon:
-                              _isReloading
-                                  ? const SizedBox(
-                                      width:
-                                          19,
-                                      height:
-                                          19,
-                                      child:
-                                          CircularProgressIndicator(
-                                        strokeWidth:
-                                            2,
-                                        color:
-                                            AppTheme
-                                                .primaryDark,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons
-                                          .refresh_rounded,
-                                      color:
-                                          AppTheme
-                                              .primaryDark,
-                                    ),
-                        ),
-                      ),
-
-                      const SizedBox(
-                        width:
-                            12,
-                      ),
-
-                      // ============================================
-                      // FAVORITOS
-                      // ============================================
-
-                      CircleAvatar(
-                        backgroundColor:
-                            Colors.white
-                                .withValues(
-                          alpha:
-                              0.85,
-                        ),
-
-                        child:
-                            IconButton(
-                          icon:
-                              Icon(
-                            _isFavorite
-                                ? Icons
-                                    .favorite
-                                : Icons
-                                    .favorite_border,
-
-                            color:
-                                _isFavorite
-                                    ? const Color(
-                                        0xFFD32F2F,
-                                      )
-                                    : AppTheme
-                                        .primaryDark,
-                          ),
-
-                          onPressed:
-                              () {
-                            setState(
-                              () {
-                                _isFavorite =
-                                    !_isFavorite;
-                              },
-                            );
-
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(
-                              SnackBar(
-                                content:
-                                    Text(
-                                  _isFavorite
-                                      ? (
-                                          isSpanish
-                                              ? 'Añadido a favoritos'
-                                              : 'Added to favorites'
-                                        )
-                                      : (
-                                          isSpanish
-                                              ? 'Eliminado de favoritos'
-                                              : 'Removed from favorites'
-                                        ),
-                                ),
-
-                                duration:
-                                    const Duration(
-                                  seconds:
-                                      1,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(
-                        width:
-                            12,
-                      ),
-
-                      // ============================================
-                      // COMPARTIR
-                      // ============================================
-
-                      CircleAvatar(
-                        backgroundColor:
-                            Colors.white
-                                .withValues(
-                          alpha:
-                              0.85,
-                        ),
-
-                        child:
-                            IconButton(
-                          icon:
-                              const Icon(
-                            Icons.share,
-
-                            color:
-                                AppTheme
-                                    .primaryDark,
-                          ),
-
-                          onPressed:
-                              () {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(
-                              SnackBar(
-                                content:
-                                    Text(
-                                  isSpanish
-                                      ? 'Función de compartir no implementada.'
-                                      : 'Share function not implemented.',
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ==================================================
-                // TÍTULO SOBRE IMAGEN
-                // ==================================================
-
-                Positioned(
-                  bottom:
-                      24,
-
-                  left:
-                      24,
-
-                  right:
-                      24,
-
-                  child:
-                      Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-
-                    children: [
-                      Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              12,
-
-                          vertical:
-                              4,
-                        ),
-
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              AppTheme
-                                  .primaryDark,
-
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            8,
-                          ),
-                        ),
-
-                        child:
-                            Text(
-                          (
-                            place.categorySlug != null &&
-                                    place
-                                        .categorySlug!
-                                        .isNotEmpty
-                                ? place.categorySlug!
-                                : (
-                                    place.category?.slug ??
-                                        (
-                                          isSpanish
-                                              ? 'LUGAR'
-                                              : 'PLACE'
-                                        )
-                                  )
-                          ).toUpperCase(),
-
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.white,
-
-                            fontSize:
-                                11,
-
-                            fontWeight:
-                                FontWeight
-                                    .bold,
-
-                            letterSpacing:
-                                1,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height:
-                            8,
-                      ),
-
-                      Text(
-                        title,
-
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
-
-                          fontSize:
-                              28,
-
-                          fontWeight:
-                              FontWeight
-                                  .bold,
-
-                          height:
-                              1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            // ======================================================
+            // DISTANCIA (origen: Plaza de Armas o ubicación)
+            // ======================================================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: PlaceDistanceCard(place: place, isSpanish: isSpanish),
             ),
 
             // ======================================================
             // INFORMACIÓN
             // ======================================================
-
             Padding(
-              padding:
-                  const EdgeInsets.all(
-                24,
-              ),
+              padding: const EdgeInsets.all(24),
 
-              child:
-                  Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
                   // =================================================
                   // SUBTÍTULO
                   // =================================================
-
                   if (subtitle.isNotEmpty) ...[
-                    Text(
-                      subtitle,
+                    Text(subtitle, style: BcText.title(color: BcColors.ink)),
 
-                      style:
-                          const TextStyle(
-                        fontSize:
-                            18,
-
-                        fontWeight:
-                            FontWeight.bold,
-
-                        color:
-                            Color(
-                          0xFF2C3E50,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height:
-                          12,
-                    ),
+                    const SizedBox(height: 12),
                   ],
 
                   // =================================================
                   // DESCRIPCIÓN
                   // =================================================
-
                   if (description.isNotEmpty)
-                    Text(
-                      description,
-
-                      style:
-                          const TextStyle(
-                        color:
-                            Color(
-                          0xFF4A4A4A,
-                        ),
-
-                        fontSize:
-                            16,
-
-                        height:
-                            1.5,
-                      ),
-                    )
+                    Text(description, style: BcText.body(color: BcColors.ink))
                   else
                     Text(
                       isSpanish
                           ? 'No hay descripción disponible.'
                           : 'No description available.',
-
-                      style:
-                          const TextStyle(
-                        color:
-                            AppTheme
-                                .textSecondary,
-
-                        fontSize:
-                            14,
-
-                        fontStyle:
-                            FontStyle.italic,
-                      ),
+                      style: BcText.body(color: BcColors.muted),
                     ),
 
                   // =================================================
                   // DIRECCIÓN
                   // =================================================
-
-                  if (_hasValue(
-                    place.address,
-                  )) ...[
-                    const SizedBox(
-                      height:
-                          20,
-                    ),
+                  if (_hasValue(place.address)) ...[
+                    const SizedBox(height: 20),
 
                     _buildInfoRow(
-                      icon:
-                          Icons.location_on,
-
-                      text:
-                          place.address!,
+                      icon: Icons.location_on,
+                      text: place.address!,
                     ),
                   ],
 
                   // =================================================
                   // HORARIO
                   // =================================================
-
-                  if (_hasValue(
-                    place.schedule,
-                  )) ...[
-                    const SizedBox(
-                      height:
-                          12,
-                    ),
+                  if (_hasValue(place.schedule)) ...[
+                    const SizedBox(height: 12),
 
                     _buildInfoRow(
-                      icon:
-                          Icons
-                              .access_time_rounded,
-
-                      text:
-                          place.schedule!,
+                      icon: Icons.access_time_rounded,
+                      text: place.schedule!,
                     ),
                   ],
 
                   // =================================================
                   // PRECIO
                   // =================================================
-
-                  if (_hasValue(
-                    place.referencePrice,
-                  )) ...[
-                    const SizedBox(
-                      height:
-                          12,
-                    ),
+                  if (_hasValue(place.referencePrice)) ...[
+                    const SizedBox(height: 12),
 
                     _buildInfoRow(
-                      icon:
-                          Icons
-                              .attach_money_rounded,
-
-                      text:
-                          place.referencePrice!,
+                      icon: Icons.attach_money_rounded,
+                      text: place.referencePrice!,
                     ),
                   ],
 
                   // =================================================
                   // CONTACTO
                   // =================================================
-
-                  if (_hasValue(
-                    place.contactInfo,
-                  )) ...[
-                    const SizedBox(
-                      height:
-                          12,
-                    ),
+                  if (_hasValue(place.contactInfo)) ...[
+                    const SizedBox(height: 12),
 
                     _buildInfoRow(
-                      icon:
-                          Icons
-                              .phone_rounded,
-
-                      text:
-                          place.contactInfo!,
+                      icon: Icons.phone_rounded,
+                      text: place.contactInfo!,
                     ),
                   ],
 
                   // =================================================
                   // WEB
                   // =================================================
+                  if (_hasValue(place.websiteUrl)) ...[
+                    const SizedBox(height: 12),
 
-                  if (_hasValue(
-                    place.websiteUrl,
-                  )) ...[
-                    const SizedBox(
-                      height:
-                          12,
-                    ),
-
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-
-                      children: [
-                        const Icon(
-                          Icons
-                              .language_rounded,
-
-                          color:
-                              AppTheme
-                                  .primaryDark,
-
-                          size:
-                              20,
-                        ),
-
-                        const SizedBox(
-                          width:
-                              8,
-                        ),
-
-                        Expanded(
-                          child:
-                              Text(
-                            place.websiteUrl!,
-
-                            style:
-                                const TextStyle(
-                              color:
-                                  AppTheme
-                                      .primaryDark,
-
-                              fontSize:
-                                  14,
-
-                              decoration:
-                                  TextDecoration
-                                      .underline,
-                            ),
-                          ),
-                        ),
-                      ],
+                    _buildInfoRow(
+                      icon: Icons.language_rounded,
+                      text: place.websiteUrl!,
                     ),
                   ],
 
                   // =================================================
                   // GALERÍA
                   // =================================================
-
-                  if (place.media.length >
-                      1) ...[
-                    const SizedBox(
-                      height:
-                          24,
-                    ),
+                  if (place.media.length > 1) ...[
+                    const SizedBox(height: 24),
 
                     Text(
-                      isSpanish
-                          ? 'Galería de fotos'
-                          : 'Photo gallery',
-
-                      style:
-                          const TextStyle(
-                        fontSize:
-                            17,
-
-                        fontWeight:
-                            FontWeight.bold,
-
-                        color:
-                            Color(
-                          0xFF2C3E50,
-                        ),
-                      ),
+                      isSpanish ? 'Galería de fotos' : 'Photo gallery',
+                      style: BcText.title(color: BcColors.ink),
                     ),
 
-                    const SizedBox(
-                      height:
-                          12,
-                    ),
+                    const SizedBox(height: 12),
 
                     SizedBox(
-                      height:
-                          100,
+                      height: 100,
 
-                      child:
-                          ListView.separated(
-                        scrollDirection:
-                            Axis.horizontal,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
 
-                        itemCount:
-                            place.media.length,
+                        itemCount: place.media.length,
 
-                        separatorBuilder:
-                            (
-                          context,
-                          index,
-                        ) {
-                          return const SizedBox(
-                            width:
-                                10,
-                          );
+                        separatorBuilder: (context, index) {
+                          return const SizedBox(width: 10);
                         },
 
-                        itemBuilder:
-                            (
-                          context,
-                          index,
-                        ) {
-                          final mediaItem =
-                              place.media[index];
+                        itemBuilder: (context, index) {
+                          final mediaItem = place.media[index];
 
-                          final url =
-                              mediaItem.externalUrl;
+                          final url = mediaItem.externalUrl;
 
-                          if (!_hasValue(
-                            url,
-                          )) {
-                            return const SizedBox
-                                .shrink();
+                          if (!_hasValue(url)) {
+                            return const SizedBox.shrink();
                           }
 
                           return ClipRRect(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              12,
+                            borderRadius: BorderRadius.circular(
+                              BcRadius.control,
                             ),
 
-                            child:
-                                CachedNetworkImage(
-                              imageUrl:
-                                  url!,
+                            child: CachedNetworkImage(
+                              imageUrl: url!,
 
-                              width:
-                                  140,
+                              width: 140,
 
-                              height:
-                                  100,
+                              height: 100,
 
-                              fit:
-                                  BoxFit
-                                      .cover,
+                              fit: BoxFit.cover,
 
-                              placeholder:
-                                  (
-                                context,
-                                url,
-                              ) {
+                              placeholder: (context, url) {
                                 return Container(
-                                  width:
-                                      140,
+                                  width: 140,
 
-                                  color:
-                                      Colors
-                                          .grey[
-                                    200
-                                  ],
+                                  color: BcColors.surface,
 
-                                  child:
-                                      const Center(
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth:
-                                          2,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
 
-                                      color:
-                                          AppTheme
-                                              .primaryDark,
+                                      color: BcColors.ink,
                                     ),
                                   ),
                                 );
@@ -993,9 +355,9 @@ class _PlaceDetailScreenState
 
                               errorWidget: (context, url, error) =>
                                   const SizedBox(
-                                width: 140,
-                                child: BcLogoPlaceholder(),
-                              ),
+                                    width: 140,
+                                    child: BcLogoPlaceholder(),
+                                  ),
                             ),
                           );
                         },
@@ -1003,79 +365,42 @@ class _PlaceDetailScreenState
                     ),
                   ],
 
-                  const SizedBox(
-                    height:
-                        32,
-                  ),
+                  const SizedBox(height: 32),
 
-                  const Divider(
-                    color:
-                        Color(
-                      0xFFEEEEEE,
-                    ),
-                  ),
+                  const Divider(color: BcColors.surface),
 
-                  const SizedBox(
-                    height:
-                        20,
-                  ),
+                  const SizedBox(height: 20),
 
                   // =================================================
                   // AVISO
                   // =================================================
-
                   Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       const Icon(
-                        Icons
-                            .info_outline_rounded,
+                        Icons.info_outline_rounded,
 
-                        color:
-                            AppTheme
-                                .primaryDark,
+                        color: BcColors.glacierDeep,
 
-                        size:
-                            20,
+                        size: 20,
                       ),
 
-                      const SizedBox(
-                        width:
-                            8,
-                      ),
+                      const SizedBox(width: 8),
 
                       Expanded(
-                        child:
-                            Text(
+                        child: Text(
                           isSpanish
                               ? 'La información mostrada es referencial. Se recomienda verificar horarios, precios y disponibilidad directamente con el prestador antes de realizar la visita.'
                               : 'The information shown is for reference. It is recommended to verify schedules, prices and availability directly with the provider before visiting.',
 
-                          style:
-                              const TextStyle(
-                            color:
-                                Color(
-                              0xFF7F8C8D,
-                            ),
-
-                            fontSize:
-                                14,
-
-                            height:
-                                1.4,
-                          ),
+                          style: BcText.body(color: BcColors.muted),
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(
-                    height:
-                        30,
-                  ),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -1086,65 +411,20 @@ class _PlaceDetailScreenState
   }
 
   // ================================================================
-  // IMAGEN PRINCIPAL
-  // ================================================================
-
-  Widget _buildMainImage(String? imageUrl) {
-    // Sin foto o con error: logo BC sobre tinta (sistema Coyhaique BaseCamp).
-    if (!_hasValue(imageUrl)) return const BcLogoPlaceholder();
-
-    return CachedNetworkImage(
-      imageUrl: imageUrl!,
-      fit: BoxFit.cover,
-      placeholder: (context, url) =>
-          const BcLogoPlaceholder(showProgress: true),
-      errorWidget: (context, url, error) => const BcLogoPlaceholder(),
-    );
-  }
-
-  // ================================================================
   // FILA DE INFORMACIÓN
   // ================================================================
 
-  Widget _buildInfoRow({
-    required IconData icon,
-    required String text,
-  }) {
+  Widget _buildInfoRow({required IconData icon, required String text}) {
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-        Icon(
-          icon,
+        Icon(icon, color: BcColors.glacierDeep, size: 20),
 
-          color:
-              AppTheme.primaryDark,
-
-          size:
-              20,
-        ),
-
-        const SizedBox(
-          width:
-              8,
-        ),
+        const SizedBox(width: 8),
 
         Expanded(
-          child:
-              Text(
-            text,
-
-            style:
-                const TextStyle(
-              color:
-                  AppTheme
-                      .textSecondary,
-
-              fontSize:
-                  14,
-            ),
-          ),
+          child: Text(text, style: BcText.body(color: BcColors.muted)),
         ),
       ],
     );
@@ -1154,27 +434,22 @@ class _PlaceDetailScreenState
   // VALIDAR TEXTO
   // ================================================================
 
-  bool _hasValue(
-    String? value,
-  ) {
+  bool _hasValue(String? value) {
     if (value == null) {
       return false;
     }
 
-    final normalized =
-        value.trim();
+    final normalized = value.trim();
 
     if (normalized.isEmpty) {
       return false;
     }
 
-    if (normalized.toLowerCase() ==
-        'null') {
+    if (normalized.toLowerCase() == 'null') {
       return false;
     }
 
-    if (normalized.toLowerCase() ==
-        'n/a') {
+    if (normalized.toLowerCase() == 'n/a') {
       return false;
     }
 
@@ -1185,100 +460,48 @@ class _PlaceDetailScreenState
   // NO ENCONTRADO
   // ================================================================
 
-  Widget _buildNotFoundWidget(
-    bool isSpanish,
-  ) {
+  Widget _buildNotFoundWidget(bool isSpanish) {
     return Center(
-      child:
-          Padding(
-        padding:
-            const EdgeInsets.all(
-          24,
-        ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
 
-        child:
-            Column(
-          mainAxisAlignment:
-              MainAxisAlignment
-                  .center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
             const Icon(
               Icons.search_off,
-
-              size:
-                  60,
-
-              color:
-                  AppTheme
-                      .textSecondary,
+              size: 60,
+              color: AppTheme.textSecondary,
             ),
 
-            const SizedBox(
-              height:
-                  16,
-            ),
+            const SizedBox(height: 16),
 
             Text(
-              isSpanish
-                  ? 'Lugar no encontrado'
-                  : 'Place not found',
-
-              style:
-                  const TextStyle(
-                fontSize:
-                    18,
-
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              isSpanish ? 'Lugar no encontrado' : 'Place not found',
+              style: BcText.title(color: BcColors.ink),
             ),
 
-            const SizedBox(
-              height:
-                  20,
-            ),
+            const SizedBox(height: 20),
 
             FilledButton.icon(
-              onPressed:
-                  _isReloading
-                      ? null
-                      : () {
-                          _reloadPlace(
-                            showMessage:
-                                true,
-                          );
-                        },
+              onPressed: _isReloading
+                  ? null
+                  : () {
+                      _reloadPlace(showMessage: true);
+                    },
 
-              icon:
-                  const Icon(
-                Icons
-                    .refresh_rounded,
-              ),
+              icon: const Icon(Icons.refresh_rounded),
 
-              label:
-                  Text(
-                isSpanish
-                    ? 'Reintentar'
-                    : 'Retry',
-              ),
+              label: Text(isSpanish ? 'Reintentar' : 'Retry'),
             ),
 
-            const SizedBox(
-              height:
-                  8,
-            ),
+            const SizedBox(height: 8),
 
             TextButton(
-              onPressed:
-                  widget.onBack,
+              onPressed: widget.onBack,
 
-              child:
-                  Text(
-                isSpanish
-                    ? 'Volver'
-                    : 'Back',
-              ),
+              child: Text(isSpanish ? 'Volver' : 'Back'),
             ),
           ],
         ),
@@ -1290,142 +513,64 @@ class _PlaceDetailScreenState
   // ERROR
   // ================================================================
 
-  Widget _buildErrorWidget(
-    Object error,
-    bool isSpanish,
-  ) {
+  Widget _buildErrorWidget(Object error, bool isSpanish) {
     return Center(
-      child:
-          SingleChildScrollView(
-        padding:
-            const EdgeInsets.all(
-          24,
-        ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
 
-        child:
-            Column(
-          mainAxisAlignment:
-              MainAxisAlignment
-                  .center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
-            const Icon(
-              Icons
-                  .error_outline,
+            const Icon(Icons.error_outline, size: 60, color: Colors.redAccent),
 
-              size:
-                  60,
-
-              color:
-                  Colors.redAccent,
-            ),
-
-            const SizedBox(
-              height:
-                  16,
-            ),
+            const SizedBox(height: 16),
 
             Text(
-              isSpanish
-                  ? 'Error al cargar lugar'
-                  : 'Error loading place',
-
-              textAlign:
-                  TextAlign.center,
-
-              style:
-                  const TextStyle(
-                fontSize:
-                    18,
-
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              isSpanish ? 'Error al cargar lugar' : 'Error loading place',
+              textAlign: TextAlign.center,
+              style: BcText.title(color: BcColors.ink),
             ),
 
-            const SizedBox(
-              height:
-                  8,
-            ),
+            const SizedBox(height: 8),
 
             Text(
               error.toString(),
-
-              textAlign:
-                  TextAlign.center,
-
-              style:
-                  const TextStyle(
-                fontSize:
-                    12,
-
-                color:
-                    AppTheme
-                        .textSecondary,
-              ),
+              textAlign: TextAlign.center,
+              style: BcText.body(color: BcColors.muted),
             ),
 
-            const SizedBox(
-              height:
-                  20,
-            ),
+            const SizedBox(height: 20),
 
             FilledButton.icon(
-              onPressed:
-                  _isReloading
-                      ? null
-                      : () {
-                          _reloadPlace(
-                            showMessage:
-                                true,
-                          );
-                        },
+              onPressed: _isReloading
+                  ? null
+                  : () {
+                      _reloadPlace(showMessage: true);
+                    },
 
-              icon:
-                  _isReloading
-                      ? const SizedBox(
-                          width:
-                              18,
-                          height:
-                              18,
+              icon: _isReloading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
 
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth:
-                                2,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
 
-                            color:
-                                Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons
-                              .refresh_rounded,
-                        ),
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.refresh_rounded),
 
-              label:
-                  Text(
-                isSpanish
-                    ? 'Reintentar'
-                    : 'Retry',
-              ),
+              label: Text(isSpanish ? 'Reintentar' : 'Retry'),
             ),
 
-            const SizedBox(
-              height:
-                  8,
-            ),
+            const SizedBox(height: 8),
 
             TextButton(
-              onPressed:
-                  widget.onBack,
+              onPressed: widget.onBack,
 
-              child:
-                  Text(
-                isSpanish
-                    ? 'Volver'
-                    : 'Back',
-              ),
+              child: Text(isSpanish ? 'Volver' : 'Back'),
             ),
           ],
         ),
