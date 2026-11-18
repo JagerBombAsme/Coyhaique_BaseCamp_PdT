@@ -434,7 +434,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
       }
 
       if (route == null) {
-        _showMessage(_isSpanish ? 'No se encontró una ruta' : 'No route found');
+        // Mapbox respondió, pero no hay ruta entre los puntos: es la distancia.
+        _showMessage(
+          _isSpanish
+              ? 'No se encontró una ruta por la distancia entre estos puntos.'
+              : 'No route was found because of the distance between these points.',
+        );
         return;
       }
 
@@ -467,10 +472,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
       );
     } catch (e) {
       debugPrint('ERROR RUTA: $e');
+      // Fallo de la app o de la conexión con el servicio, no de la distancia.
       _showMessage(
         _isSpanish
-            ? 'No se pudo calcular la ruta'
-            : 'The route could not be calculated',
+            ? 'No se pudo calcular la ruta por un fallo de la aplicación. Inténtalo de nuevo.'
+            : 'The route could not be calculated due to an app error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
