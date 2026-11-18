@@ -1,0 +1,202 @@
+diff --git a/lib/core/connectivity/connectivity_gate.dart b/lib/core/connectivity/connectivity_gate.dart
+index 76d41e0..811d89c 100644
+--- a/lib/core/connectivity/connectivity_gate.dart
++++ b/lib/core/connectivity/connectivity_gate.dart
+@@ -36,10 +36,6 @@ class ConnectivityGate extends ConsumerStatefulWidget {
+ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
+   _NetState _state = _NetState.checking;
+   DateTime? _lastSync;
+-
+-  /// En el mapa no se muestra la banda: tapaba el buscador y el mapa tiene
+-  /// su propio aviso fijo sin conexión (FIX-002).
+-  bool _onMap = false;
+   StreamSubscription<List<ConnectivityResult>>? _subscription;
+ 
+   @override
+@@ -71,11 +67,7 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
+     }
+     if (!mounted) return;
+ 
+-    final onMap = appRouter.routeInformationProvider.value.uri.path
+-        .startsWith('/map');
+-
+     setState(() {
+-      _onMap = onMap;
+       _lastSync = lastSync;
+       _state = online
+           ? _NetState.online
+@@ -89,21 +81,35 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
+   Widget build(BuildContext context) {
+     final es = ref.watch(languageProvider).languageCode == 'es';
+ 
+-    return Stack(
+-      fit: StackFit.expand,
++    final showBanner = _state == _NetState.offlineWithData;
++
++    // La barra va arriba de todas las pantallas y empuja el contenido hacia
++    // abajo en lugar de taparlo. Los widgets de posición fija se mantienen en
++    // el mismo lugar del árbol para que la navegación no se reinicie.
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.stretch,
+       children: [
+-        widget.child,
+-        if (_state == _NetState.offlineWithData && !_onMap)
+-          Positioned(
+-            top: 0,
+-            left: 0,
+-            right: 0,
+-            child: _OfflineBanner(isSpanish: es, lastSync: _lastSync),
+-          ),
+-        if (_state == _NetState.offlineNoData)
+-          Positioned.fill(
+-            child: _NoConnectionCard(isSpanish: es, onRetry: _refresh),
++        if (showBanner)
++          _OfflineBanner(isSpanish: es, lastSync: _lastSync)
++        else
++          const SizedBox.shrink(),
++        Expanded(
++          child: Stack(
++            fit: StackFit.expand,
++            children: [
++              // La barra ya cubre la parte superior (reloj y muesca).
++              MediaQuery.removePadding(
++                context: context,
++                removeTop: showBanner,
++                child: widget.child,
++              ),
++              if (_state == _NetState.offlineNoData)
++                Positioned.fill(
++                  child: _NoConnectionCard(isSpanish: es, onRetry: _refresh),
++                ),
++            ],
+           ),
++        ),
+       ],
+     );
+   }
+diff --git a/lib/features/map/presentation/screens/map_screen.dart b/lib/features/map/presentation/screens/map_screen.dart
+index ae9b072..510d0e8 100644
+--- a/lib/features/map/presentation/screens/map_screen.dart
++++ b/lib/features/map/presentation/screens/map_screen.dart
+@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
+ import 'package:geolocator/geolocator.dart' as geolocator;
+ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+ 
+-import '../../../../core/local/catalog_status_provider.dart';
+ import '../../../../core/providers/language_provider.dart';
+ import '../../../../core/theme/app_theme.dart';
+ import '../../../categories/data/models/place_dto.dart';
+@@ -109,12 +108,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
+   /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
+   _LocationGate _gate = _LocationGate.checking;
+ 
+-  /// Conexión a internet. Sin conexión el mapa muestra su propio aviso fijo
+-  /// y las rutas avisan antes de calcularse (FIX-001, FIX-002).
++  /// Conexión a internet. El aviso sin conexión lo muestra la barra superior
++  /// de ConnectivityGate; aquí solo sirve para bloquear las rutas (FIX-001).
+   bool _online = true;
+-
+-  /// Fecha de la última descarga del catálogo, para el aviso sin conexión.
+-  DateTime? _lastSync;
+   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+ 
+   /// El estilo del mapa terminó de cargar. Se reinicia al cambiar de estilo.
+@@ -214,23 +210,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     return result;
+   }
+ 
+-  /// Actualiza el estado de conexión y la fecha de la última descarga.
+-  /// Al volver la conexión se reintenta un mapa que no había cargado.
++  /// Actualiza el estado de conexión. Al volver la conexión se reintenta un
++  /// mapa que no había cargado.
+   Future<void> _onConnectivityChanged(List<ConnectivityResult> results) async {
+     final online = results.any((r) => r != ConnectivityResult.none);
+-    DateTime? lastSync;
+-    if (!online) {
+-      try {
+-        lastSync = await ref.read(catalogLocalDbProvider).getLastSyncAt();
+-      } catch (_) {
+-        lastSync = null;
+-      }
+-    }
+     if (!mounted) return;
+-    setState(() {
+-      _online = online;
+-      _lastSync = lastSync;
+-    });
++    setState(() => _online = online);
+     if (online && _mapLoadFailed) await _retryMapLoad();
+   }
+ 
+@@ -764,11 +749,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
+                 _buildSearchBar(),
+                 const SizedBox(height: 12),
+                 _buildQuickLocations(),
+-                // Aviso fijo sin conexión, propio del mapa (FIX-002).
+-                if (!_online) ...[
+-                  const SizedBox(height: 10),
+-                  _buildOfflineNotice(),
+-                ],
+               ],
+             ),
+           ),
+@@ -787,49 +767,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     );
+   }
+ 
+-  /// Aviso fijo bajo el buscador mientras no hay conexión. El mapa sigue
+-  /// usable con lo ya cargado y el GPS, que no necesita internet.
+-  Widget _buildOfflineNotice() {
+-    final es = _isSpanish;
+-    final sync = _lastSync;
+-    final date = sync == null ? null : _formatSyncDate(sync);
+-    final text = es
+-        ? (date == null
+-              ? 'Sin conexión. Las rutas necesitan internet.'
+-              : 'Sin conexión · Datos del $date. Las rutas necesitan internet.')
+-        : (date == null
+-              ? 'No connection. Routes need internet.'
+-              : 'No connection · Data from $date. Routes need internet.');
+-
+-    return Semantics(
+-      liveRegion: true,
+-      child: Container(
+-        width: double.infinity,
+-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+-        decoration: BoxDecoration(
+-          color: AppTheme.primaryDark,
+-          borderRadius: BorderRadius.circular(14),
+-        ),
+-        child: Row(
+-          children: [
+-            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 18),
+-            const SizedBox(width: 8),
+-            Expanded(
+-              child: Text(
+-                text,
+-                style: const TextStyle(
+-                  color: Colors.white,
+-                  fontSize: 13,
+-                  height: 1.3,
+-                ),
+-              ),
+-            ),
+-          ],
+-        ),
+-      ),
+-    );
+-  }
+-
+   /// Tarjeta cuando el mapa no carga teniendo conexión, con «Reintentar».
+   /// El resto de la app (pestañas, fichas) sigue disponible.
+   Widget _buildMapErrorCard() {
+@@ -1316,9 +1253,3 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     ];
+   }
+ }
+-
+-/// Fecha de descarga para el aviso sin conexión (dd-mm-aaaa).
+-String _formatSyncDate(DateTime d) {
+-  String two(int n) => n.toString().padLeft(2, '0');
+-  return '${two(d.day)}-${two(d.month)}-${d.year}';
+-}
