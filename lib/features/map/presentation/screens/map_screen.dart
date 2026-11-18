@@ -465,8 +465,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
       debugPrint('ERROR RUTA: $e');
       _showMessage(
         _isSpanish
-            ? 'No se pudo calcular la ruta'
-            : 'The route could not be calculated',
+            ? 'Debes tener conexión a Internet para calcular la ruta'
+            : 'You must have an Internet connection to calculate the route',
       );
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
