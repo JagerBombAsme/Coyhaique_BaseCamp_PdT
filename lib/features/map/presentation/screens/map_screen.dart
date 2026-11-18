@@ -420,14 +420,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
       final token = await MapboxOptions.getAccessToken();
       final service = MapboxDirectionsService(accessToken: token);
 
-      final route = await service.getRoute(
-        fromLongitude: from.longitude,
-        fromLatitude: from.latitude,
-        toLongitude: to.longitude,
-        toLatitude: to.latitude,
-        profile: profile,
-      );
-      service.dispose();
+      final RouteResult? route;
+      try {
+        route = await service.getRoute(
+          fromLongitude: from.longitude,
+          fromLatitude: from.latitude,
+          toLongitude: to.longitude,
+          toLatitude: to.latitude,
+          profile: profile,
+        );
+      } finally {
+        service.dispose();
+      }
 
       if (route == null) {
         _showMessage(_isSpanish ? 'No se encontró una ruta' : 'No route found');
@@ -474,7 +478,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   /// Pregunta si la persona anda a pie o en auto y calcula la ruta desde la
-  /// Plaza de Armas con ese medio. Si cierra la pantalla, no pasa nada.
+  /// ubicación actual del usuario con ese medio. Si cierra la pantalla, no
+  /// pasa nada.
   Future<void> _chooseTransportAndRoute(MapPlace place) async {
     final profile = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(
@@ -483,7 +488,64 @@ class _MapScreenState extends ConsumerState<MapScreen>
       ),
     );
     if (profile == null || !mounted) return;
-    await _showRoute(from: _plaza, to: place, profile: profile);
+    final origin = await _currentUserOrigin();
+    if (origin == null || !mounted) return;
+    await _showRoute(from: origin, to: place, profile: profile);
+  }
+
+  /// Ubicación actual del usuario como origen de la ruta. Devuelve null si
+  /// falta GPS o permiso, o si no se pudo obtener a tiempo: en ese caso no
+  /// se traza ninguna ruta (no se usa la Plaza como respaldo).
+  Future<MapPlace?> _currentUserOrigin() async {
+    if (!await geolocator.Geolocator.isLocationServiceEnabled()) {
+      _showMessage(
+        _isSpanish ? 'Activa el GPS de tu teléfono' : 'Turn on your phone GPS',
+      );
+      return null;
+    }
+
+    var permission = await geolocator.Geolocator.checkPermission();
+    if (permission == geolocator.LocationPermission.denied) {
+      permission = await geolocator.Geolocator.requestPermission();
+    }
+    if (permission == geolocator.LocationPermission.denied ||
+        permission == geolocator.LocationPermission.deniedForever) {
+      _showMessage(
+        _isSpanish
+            ? 'Se necesita permiso de ubicación'
+            : 'Location permission is required',
+      );
+      return null;
+    }
+
+    try {
+      final position = await geolocator.Geolocator.getCurrentPosition(
+        locationSettings: const geolocator.LocationSettings(
+          accuracy: geolocator.LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return null;
+      return MapPlace(
+        nameEs: 'Tu ubicación',
+        nameEn: 'Your location',
+        descriptionEs: 'Punto de partida desde tu posición actual.',
+        descriptionEn: 'Starting point from your current position.',
+        icon: Icons.my_location,
+        longitude: position.longitude,
+        latitude: position.latitude,
+      );
+    } catch (e) {
+      debugPrint('ERROR UBICACIÓN: $e');
+      if (mounted) {
+        _showMessage(
+          _isSpanish
+              ? 'No se pudo obtener tu ubicación'
+              : 'Your location could not be determined',
+        );
+      }
+      return null;
+    }
   }
 
   /// Dibuja la línea de la ruta en el mapa.
