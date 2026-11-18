@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 
 /// Pantalla de inicio (splash) con el logo BC sobre gris niebla.
 ///
-/// Continúa con la que sigue en el flujo de inicio después de 1,6 s.
-class SplashView extends StatefulWidget {
+/// Continúa después de 1,6 s: a Home si el idioma ya fue elegido en este
+/// teléfono, o al flujo de bienvenida (intro, idioma) si es el primer uso.
+class SplashView extends ConsumerStatefulWidget {
   const SplashView({super.key});
 
   @override
-  State<SplashView> createState() => _SplashViewState();
+  ConsumerState<SplashView> createState() => _SplashViewState();
 }
 
-class _SplashViewState extends State<SplashView>
+class _SplashViewState extends ConsumerState<SplashView>
     with SingleTickerProviderStateMixin {
   static const Duration _duration = Duration(milliseconds: 1600);
 
@@ -41,7 +44,9 @@ class _SplashViewState extends State<SplashView>
   Future<void> _navigateToNext() async {
     await Future.delayed(_duration);
     if (!mounted) return;
-    context.go('/intro');
+    // Idioma ya guardado: se entra directo a Home. Primer uso: bienvenida.
+    final languageSaved = ref.read(languageSavedProvider);
+    context.go(languageSaved ? '/home' : '/intro');
   }
 
   @override
