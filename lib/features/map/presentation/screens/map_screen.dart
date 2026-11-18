@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../categories/data/models/place_dto.dart';
@@ -108,9 +109,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
   _LocationGate _gate = _LocationGate.checking;
 
-  /// Conexión a internet. El aviso sin conexión lo muestra la barra superior
-  /// de ConnectivityGate; aquí solo sirve para bloquear las rutas (FIX-001).
+  /// Conexión a internet. Sin conexión el mapa muestra su propio aviso fijo
+  /// y las rutas avisan antes de calcularse (FIX-001, FIX-002).
   bool _online = true;
+
+  /// Fecha de la última descarga del catálogo, para el aviso sin conexión.
+  DateTime? _lastSync;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   /// El estilo del mapa terminó de cargar. Se reinicia al cambiar de estilo.
@@ -210,12 +214,23 @@ class _MapScreenState extends ConsumerState<MapScreen>
     return result;
   }
 
-  /// Actualiza el estado de conexión. Al volver la conexión se reintenta un
-  /// mapa que no había cargado.
+  /// Actualiza el estado de conexión y la fecha de la última descarga.
+  /// Al volver la conexión se reintenta un mapa que no había cargado.
   Future<void> _onConnectivityChanged(List<ConnectivityResult> results) async {
     final online = results.any((r) => r != ConnectivityResult.none);
+    DateTime? lastSync;
+    if (!online) {
+      try {
+        lastSync = await ref.read(catalogLocalDbProvider).getLastSyncAt();
+      } catch (_) {
+        lastSync = null;
+      }
+    }
     if (!mounted) return;
-    setState(() => _online = online);
+    setState(() {
+      _online = online;
+      _lastSync = lastSync;
+    });
     if (online && _mapLoadFailed) await _retryMapLoad();
   }
 
@@ -749,6 +764,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 _buildSearchBar(),
                 const SizedBox(height: 12),
                 _buildQuickLocations(),
+                // Aviso fijo sin conexión, propio del mapa (FIX-002).
+                if (!_online) ...[
+                  const SizedBox(height: 10),
+                  _buildOfflineNotice(),
+                ],
               ],
             ),
           ),
@@ -764,6 +784,49 @@ class _MapScreenState extends ConsumerState<MapScreen>
         if (_online && _mapLoadFailed)
           Positioned.fill(child: _buildMapErrorCard()),
       ],
+    );
+  }
+
+  /// Aviso fijo bajo el buscador mientras no hay conexión. El mapa sigue
+  /// usable con lo ya cargado y el GPS, que no necesita internet.
+  Widget _buildOfflineNotice() {
+    final es = _isSpanish;
+    final sync = _lastSync;
+    final date = sync == null ? null : _formatSyncDate(sync);
+    final text = es
+        ? (date == null
+              ? 'Sin conexión. Las rutas necesitan internet.'
+              : 'Sin conexión · Datos del $date. Las rutas necesitan internet.')
+        : (date == null
+              ? 'No connection. Routes need internet.'
+              : 'No connection · Data from $date. Routes need internet.');
+
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryDark,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1252,4 +1315,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
       ),
     ];
   }
+}
+
+/// Fecha de descarga para el aviso sin conexión (dd-mm-aaaa).
+String _formatSyncDate(DateTime d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(d.day)}-${two(d.month)}-${d.year}';
 }
