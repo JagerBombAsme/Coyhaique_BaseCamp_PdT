@@ -72,7 +72,8 @@ Future<void> main() async {
   final container = ProviderContainer();
 
   unawaited(container.read(catalogStatusProvider.notifier).download());
-
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(
     UncontrolledProviderScope(
       container: container,
