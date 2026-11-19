@@ -91,25 +91,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     }
   }
 
-  void _toggleFavorite(bool isSpanish) {
-    setState(() {
-      _isFavorite = !_isFavorite;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isFavorite
-              ? (isSpanish ? 'Añadido a favoritos' : 'Added to favorites')
-              : (isSpanish
-                    ? 'Eliminado de favoritos'
-                    : 'Removed from favorites'),
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final locale = ref.watch(languageProvider);
@@ -119,7 +100,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     final placeAsync = ref.watch(placeDetailProvider(widget.placeId));
 
     return Scaffold(
-      backgroundColor: BcColors.fog,
+      backgroundColor: const Color(0xFFFDFCFB),
 
       body: placeAsync.when(
         data: (place) {
@@ -156,9 +137,13 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
   // ================================================================
 
   Widget _buildContent(BuildContext context, PlaceDto place, bool isSpanish) {
+    final title = place.getTitle(isSpanish);
+
     final subtitle = place.getSubtitle(isSpanish);
 
     final description = place.getDescription(isSpanish);
+
+    final imageUrl = place.imageUrl;
 
     // ==============================================================
     // PULL TO REFRESH
@@ -181,20 +166,242 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
             // ======================================================
             // CABECERA (identidad visual: foto, título y botones)
             // ======================================================
-            PlaceHeroHeader(
-              place: place,
-              isSpanish: isSpanish,
-              isFavorite: _isFavorite,
-              onBack: widget.onBack,
-              onToggleFavorite: () => _toggleFavorite(isSpanish),
-            ),
+            Stack(
+              children: [
+                Container(
+                  height: 380,
 
-            // ======================================================
-            // DISTANCIA (origen: Plaza de Armas o ubicación)
-            // ======================================================
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: PlaceDistanceCard(place: place, isSpanish: isSpanish),
+                  width: double.infinity,
+
+                  color: AppTheme.primaryDark,
+
+                  child: _buildMainImage(imageUrl),
+                ),
+
+                // ==================================================
+                // GRADIENTE
+                // ==================================================
+                Container(
+                  height: 380,
+
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+
+                      end: Alignment.bottomCenter,
+
+                      colors: [Colors.transparent, Colors.black87],
+
+                      stops: [0.5, 1.0],
+                    ),
+                  ),
+                ),
+
+                // ==================================================
+                // VOLVER
+                // ==================================================
+                Positioned(
+                  top: 48,
+
+                  left: 16,
+
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white.withValues(alpha: 0.85),
+
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back,
+
+                        color: AppTheme.textPrimary,
+                      ),
+
+                      onPressed: widget.onBack,
+                    ),
+                  ),
+                ),
+
+                // ==================================================
+                // ACCIONES
+                // ==================================================
+                Positioned(
+                  top: 48,
+
+                  right: 16,
+
+                  child: Row(
+                    children: [
+                      // ============================================
+                      // RECARGAR
+                      // ============================================
+                      CircleAvatar(
+                        backgroundColor: Colors.white.withValues(alpha: 0.85),
+
+                        child: IconButton(
+                          tooltip: isSpanish ? 'Actualizar' : 'Refresh',
+
+                          onPressed: _isReloading
+                              ? null
+                              : () {
+                                  _reloadPlace(showMessage: true);
+                                },
+
+                          icon: _isReloading
+                              ? const SizedBox(
+                                  width: 19,
+                                  height: 19,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppTheme.primaryDark,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.refresh_rounded,
+                                  color: AppTheme.primaryDark,
+                                ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      // ============================================
+                      // FAVORITOS
+                      // ============================================
+                      CircleAvatar(
+                        backgroundColor: Colors.white.withValues(alpha: 0.85),
+
+                        child: IconButton(
+                          icon: Icon(
+                            _isFavorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+
+                            color: _isFavorite
+                                ? const Color(0xFFD32F2F)
+                                : AppTheme.primaryDark,
+                          ),
+
+                          onPressed: () {
+                            setState(() {
+                              _isFavorite = !_isFavorite;
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _isFavorite
+                                      ? (isSpanish
+                                            ? 'Añadido a favoritos'
+                                            : 'Added to favorites')
+                                      : (isSpanish
+                                            ? 'Eliminado de favoritos'
+                                            : 'Removed from favorites'),
+                                ),
+
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      // ============================================
+                      // COMPARTIR
+                      // ============================================
+                      CircleAvatar(
+                        backgroundColor: Colors.white.withValues(alpha: 0.85),
+
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.share,
+
+                            color: AppTheme.primaryDark,
+                          ),
+
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isSpanish
+                                      ? 'Función de compartir no implementada.'
+                                      : 'Share function not implemented.',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ==================================================
+                // TÍTULO SOBRE IMAGEN
+                // ==================================================
+                Positioned(
+                  bottom: 24,
+
+                  left: 24,
+
+                  right: 24,
+
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+
+                          vertical: 4,
+                        ),
+
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryDark,
+
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+
+                        child: Text(
+                          (place.categorySlug != null &&
+                                      place.categorySlug!.isNotEmpty
+                                  ? place.categorySlug!
+                                  : (place.category?.slug ??
+                                        (isSpanish ? 'LUGAR' : 'PLACE')))
+                              .toUpperCase(),
+
+                          style: const TextStyle(
+                            color: Colors.white,
+
+                            fontSize: 11,
+
+                            fontWeight: FontWeight.bold,
+
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      Text(
+                        title,
+
+                        style: const TextStyle(
+                          color: Colors.white,
+
+                          fontSize: 28,
+
+                          fontWeight: FontWeight.bold,
+
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
 
             // ======================================================
@@ -213,6 +420,15 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   if (subtitle.isNotEmpty) ...[
                     Text(subtitle, style: BcText.title(color: BcColors.ink)),
 
+                      style: const TextStyle(
+                        fontSize: 18,
+
+                        fontWeight: FontWeight.bold,
+
+                        color: Color(0xFF2C3E50),
+                      ),
+                    ),
+
                     const SizedBox(height: 12),
                   ],
 
@@ -220,13 +436,30 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   // DESCRIPCIÓN
                   // =================================================
                   if (description.isNotEmpty)
-                    Text(description, style: BcText.body(color: BcColors.ink))
+                    Text(
+                      description,
+
+                      style: const TextStyle(
+                        color: Color(0xFF4A4A4A),
+
+                        fontSize: 16,
+
+                        height: 1.5,
+                      ),
+                    )
                   else
                     Text(
                       isSpanish
                           ? 'No hay descripción disponible.'
                           : 'No description available.',
-                      style: BcText.body(color: BcColors.muted),
+
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+
+                        fontSize: 14,
+
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
 
                   // =================================================
@@ -237,6 +470,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                     _buildInfoRow(
                       icon: Icons.location_on,
+
                       text: place.address!,
                     ),
                   ],
@@ -249,6 +483,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                     _buildInfoRow(
                       icon: Icons.access_time_rounded,
+
                       text: place.schedule!,
                     ),
                   ],
@@ -261,6 +496,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                     _buildInfoRow(
                       icon: Icons.attach_money_rounded,
+
                       text: place.referencePrice!,
                     ),
                   ],
@@ -273,6 +509,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                     _buildInfoRow(
                       icon: Icons.phone_rounded,
+
                       text: place.contactInfo!,
                     ),
                   ],
@@ -283,9 +520,34 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   if (_hasValue(place.websiteUrl)) ...[
                     const SizedBox(height: 12),
 
-                    _buildInfoRow(
-                      icon: Icons.language_rounded,
-                      text: place.websiteUrl!,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                      children: [
+                        const Icon(
+                          Icons.language_rounded,
+
+                          color: AppTheme.primaryDark,
+
+                          size: 20,
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        Expanded(
+                          child: Text(
+                            place.websiteUrl!,
+
+                            style: const TextStyle(
+                              color: AppTheme.primaryDark,
+
+                              fontSize: 14,
+
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
 
@@ -297,7 +559,14 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                     Text(
                       isSpanish ? 'Galería de fotos' : 'Photo gallery',
-                      style: BcText.title(color: BcColors.ink),
+
+                      style: const TextStyle(
+                        fontSize: 17,
+
+                        fontWeight: FontWeight.bold,
+
+                        color: Color(0xFF2C3E50),
+                      ),
                     ),
 
                     const SizedBox(height: 12),
@@ -324,9 +593,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                           }
 
                           return ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              BcRadius.control,
-                            ),
+                            borderRadius: BorderRadius.circular(12),
 
                             child: CachedNetworkImage(
                               imageUrl: url!,
@@ -341,13 +608,13 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                                 return Container(
                                   width: 140,
 
-                                  color: BcColors.surface,
+                                  color: Colors.grey[200],
 
                                   child: const Center(
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
 
-                                      color: BcColors.ink,
+                                      color: AppTheme.primaryDark,
                                     ),
                                   ),
                                 );
@@ -367,34 +634,49 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                   const SizedBox(height: 32),
 
-                  const Divider(color: BcColors.surface),
+                  const Divider(color: Color(0xFFEEEEEE)),
 
                   const SizedBox(height: 20),
 
                   // =================================================
                   // AVISO
                   // =================================================
-                  Row(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-
                     children: [
-                      const Icon(
-                        Icons.info_outline_rounded,
-
-                        color: BcColors.glacierDeep,
-
-                        size: 20,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline_rounded,
+                            color: AppTheme.primaryDark,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isSpanish
+                                  ? 'La información mostrada es referencial. Se recomienda verificar horarios, precios y disponibilidad directamente con el prestador antes de realizar la visita.'
+                                  : 'The information shown is for reference. It is recommended to verify schedules, prices and availability directly with the provider before visiting.',
+                              style: const TextStyle(
+                                color: Color(0xFF7F8C8D),
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-
-                      const SizedBox(width: 8),
-
-                      Expanded(
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 28),
                         child: Text(
-                          isSpanish
-                              ? 'La información mostrada es referencial. Se recomienda verificar horarios, precios y disponibilidad directamente con el prestador antes de realizar la visita.'
-                              : 'The information shown is for reference. It is recommended to verify schedules, prices and availability directly with the provider before visiting.',
-
-                          style: BcText.body(color: BcColors.muted),
+                          _verificationText(place.lastVerifiedDate, isSpanish),
+                          style: const TextStyle(
+                            color: Color(0xFF7F8C8D),
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -419,12 +701,16 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-        Icon(icon, color: BcColors.glacierDeep, size: 20),
+        Icon(icon, color: AppTheme.primaryDark, size: 20),
 
         const SizedBox(width: 8),
 
         Expanded(
-          child: Text(text, style: BcText.body(color: BcColors.muted)),
+          child: Text(
+            text,
+
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+          ),
         ),
       ],
     );
@@ -433,6 +719,19 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
   // ================================================================
   // VALIDAR TEXTO
   // ================================================================
+  String _verificationText(DateTime? date, bool isSpanish) {
+    if (date == null) {
+      return isSpanish
+          ? 'Fecha de verificación no disponible.'
+          : 'Verification date not available.';
+    }
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final formatted = '$day-$month-${date.year}';
+    return isSpanish
+        ? 'Fecha de verificación: $formatted'
+        : 'Verification date: $formatted';
+  }
 
   bool _hasValue(String? value) {
     if (value == null) {
@@ -471,7 +770,9 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
           children: [
             const Icon(
               Icons.search_off,
+
               size: 60,
+
               color: AppTheme.textSecondary,
             ),
 
@@ -479,7 +780,8 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
             Text(
               isSpanish ? 'Lugar no encontrado' : 'Place not found',
-              style: BcText.title(color: BcColors.ink),
+
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 20),
@@ -528,16 +830,24 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
             Text(
               isSpanish ? 'Error al cargar lugar' : 'Error loading place',
+
               textAlign: TextAlign.center,
-              style: BcText.title(color: BcColors.ink),
+
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 8),
 
             Text(
               error.toString(),
+
               textAlign: TextAlign.center,
-              style: BcText.body(color: BcColors.muted),
+
+              style: const TextStyle(
+                fontSize: 12,
+
+                color: AppTheme.textSecondary,
+              ),
             ),
 
             const SizedBox(height: 20),
