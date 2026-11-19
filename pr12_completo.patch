@@ -1,0 +1,426 @@
+diff --git a/lib/core/connectivity/connectivity_gate.dart b/lib/core/connectivity/connectivity_gate.dart
+index 76d41e0..811d89c 100644
+--- a/lib/core/connectivity/connectivity_gate.dart
++++ b/lib/core/connectivity/connectivity_gate.dart
+@@ -36,10 +36,6 @@ class ConnectivityGate extends ConsumerStatefulWidget {
+ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
+   _NetState _state = _NetState.checking;
+   DateTime? _lastSync;
+-
+-  /// En el mapa no se muestra la banda: tapaba el buscador y el mapa tiene
+-  /// su propio aviso fijo sin conexión (FIX-002).
+-  bool _onMap = false;
+   StreamSubscription<List<ConnectivityResult>>? _subscription;
+ 
+   @override
+@@ -71,11 +67,7 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
+     }
+     if (!mounted) return;
+ 
+-    final onMap = appRouter.routeInformationProvider.value.uri.path
+-        .startsWith('/map');
+-
+     setState(() {
+-      _onMap = onMap;
+       _lastSync = lastSync;
+       _state = online
+           ? _NetState.online
+@@ -89,21 +81,35 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
+   Widget build(BuildContext context) {
+     final es = ref.watch(languageProvider).languageCode == 'es';
+ 
+-    return Stack(
+-      fit: StackFit.expand,
++    final showBanner = _state == _NetState.offlineWithData;
++
++    // La barra va arriba de todas las pantallas y empuja el contenido hacia
++    // abajo en lugar de taparlo. Los widgets de posición fija se mantienen en
++    // el mismo lugar del árbol para que la navegación no se reinicie.
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.stretch,
+       children: [
+-        widget.child,
+-        if (_state == _NetState.offlineWithData && !_onMap)
+-          Positioned(
+-            top: 0,
+-            left: 0,
+-            right: 0,
+-            child: _OfflineBanner(isSpanish: es, lastSync: _lastSync),
+-          ),
+-        if (_state == _NetState.offlineNoData)
+-          Positioned.fill(
+-            child: _NoConnectionCard(isSpanish: es, onRetry: _refresh),
++        if (showBanner)
++          _OfflineBanner(isSpanish: es, lastSync: _lastSync)
++        else
++          const SizedBox.shrink(),
++        Expanded(
++          child: Stack(
++            fit: StackFit.expand,
++            children: [
++              // La barra ya cubre la parte superior (reloj y muesca).
++              MediaQuery.removePadding(
++                context: context,
++                removeTop: showBanner,
++                child: widget.child,
++              ),
++              if (_state == _NetState.offlineNoData)
++                Positioned.fill(
++                  child: _NoConnectionCard(isSpanish: es, onRetry: _refresh),
++                ),
++            ],
+           ),
++        ),
+       ],
+     );
+   }
+diff --git a/lib/features/map/presentation/screens/map_screen.dart b/lib/features/map/presentation/screens/map_screen.dart
+index ae9b072..3bc1a81 100644
+--- a/lib/features/map/presentation/screens/map_screen.dart
++++ b/lib/features/map/presentation/screens/map_screen.dart
+@@ -8,13 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
+ import 'package:geolocator/geolocator.dart' as geolocator;
+ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+ 
+-import '../../../../core/local/catalog_status_provider.dart';
+ import '../../../../core/providers/language_provider.dart';
+ import '../../../../core/theme/app_theme.dart';
+ import '../../../categories/data/models/place_dto.dart';
+ import '../../../categories/data/providers/places_provider.dart';
+ import '../../../trip_info/presentation/widgets/trip_notice.dart';
+ import '../map_places.dart';
++import '../widgets/offline_map_canvas.dart';
+ import 'mapbox_directions_services.dart';
+ import 'transport_mode_screen.dart';
+ 
+@@ -109,12 +109,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
+   /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
+   _LocationGate _gate = _LocationGate.checking;
+ 
+-  /// Conexión a internet. Sin conexión el mapa muestra su propio aviso fijo
+-  /// y las rutas avisan antes de calcularse (FIX-001, FIX-002).
++  /// Conexión a internet. El aviso sin conexión lo muestra la barra superior
++  /// de ConnectivityGate; aquí solo sirve para bloquear las rutas (FIX-001).
+   bool _online = true;
+-
+-  /// Fecha de la última descarga del catálogo, para el aviso sin conexión.
+-  DateTime? _lastSync;
+   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+ 
+   /// El estilo del mapa terminó de cargar. Se reinicia al cambiar de estilo.
+@@ -214,23 +211,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     return result;
+   }
+ 
+-  /// Actualiza el estado de conexión y la fecha de la última descarga.
+-  /// Al volver la conexión se reintenta un mapa que no había cargado.
++  /// Actualiza el estado de conexión. Al volver la conexión se reintenta un
++  /// mapa que no había cargado.
+   Future<void> _onConnectivityChanged(List<ConnectivityResult> results) async {
+     final online = results.any((r) => r != ConnectivityResult.none);
+-    DateTime? lastSync;
+-    if (!online) {
+-      try {
+-        lastSync = await ref.read(catalogLocalDbProvider).getLastSyncAt();
+-      } catch (_) {
+-        lastSync = null;
+-      }
+-    }
+     if (!mounted) return;
+-    setState(() {
+-      _online = online;
+-      _lastSync = lastSync;
+-    });
++    setState(() => _online = online);
+     if (online && _mapLoadFailed) await _retryMapLoad();
+   }
+ 
+@@ -442,7 +428,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     setState(() => _selectedPlace = place);
+ 
+     final map = _mapboxMap;
+-    if (map == null) return;
++    // Sin conexión no hay cámara que mover: basta con actualizar la selección.
++    if (map == null || !_online) return;
+ 
+     await map.flyTo(
+       CameraOptions(
+@@ -756,6 +743,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
+               ),
+             ),
+           ),
++        // Sin conexión: lugares a menos de 50 km, sin teselas del mapa.
++        if (!_online)
++          Positioned.fill(
++            child: OfflineMapCanvas(
++              center: _center,
++              places: _places,
++              selected: _selectedPlace,
++              onSelect: _goToPlace,
++              isSpanish: _isSpanish,
++            ),
++          ),
+         SafeArea(
+           child: Padding(
+             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+@@ -764,11 +762,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
+                 _buildSearchBar(),
+                 const SizedBox(height: 12),
+                 _buildQuickLocations(),
+-                // Aviso fijo sin conexión, propio del mapa (FIX-002).
+-                if (!_online) ...[
+-                  const SizedBox(height: 10),
+-                  _buildOfflineNotice(),
+-                ],
+               ],
+             ),
+           ),
+@@ -787,49 +780,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     );
+   }
+ 
+-  /// Aviso fijo bajo el buscador mientras no hay conexión. El mapa sigue
+-  /// usable con lo ya cargado y el GPS, que no necesita internet.
+-  Widget _buildOfflineNotice() {
+-    final es = _isSpanish;
+-    final sync = _lastSync;
+-    final date = sync == null ? null : _formatSyncDate(sync);
+-    final text = es
+-        ? (date == null
+-              ? 'Sin conexión. Las rutas necesitan internet.'
+-              : 'Sin conexión · Datos del $date. Las rutas necesitan internet.')
+-        : (date == null
+-              ? 'No connection. Routes need internet.'
+-              : 'No connection · Data from $date. Routes need internet.');
+-
+-    return Semantics(
+-      liveRegion: true,
+-      child: Container(
+-        width: double.infinity,
+-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+-        decoration: BoxDecoration(
+-          color: AppTheme.primaryDark,
+-          borderRadius: BorderRadius.circular(14),
+-        ),
+-        child: Row(
+-          children: [
+-            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 18),
+-            const SizedBox(width: 8),
+-            Expanded(
+-              child: Text(
+-                text,
+-                style: const TextStyle(
+-                  color: Colors.white,
+-                  fontSize: 13,
+-                  height: 1.3,
+-                ),
+-              ),
+-            ),
+-          ],
+-        ),
+-      ),
+-    );
+-  }
+-
+   /// Tarjeta cuando el mapa no carga teniendo conexión, con «Reintentar».
+   /// El resto de la app (pestañas, fichas) sigue disponible.
+   Widget _buildMapErrorCard() {
+@@ -1316,9 +1266,3 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     ];
+   }
+ }
+-
+-/// Fecha de descarga para el aviso sin conexión (dd-mm-aaaa).
+-String _formatSyncDate(DateTime d) {
+-  String two(int n) => n.toString().padLeft(2, '0');
+-  return '${two(d.day)}-${two(d.month)}-${d.year}';
+-}
+diff --git a/lib/features/map/presentation/widgets/offline_map_canvas.dart b/lib/features/map/presentation/widgets/offline_map_canvas.dart
+new file mode 100644
+index 0000000..6e0c60b
+--- /dev/null
++++ b/lib/features/map/presentation/widgets/offline_map_canvas.dart
+@@ -0,0 +1,183 @@
++import 'dart:math' as math;
++
++import 'package:flutter/material.dart';
++
++import '../../../../core/theme/basecamp_tokens.dart';
++import '../map_places.dart';
++
++/// Radio del mapa sin conexión, en km alrededor del centro de Coyhaique.
++const double offlineRadiusKm = 50;
++
++/// Mapa sin conexión: sin teselas, dibuja los lugares dentro de
++/// [offlineRadiusKm] sobre un plano proyectado desde el centro. Usa solo los
++/// datos ya descargados, así que no necesita internet.
++class OfflineMapCanvas extends StatelessWidget {
++  const OfflineMapCanvas({
++    super.key,
++    required this.center,
++    required this.places,
++    required this.selected,
++    required this.onSelect,
++    required this.isSpanish,
++  });
++
++  final MapPlace center;
++  final List<MapPlace> places;
++  final MapPlace selected;
++  final ValueChanged<MapPlace> onSelect;
++  final bool isSpanish;
++
++  @override
++  Widget build(BuildContext context) {
++    return LayoutBuilder(
++      builder: (context, constraints) {
++        final size = constraints.biggest;
++        final layout = _OfflineLayout(center: center, size: size);
++        // El aeropuerto se muestra siempre: queda a unos 48 km del centro,
++        // justo en el borde del radio, y es el punto de llegada de los transfers.
++        final inRange = places
++            .where(
++              (place) =>
++                  layout.isInRange(place) ||
++                  place.nameEs == MapPlaces.airport.nameEs,
++            )
++            .toList();
++
++        return GestureDetector(
++          behavior: HitTestBehavior.opaque,
++          onTapUp: (details) {
++            final hit = layout.nearest(inRange, details.localPosition);
++            if (hit != null) onSelect(hit);
++          },
++          child: Semantics(
++            label: isSpanish
++                ? 'Mapa sin conexión: lugares a menos de 50 km de Coyhaique'
++                : 'Offline map: places within 50 km of Coyhaique',
++            child: CustomPaint(
++              size: size,
++              painter: _OfflineMapPainter(
++                layout: layout,
++                places: inRange,
++                selected: selected,
++              ),
++            ),
++          ),
++        );
++      },
++    );
++  }
++}
++
++/// Proyección plana alrededor del centro. Basta para 50 km.
++class _OfflineLayout {
++  _OfflineLayout({required this.center, required this.size})
++    : scale = _fitScale(size);
++
++  static const double _kmPerDegLat = 111.2;
++
++  final MapPlace center;
++  final Size size;
++
++  /// Píxeles por km, para que el círculo de 50 km quepa con margen.
++  final double scale;
++
++  static double _fitScale(Size size) {
++    return (size.shortestSide / 2 - 24) / offlineRadiusKm;
++  }
++
++  double get _kmPerDegLng =>
++      _kmPerDegLat * math.cos(center.latitude * math.pi / 180);
++
++  /// Desplazamiento en km desde el centro hacia el este (x) y el sur (y).
++  Offset _kmOffset(double lat, double lng) {
++    final dxKm = (lng - center.longitude) * _kmPerDegLng;
++    final dyKm = (center.latitude - lat) * _kmPerDegLat;
++    return Offset(dxKm, dyKm);
++  }
++
++  bool isInRange(MapPlace place) {
++    final km = _kmOffset(place.latitude, place.longitude).distance;
++    return km <= offlineRadiusKm;
++  }
++
++  Offset project(double lat, double lng) {
++    return size.center(Offset.zero) + _kmOffset(lat, lng) * scale;
++  }
++
++  /// El lugar más cercano al toque, si está a menos de 28 px.
++  MapPlace? nearest(List<MapPlace> places, Offset tap) {
++    MapPlace? best;
++    var bestDistance = 28.0;
++    for (final place in places) {
++      final distance = (project(place.latitude, place.longitude) - tap)
++          .distance;
++      if (distance < bestDistance) {
++        bestDistance = distance;
++        best = place;
++      }
++    }
++    return best;
++  }
++}
++
++class _OfflineMapPainter extends CustomPainter {
++  _OfflineMapPainter({
++    required this.layout,
++    required this.places,
++    required this.selected,
++  });
++
++  final _OfflineLayout layout;
++  final List<MapPlace> places;
++  final MapPlace selected;
++
++  @override
++  void paint(Canvas canvas, Size size) {
++    final centerPx = size.center(Offset.zero);
++    final radiusPx = offlineRadiusKm * layout.scale;
++
++    canvas.drawRect(Offset.zero & size, Paint()..color = BcColors.fog);
++    canvas.drawCircle(centerPx, radiusPx, Paint()..color = BcColors.surface);
++
++    final ringPaint = Paint()
++      ..style = PaintingStyle.stroke
++      ..strokeWidth = 1
++      ..color = BcColors.line;
++    for (final km in [10.0, 25.0]) {
++      canvas.drawCircle(centerPx, km * layout.scale, ringPaint);
++    }
++
++    canvas.drawCircle(
++      centerPx,
++      radiusPx,
++      Paint()
++        ..style = PaintingStyle.stroke
++        ..strokeWidth = 2
++        ..color = BcColors.glacierDeep,
++    );
++
++    for (final place in places) {
++      final isSelected = identical(place, selected);
++      final pos = layout.project(place.latitude, place.longitude);
++      final r = isSelected ? 10.0 : 7.0;
++      canvas.drawCircle(
++        pos,
++        r,
++        Paint()..color = isSelected ? BcColors.ink : BcColors.glacier,
++      );
++      canvas.drawCircle(
++        pos,
++        r,
++        Paint()
++          ..style = PaintingStyle.stroke
++          ..strokeWidth = 2
++          ..color = BcColors.ink,
++      );
++    }
++
++    canvas.drawCircle(centerPx, 4, Paint()..color = BcColors.ink);
++  }
++
++  @override
++  bool shouldRepaint(_OfflineMapPainter old) => true;
++}

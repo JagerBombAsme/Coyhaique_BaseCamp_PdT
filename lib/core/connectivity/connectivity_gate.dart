@@ -36,6 +36,10 @@ class ConnectivityGate extends ConsumerStatefulWidget {
 class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
   _NetState _state = _NetState.checking;
   DateTime? _lastSync;
+
+  /// En el mapa no se muestra la banda: tapaba el buscador y el mapa tiene
+  /// su propio aviso fijo sin conexión (FIX-002).
+  bool _onMap = false;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
   @override
@@ -67,7 +71,11 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
     }
     if (!mounted) return;
 
+    final onMap = appRouter.routeInformationProvider.value.uri.path
+        .startsWith('/map');
+
     setState(() {
+      _onMap = onMap;
       _lastSync = lastSync;
       _state = online
           ? _NetState.online
@@ -85,7 +93,7 @@ class _ConnectivityGateState extends ConsumerState<ConnectivityGate> {
       fit: StackFit.expand,
       children: [
         widget.child,
-        if (_state == _NetState.offlineWithData)
+        if (_state == _NetState.offlineWithData && !_onMap)
           Positioned(
             top: 0,
             left: 0,
