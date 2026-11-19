@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../categories/data/models/place_dto.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../../domain/route_tracking.dart';
 import '../map_places.dart';
 import 'mapbox_directions_services.dart';
 import 'transport_mode_screen.dart';
@@ -97,6 +99,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
   RouteResult? _route;
   MapPlace? _routeFrom;
   MapPlace? _routeTo;
+
+  /// Posición en vivo mientras hay una ruta (solo mueve el punto, no recalcula).
+  StreamSubscription<geolocator.Position>? _trackSub;
+
+  /// Evita repetir el aviso de «te alejaste» mientras sigue fuera de la ruta.
+  bool _offRoute = false;
+
+  /// Punto de la ruta donde está el usuario. Lo que queda atrás se borra.
+  int _trimIndex = 0;
+
+  /// Evita dos redibujos de la línea a la vez.
+  bool _trimBusy = false;
   bool _loadingRoute = false;
 
   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
@@ -250,6 +264,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _trackSub?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -462,6 +477,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _routeFrom = from;
         _routeTo = to;
       });
+      _startTracking();
 
       // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
       TripNotice.show(
@@ -581,7 +597,91 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
+  /// Mueve el punto del usuario mientras la ruta está activa y avisa si se
+  /// aleja. No recalcula la ruta: cada cálculo es una solicitud a Mapbox.
+  void _startTracking() {
+    _trackSub?.cancel();
+    _offRoute = false;
+    _trimIndex = 0;
+
+    final map = _mapboxMap;
+    if (map != null) {
+      unawaited(
+        map.location
+            .updateSettings(LocationComponentSettings(enabled: true))
+            .catchError((Object e) => debugPrint('ERROR PUNTO USUARIO: $e')),
+      );
+    }
+
+    _trackSub =
+        geolocator.Geolocator.getPositionStream(
+          locationSettings: geolocator.LocationSettings(
+            accuracy: geolocator.LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen(
+          _onTrackedPosition,
+          onError: (Object e) => debugPrint('ERROR SEGUIMIENTO: $e'),
+        );
+  }
+
+  void _onTrackedPosition(geolocator.Position position) {
+    final route = _route;
+    if (!mounted || route == null) return;
+
+    final meters = distanceToRouteMeters(
+      position.latitude,
+      position.longitude,
+      route.coordinates,
+    );
+    final off = meters > offRouteMeters;
+
+    if (off && !_offRoute) {
+      _offRoute = true;
+      _showMessage(
+        _isSpanish
+            ? 'Te alejaste de la ruta. Vuelve a elegir el lugar para recalcularla.'
+            : 'You left the route. Select the place again to recalculate it.',
+      );
+    } else if (!off) {
+      _offRoute = false;
+    }
+
+    // La línea se borra detrás del usuario: solo avanza, nunca vuelve atrás.
+    final index = nearestRouteIndex(
+      position.latitude,
+      position.longitude,
+      route.coordinates,
+    );
+    if (index > _trimIndex) {
+      _trimIndex = index;
+      unawaited(_redrawFromIndex(route));
+    }
+  }
+
+  /// Vuelve a dibujar la línea solo con el tramo que falta por recorrer.
+  Future<void> _redrawFromIndex(RouteResult route) async {
+    if (_trimBusy || _trimIndex >= route.coordinates.length - 1) return;
+
+    _trimBusy = true;
+    try {
+      await _drawRouteLine(
+        RouteResult(
+          coordinates: route.coordinates.sublist(_trimIndex),
+          distanceMeters: route.distanceMeters,
+          durationSeconds: route.durationSeconds,
+        ),
+      );
+    } finally {
+      _trimBusy = false;
+    }
+  }
+
   Future<void> _clearRoute() async {
+    _trackSub?.cancel();
+    _trackSub = null;
+    _offRoute = false;
+
     final map = _mapboxMap;
     final manager = _routeManager;
 
