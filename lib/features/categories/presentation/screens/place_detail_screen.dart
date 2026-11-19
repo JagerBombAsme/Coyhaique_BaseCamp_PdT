@@ -9,8 +9,6 @@ import '../../../../core/providers/language_provider.dart';
 
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
-import '../widgets/place_distance_card.dart';
-import '../widgets/place_hero_header.dart';
 
 class PlaceDetailScreen extends ConsumerStatefulWidget {
   final String placeId;
@@ -419,16 +417,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   // =================================================
                   if (subtitle.isNotEmpty) ...[
                     Text(subtitle, style: BcText.title(color: BcColors.ink)),
-
-                      style: const TextStyle(
-                        fontSize: 18,
-
-                        fontWeight: FontWeight.bold,
-
-                        color: Color(0xFF2C3E50),
-                      ),
-                    ),
-
                     const SizedBox(height: 12),
                   ],
 
@@ -689,6 +677,23 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // ================================================================
+  // IMAGEN PRINCIPAL
+  // ================================================================
+
+  Widget _buildMainImage(String? imageUrl) {
+    // Sin foto o con error: logo BC sobre tinta (sistema Coyhaique BaseCamp).
+    if (!_hasValue(imageUrl)) return const BcLogoPlaceholder();
+
+    return CachedNetworkImage(
+      imageUrl: imageUrl!,
+      fit: BoxFit.cover,
+      placeholder: (context, url) =>
+          const BcLogoPlaceholder(showProgress: true),
+      errorWidget: (context, url, error) => const BcLogoPlaceholder(),
     );
   }
 
