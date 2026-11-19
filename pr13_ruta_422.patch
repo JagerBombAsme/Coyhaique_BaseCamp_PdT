@@ -1,0 +1,17 @@
+diff --git a/lib/features/map/presentation/screens/mapbox_directions_services.dart b/lib/features/map/presentation/screens/mapbox_directions_services.dart
+index 799e3e2..9de371e 100644
+--- a/lib/features/map/presentation/screens/mapbox_directions_services.dart
++++ b/lib/features/map/presentation/screens/mapbox_directions_services.dart
+@@ -71,6 +71,12 @@ class MapboxDirectionsService {
+         .get(uri)
+         .timeout(const Duration(seconds: 15));
+ 
++    // 422: Mapbox no puede generar una ruta entre estos puntos (por ejemplo,
++    // están demasiado lejos). Es un «sin ruta», no un fallo de la app.
++    if (response.statusCode == 422) {
++      return null;
++    }
++
+     if (response.statusCode != 200) {
+       throw Exception('Directions API: HTTP ${response.statusCode}');
+     }

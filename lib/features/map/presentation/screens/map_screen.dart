@@ -14,6 +14,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../categories/data/models/place_dto.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../../domain/route_tracking.dart';
 import '../map_places.dart';
 import 'mapbox_directions_services.dart';
 import 'transport_mode_screen.dart';
@@ -101,6 +102,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
   RouteResult? _route;
   MapPlace? _routeFrom;
   MapPlace? _routeTo;
+
+  /// Posición en vivo mientras hay una ruta (solo mueve el punto, no recalcula).
+  StreamSubscription<geolocator.Position>? _trackSub;
+
+  /// Evita repetir el aviso de «te alejaste» mientras sigue fuera de la ruta.
+  bool _offRoute = false;
+
+  /// Punto de la ruta donde está el usuario. Lo que queda atrás se borra.
+  int _trimIndex = 0;
+
+  /// Evita dos redibujos de la línea a la vez.
+  bool _trimBusy = false;
   bool _loadingRoute = false;
 
   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
@@ -296,7 +309,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _connectivitySub?.cancel();
+    _trackSub?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -494,17 +507,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
       final token = await MapboxOptions.getAccessToken();
       final service = MapboxDirectionsService(accessToken: token);
 
-      final route = await service.getRoute(
-        fromLongitude: from.longitude,
-        fromLatitude: from.latitude,
-        toLongitude: to.longitude,
-        toLatitude: to.latitude,
-        profile: profile,
-      );
-      service.dispose();
+      final RouteResult? route;
+      try {
+        route = await service.getRoute(
+          fromLongitude: from.longitude,
+          fromLatitude: from.latitude,
+          toLongitude: to.longitude,
+          toLatitude: to.latitude,
+          profile: profile,
+        );
+      } finally {
+        service.dispose();
+      }
 
       if (route == null) {
-        _showMessage(_isSpanish ? 'No se encontró una ruta' : 'No route found');
+        // Mapbox respondió, pero no hay ruta entre los puntos: es la distancia.
+        _showMessage(
+          _isSpanish
+              ? 'No se encontró una ruta por la distancia entre estos puntos.'
+              : 'No route was found because of the distance between these points.',
+        );
         return;
       }
 
@@ -527,6 +549,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _routeFrom = from;
         _routeTo = to;
       });
+      _startTracking();
 
       // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
       TripNotice.show(
@@ -537,10 +560,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
       );
     } catch (e) {
       debugPrint('ERROR RUTA: $e');
+      // Fallo de la app o de la conexión con el servicio, no de la distancia.
       _showMessage(
         _isSpanish
-            ? 'No se pudo calcular la ruta'
-            : 'The route could not be calculated',
+            ? 'No se pudo calcular la ruta por un fallo de la aplicación. Inténtalo de nuevo.'
+            : 'The route could not be calculated due to an app error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
@@ -548,7 +572,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   /// Pregunta si la persona anda a pie o en auto y calcula la ruta desde la
-  /// Plaza de Armas con ese medio. Si cierra la pantalla, no pasa nada.
+  /// ubicación actual del usuario con ese medio. Si cierra la pantalla, no
+  /// pasa nada.
   Future<void> _chooseTransportAndRoute(MapPlace place) async {
     if (_blockRouteIfOffline()) return;
     final profile = await Navigator.of(context).push<String>(
@@ -558,7 +583,64 @@ class _MapScreenState extends ConsumerState<MapScreen>
       ),
     );
     if (profile == null || !mounted) return;
-    await _showRoute(from: _plaza, to: place, profile: profile);
+    final origin = await _currentUserOrigin();
+    if (origin == null || !mounted) return;
+    await _showRoute(from: origin, to: place, profile: profile);
+  }
+
+  /// Ubicación actual del usuario como origen de la ruta. Devuelve null si
+  /// falta GPS o permiso, o si no se pudo obtener a tiempo: en ese caso no
+  /// se traza ninguna ruta (no se usa la Plaza como respaldo).
+  Future<MapPlace?> _currentUserOrigin() async {
+    if (!await geolocator.Geolocator.isLocationServiceEnabled()) {
+      _showMessage(
+        _isSpanish ? 'Activa el GPS de tu teléfono' : 'Turn on your phone GPS',
+      );
+      return null;
+    }
+
+    var permission = await geolocator.Geolocator.checkPermission();
+    if (permission == geolocator.LocationPermission.denied) {
+      permission = await geolocator.Geolocator.requestPermission();
+    }
+    if (permission == geolocator.LocationPermission.denied ||
+        permission == geolocator.LocationPermission.deniedForever) {
+      _showMessage(
+        _isSpanish
+            ? 'Se necesita permiso de ubicación'
+            : 'Location permission is required',
+      );
+      return null;
+    }
+
+    try {
+      final position = await geolocator.Geolocator.getCurrentPosition(
+        locationSettings: const geolocator.LocationSettings(
+          accuracy: geolocator.LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return null;
+      return MapPlace(
+        nameEs: 'Tu ubicación',
+        nameEn: 'Your location',
+        descriptionEs: 'Punto de partida desde tu posición actual.',
+        descriptionEn: 'Starting point from your current position.',
+        icon: Icons.my_location,
+        longitude: position.longitude,
+        latitude: position.latitude,
+      );
+    } catch (e) {
+      debugPrint('ERROR UBICACIÓN: $e');
+      if (mounted) {
+        _showMessage(
+          _isSpanish
+              ? 'No se pudo obtener tu ubicación'
+              : 'Your location could not be determined',
+        );
+      }
+      return null;
+    }
   }
 
   /// Sin conexión las rutas no se calculan (las calcula Mapbox en línea):
@@ -600,7 +682,91 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
+  /// Mueve el punto del usuario mientras la ruta está activa y avisa si se
+  /// aleja. No recalcula la ruta: cada cálculo es una solicitud a Mapbox.
+  void _startTracking() {
+    _trackSub?.cancel();
+    _offRoute = false;
+    _trimIndex = 0;
+
+    final map = _mapboxMap;
+    if (map != null) {
+      unawaited(
+        map.location
+            .updateSettings(LocationComponentSettings(enabled: true))
+            .catchError((Object e) => debugPrint('ERROR PUNTO USUARIO: $e')),
+      );
+    }
+
+    _trackSub =
+        geolocator.Geolocator.getPositionStream(
+          locationSettings: geolocator.LocationSettings(
+            accuracy: geolocator.LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen(
+          _onTrackedPosition,
+          onError: (Object e) => debugPrint('ERROR SEGUIMIENTO: $e'),
+        );
+  }
+
+  void _onTrackedPosition(geolocator.Position position) {
+    final route = _route;
+    if (!mounted || route == null) return;
+
+    final meters = distanceToRouteMeters(
+      position.latitude,
+      position.longitude,
+      route.coordinates,
+    );
+    final off = meters > offRouteMeters;
+
+    if (off && !_offRoute) {
+      _offRoute = true;
+      _showMessage(
+        _isSpanish
+            ? 'Te alejaste de la ruta. Vuelve a elegir el lugar para recalcularla.'
+            : 'You left the route. Select the place again to recalculate it.',
+      );
+    } else if (!off) {
+      _offRoute = false;
+    }
+
+    // La línea se borra detrás del usuario: solo avanza, nunca vuelve atrás.
+    final index = nearestRouteIndex(
+      position.latitude,
+      position.longitude,
+      route.coordinates,
+    );
+    if (index > _trimIndex) {
+      _trimIndex = index;
+      unawaited(_redrawFromIndex(route));
+    }
+  }
+
+  /// Vuelve a dibujar la línea solo con el tramo que falta por recorrer.
+  Future<void> _redrawFromIndex(RouteResult route) async {
+    if (_trimBusy || _trimIndex >= route.coordinates.length - 1) return;
+
+    _trimBusy = true;
+    try {
+      await _drawRouteLine(
+        RouteResult(
+          coordinates: route.coordinates.sublist(_trimIndex),
+          distanceMeters: route.distanceMeters,
+          durationSeconds: route.durationSeconds,
+        ),
+      );
+    } finally {
+      _trimBusy = false;
+    }
+  }
+
   Future<void> _clearRoute() async {
+    _trackSub?.cancel();
+    _trackSub = null;
+    _offRoute = false;
+
     final map = _mapboxMap;
     final manager = _routeManager;
 
