@@ -59,7 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   /// Duración del vuelo de las tarjetas hacia el botón (y de vuelta).
   /// Súbela o bájala aquí para hacer la animación más lenta o más rápida.
-  static const _flyDuration = Duration(milliseconds: 4200);
+  static const _flyDuration = Duration(milliseconds: 400);
   final _captureKey = GlobalKey();
   final _saveKey = GlobalKey();
   late final AnimationController _flyCtrl = AnimationController(
@@ -1506,7 +1506,7 @@ class _ExploreBand extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 itemCount: categories.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return BcCategoryChip(
