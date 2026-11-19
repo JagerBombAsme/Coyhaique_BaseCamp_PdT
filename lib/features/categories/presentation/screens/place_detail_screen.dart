@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
+import '../widgets/place_distance_card.dart';
+import '../widgets/place_hero_header.dart';
 
 class PlaceDetailScreen extends ConsumerStatefulWidget {
   final String placeId;
@@ -161,7 +164,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
           children: [
             // ======================================================
-            // IMAGEN PRINCIPAL
+            // CABECERA (identidad visual: foto, título y botones)
             // ======================================================
             Stack(
               children: [
@@ -415,8 +418,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   // SUBTÍTULO
                   // =================================================
                   if (subtitle.isNotEmpty) ...[
-                    Text(
-                      subtitle,
+                    Text(subtitle, style: BcText.title(color: BcColors.ink)),
 
                       style: const TextStyle(
                         fontSize: 18,
@@ -687,23 +689,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  // ================================================================
-  // IMAGEN PRINCIPAL
-  // ================================================================
-
-  Widget _buildMainImage(String? imageUrl) {
-    // Sin foto o con error: logo BC sobre tinta (sistema Coyhaique BaseCamp).
-    if (!_hasValue(imageUrl)) return const BcLogoPlaceholder();
-
-    return CachedNetworkImage(
-      imageUrl: imageUrl!,
-      fit: BoxFit.cover,
-      placeholder: (context, url) =>
-          const BcLogoPlaceholder(showProgress: true),
-      errorWidget: (context, url, error) => const BcLogoPlaceholder(),
     );
   }
 
