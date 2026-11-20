@@ -37,8 +37,7 @@ class RouteDetailScreen extends ConsumerWidget {
           final title = route.getTitle(isSpanish);
           final description = route.getDescription(isSpanish);
           final difficulty = route.getDifficulty(isSpanish);
-          final imageUrl = route.imageUrl ??
-              'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
+          final imageUrl = route.imageUrl;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
@@ -47,17 +46,31 @@ class RouteDetailScreen extends ConsumerWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    height: 240,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => Container(
-                      height: 240,
-                      color: AppTheme.primaryDark,
-                      child: const Icon(Icons.landscape, size: 60, color: Colors.white),
-                    ),
-                  ),
+                  child: (imageUrl == null || imageUrl.trim().isEmpty)
+                      ? Container(
+                          height: 240,
+                          color: AppTheme.primaryDark,
+                          child: const Icon(
+                            Icons.landscape,
+                            size: 60,
+                            color: Colors.white,
+                          ),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          height: 240,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => Container(
+                            height: 240,
+                            color: AppTheme.primaryDark,
+                            child: const Icon(
+                              Icons.landscape,
+                              size: 60,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -130,39 +143,18 @@ class RouteDetailScreen extends ConsumerWidget {
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryDark,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            isSpanish
-                                ? 'Navegación de ruta iniciada'
-                                : 'Route navigation started',
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.navigation, color: Colors.white),
-                    label: Text(
-                      isSpanish ? 'Iniciar Navegación' : 'Start Navigation',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
               ],
             ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text(err.toString())),
+        error: (err, stack) => Center(
+          child: Text(
+            isSpanish
+                ? 'No fue posible mostrar esta ruta.'
+                : 'This route could not be displayed.',
+          ),
+        ),
       ),
     );
   }
