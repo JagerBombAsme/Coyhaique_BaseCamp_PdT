@@ -23,6 +23,7 @@ import '../../../categories/presentation/widgets/place_search_delegate.dart';
 import '../../../profile/presentation/screens/interests_screen.dart';
 import '../../../routes/data/providers/activity_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../../../transport/data/providers/airport_zone_provider.dart';
 import '../../../transport/presentation/widgets/transfer_widgets.dart';
 
 /// Pantalla de inicio de Coyhaique BaseCamp.
@@ -487,6 +488,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(places.mainCategoriesProvider);
     ref.invalidate(places.placesProvider);
     ref.invalidate(places.activitiesProvider);
+    ref.invalidate(airportZoneProvider);
     try {
       await ref.read(activitiesProvider.future);
     } catch (error) {
@@ -540,10 +542,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       padding: const EdgeInsets.symmetric(
                         horizontal: BcSpace.gutter,
                       ),
-                      child: TransferEntryCard(
-                        isSpanish: isSpanish,
-                        onTap: () => context.push(transfersRoute),
-                      ),
+                      child: LocationAwareTransferEntry(isSpanish: isSpanish),
                     ),
                     const SizedBox(height: BcSpace.section),
                     _ExploreBand(
