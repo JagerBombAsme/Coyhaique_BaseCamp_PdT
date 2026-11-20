@@ -16,6 +16,10 @@ class MapPlace {
     required this.latitude,
     this.zoom = 15.0,
     this.verified = true,
+    this.categoryEs = '',
+    this.categoryEn = '',
+    this.address,
+    this.photoUrls = const [],
   });
 
   /// ID de places_v2. Null para los puntos fijos del mapa.
@@ -32,10 +36,33 @@ class MapPlace {
   /// false = coordenadas aproximadas (sin marcador en el mapa y con aviso).
   final bool verified;
 
+  /// Nombre de la categoría (places_v2). Vacío en los puntos fijos.
+  final String categoryEs;
+  final String categoryEn;
+
+  /// Dirección o punto de encuentro del lugar. Null si no tiene.
+  final String? address;
+
+  /// Fotografías del lugar (place_media_v2), en su orden. Vacío si no hay.
+  final List<String> photoUrls;
+
   String name({required bool isSpanish}) => isSpanish ? nameEs : nameEn;
 
   String description({required bool isSpanish}) =>
       isSpanish ? descriptionEs : descriptionEn;
+
+  /// Categoría en el idioma activo; cae al español si falta la traducción.
+  String categoryLabel({required bool isSpanish}) {
+    if (!isSpanish && categoryEn.trim().isNotEmpty) return categoryEn;
+    return categoryEs;
+  }
+
+  /// Ubicación para mostrar: la dirección del lugar o, si no tiene, la
+  /// comuna.
+  String locationLabel({required bool isSpanish}) {
+    final text = address?.trim() ?? '';
+    return text.isNotEmpty ? text : 'Coyhaique, Aysén';
+  }
 
   /// Busca en ambos idiomas, sin distinguir mayúsculas ni tildes.
   bool matches(String query) {

@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../categories/data/models/place_dto.dart';
+import '../../domain/itinerary_planner.dart';
 import '../models/itinerary_models.dart';
 
 /// Itinerarios guardados del usuario (itineraries_v2 e itinerary_items_v2).
@@ -47,16 +48,25 @@ class ItineraryRepository {
 
     final items = await _client
         .from('itinerary_items_v2')
-        .select('position, planned_time, place_id, places_v2(*, categories_v2(*))')
+        .select(
+          'day_index, position, planned_time, place_id, '
+          'places_v2(*, categories_v2(*))',
+        )
         .eq('itinerary_id', itineraryId)
+        .order('day_index')
         .order('position')
         .timeout(_timeout);
 
-    final stops = <PlaceDto>[];
+    // Lugares activos por día (1..maxDay). Un día cuyos lugares ya no están
+    // activos queda vacío para no correr la numeración de los demás.
+    final byDay = <int, List<PlannerPlace>>{};
+    var maxDay = 1;
     var missing = 0;
     int? firstMinute;
 
     for (final row in items) {
+      final day = ((row['day_index'] as num?)?.toInt() ?? 1).clamp(1, 14);
+      if (day > maxDay) maxDay = day;
       final place = row['places_v2'];
       final active = place is Map &&
           place['is_active'] != false &&
@@ -66,14 +76,15 @@ class ItineraryRepository {
         continue;
       }
       firstMinute ??= parsePlannedTime(row['planned_time']);
-      stops.add(PlaceDto.fromJson(Map<String, dynamic>.from(place)));
+      final dto = PlaceDto.fromJson(Map<String, dynamic>.from(place));
+      byDay.putIfAbsent(day, () => []).add(plannerPlaceFromDto(dto));
     }
 
     return SavedItineraryDetail(
       id: header['id'].toString(),
       name: (header['name'] ?? '').toString(),
       ownerId: header['user_id'].toString(),
-      stops: stops.map(plannerPlaceFromDto).toList(),
+      days: [for (var d = 1; d <= maxDay; d++) byDay[d] ?? <PlannerPlace>[]],
       firstPlannedMinute: firstMinute,
       missingPlaces: missing,
     );
@@ -115,7 +126,7 @@ class ItineraryRepository {
 
     final previous = await _client
         .from('itinerary_items_v2')
-        .select('place_id, position, planned_time, notes')
+        .select('place_id, position, planned_time, notes, day_index')
         .eq('itinerary_id', itineraryId)
         .timeout(_timeout);
 
@@ -169,6 +180,7 @@ class ItineraryRepository {
               'itinerary_id': itineraryId,
               'place_id': item.placeId,
               'position': item.position,
+              'day_index': item.dayIndex,
               'planned_time': item.plannedTime,
             },
         ])

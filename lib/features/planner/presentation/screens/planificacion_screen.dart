@@ -9,10 +9,13 @@ import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/interests_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/utils/text_normalizer.dart';
+import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../data/providers/planner_provider.dart';
 import '../../domain/itinerary_planner.dart';
+import '../widgets/itinerary_views.dart';
 
 /// Ruta de «Mis itinerarios».
 const String savedItinerariesRoute = '/itinerary/saved';
@@ -51,7 +54,7 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
     });
 
     return Scaffold(
-      backgroundColor: AppTheme.slateLight,
+      backgroundColor: BcColors.fog,
       appBar: AppBar(
         title: Text(
           state.savedName ??
@@ -422,7 +425,7 @@ class _FormCard extends StatelessWidget {
 // PROPUESTA
 // =================================================================
 
-class _ProposalView extends ConsumerWidget {
+class _ProposalView extends ConsumerStatefulWidget {
   const _ProposalView({
     super.key,
     required this.isSpanish,
@@ -433,210 +436,115 @@ class _ProposalView extends ConsumerWidget {
   final VoidCallback onSave;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProposalView> createState() => _ProposalViewState();
+}
+
+class _ProposalViewState extends ConsumerState<_ProposalView> {
+  ItineraryViewMode _mode = ItineraryViewMode.day;
+
+  bool get _es => widget.isSpanish;
+
+  @override
+  Widget build(BuildContext context) {
+    final es = _es;
     final state = ref.watch(plannerProvider);
     final notifier = ref.read(plannerProvider.notifier);
-    final schedule = state.schedule;
-    final exceeds = schedule.totalMinutes > state.availableMinutes;
-    final isEmpty = schedule.stops.isEmpty;
 
-    final header = Padding(
-      key: const ValueKey('header'),
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        color: Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(
+        BcSpace.gutter,
+        BcSpace.s3,
+        BcSpace.gutter,
+        120,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            (es ? 'Revisa tu itinerario' : 'Check your itinerary')
+                .toUpperCase(),
+            style: BcText.display(34),
+          ),
+          const SizedBox(height: BcSpace.s4),
+          Row(
             children: [
-              Text(
-                isEmpty
-                    ? (isSpanish ? 'Sin lugares en la propuesta' : 'No places in the proposal')
-                    : '${ItineraryPlanner.formatClock(schedule.startMinute)} – ${ItineraryPlanner.formatClock(schedule.endMinute)}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primaryDark,
+              Expanded(
+                child: ItineraryModeSelector(
+                  mode: _mode,
+                  isSpanish: es,
+                  onChanged: (mode) => setState(() => _mode = mode),
                 ),
               ),
-              const SizedBox(height: 4),
-              if (!isEmpty)
-                Text(
-                  isSpanish
-                      ? '${schedule.stops.length} ${schedule.stops.length == 1 ? 'lugar' : 'lugares'} · ${ItineraryPlanner.formatDuration(schedule.totalMinutes)} de ${ItineraryPlanner.formatDuration(state.availableMinutes)} disponibles'
-                      : '${schedule.stops.length} ${schedule.stops.length == 1 ? 'place' : 'places'} · ${ItineraryPlanner.formatDuration(schedule.totalMinutes)} of ${ItineraryPlanner.formatDuration(state.availableMinutes)} available',
-                ),
-              Text(
-                state.origin.isUserLocation
-                    ? (isSpanish ? 'Desde tu ubicación' : 'From your location')
-                    : (isSpanish ? 'Desde la Plaza de Armas de Coyhaique' : 'From the Plaza de Armas in Coyhaique'),
-                style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              ItineraryAddButton(
+                semanticLabel: es ? 'Agregar lugar' : 'Add place',
+                onTap: () => _openAddSheet(context),
               ),
-              if (state.locationFallback)
-                _Note(
-                  icon: Icons.location_off_rounded,
-                  text: isSpanish
-                      ? 'No se pudo obtener tu ubicación; se calculó desde Coyhaique.'
-                      : 'Your location could not be obtained; Coyhaique was used.',
-                ),
-              if (isEmpty)
-                _Note(
-                  icon: Icons.info_outline_rounded,
-                  text: isSpanish
-                      ? 'Ningún lugar cabe en el tiempo indicado con esos intereses. Aumenta el tiempo, cambia los intereses o agrega lugares a mano.'
-                      : 'No place fits the time given with those interests. Increase the time, change the interests or add places by hand.',
-                ),
-              if (exceeds)
-                _Note(
-                  icon: Icons.warning_amber_rounded,
-                  color: Colors.orange.shade800,
-                  text: isSpanish
-                      ? 'La propuesta supera tu tiempo disponible. Quita algún lugar o revisa el orden.'
-                      : 'The proposal exceeds your available time. Remove a place or check the order.',
-                ),
             ],
           ),
-        ),
-      ),
-    );
-
-    final footer = Padding(
-      key: const ValueKey('footer'),
-      padding: const EdgeInsets.only(top: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 8),
-              child: Text(
-                isSpanish
-                    ? 'Regreso estimado: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}'
-                    : 'Estimated way back: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}',
-                style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+          const SizedBox(height: BcSpace.s3),
+          ItineraryDayChips(
+            dayCount: state.dayCount,
+            activeDay: state.activeDay,
+            canAddDay: state.dayCount < PlannerNotifier.maxDays,
+            isSpanish: es,
+            onSelect: (day) {
+              notifier.setActiveDay(day);
+              setState(() => _mode = ItineraryViewMode.day);
+            },
+            onAddDay: () {
+              notifier.addDay();
+              setState(() => _mode = ItineraryViewMode.day);
+            },
+          ),
+          const SizedBox(height: BcSpace.s4),
+          _Summary(isSpanish: es),
+          const SizedBox(height: BcSpace.s4),
+          AnimatedSwitcher(
+            duration: itineraryMotion(context),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.03),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
               ),
             ),
-          OutlinedButton.icon(
-            onPressed: () => _openAddSheet(context, ref),
-            icon: const Icon(Icons.add_location_alt_rounded),
-            label: Text(isSpanish ? 'Agregar lugar' : 'Add place'),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.primaryDark,
-              minimumSize: const Size.fromHeight(50),
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.topCenter,
+              children: [...previous, if (current != null) current],
             ),
-            onPressed: isEmpty || state.isSaving ? null : onSave,
-            icon: state.isSaving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            child: _mode == ItineraryViewMode.day
+                ? _DayContent(
+                    key: ValueKey('day-${state.activeDay}'),
+                    isSpanish: es,
+                    onAdd: () => _openAddSheet(context),
                   )
-                : const Icon(Icons.bookmark_add_rounded),
-            label: Text(
-              state.savedItineraryId != null
-                  ? (isSpanish ? 'Guardar cambios' : 'Save changes')
-                  : (isSpanish ? 'Guardar itinerario' : 'Save itinerary'),
-            ),
+                : ItineraryCalendarView(
+                    key: const ValueKey('calendar'),
+                    schedules: [
+                      for (var d = 0; d < state.dayCount; d++)
+                        state.scheduleOf(d),
+                    ],
+                    activeDay: state.activeDay,
+                    isSpanish: es,
+                    onOpenDay: (day) {
+                      notifier.setActiveDay(day);
+                      setState(() => _mode = ItineraryViewMode.day);
+                    },
+                  ),
           ),
-          TextButton.icon(
-            onPressed: notifier.reset,
-            icon: const Icon(Icons.restart_alt_rounded),
-            label: Text(isSpanish ? 'Nueva propuesta' : 'New proposal'),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            isSpanish
-                ? 'Propuesta referencial: no es una reserva ni una ruta de navegación. Los traslados se estiman en línea recta a ${ItineraryPlanner.averageSpeedKmh.round()} km/h y no consideran el estado del camino ni el clima. Confirma horarios con cada lugar.'
-                : 'Reference proposal: it is not a booking or a navigation route. Travel times are estimated in a straight line at ${ItineraryPlanner.averageSpeedKmh.round()} km/h and do not consider road conditions or weather. Confirm opening hours with each place.',
-            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.35),
-          ),
+          const SizedBox(height: BcSpace.s4),
+          _Footer(isSpanish: es, onSave: widget.onSave),
         ],
       ),
     );
-
-    return ReorderableListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-      header: header,
-      footer: footer,
-      buildDefaultDragHandles: false,
-      itemCount: schedule.stops.length,
-      onReorder: notifier.reorder,
-      itemBuilder: (context, index) {
-        final stop = schedule.stops[index];
-        final place = stop.place;
-        final category = place.categoryName(isSpanish);
-        final details = [
-          isSpanish
-              ? 'Visita ${ItineraryPlanner.formatDuration(place.visitMinutes)}'
-              : 'Visit ${ItineraryPlanner.formatDuration(place.visitMinutes)}',
-          if (stop.travelMinutes > 0)
-            isSpanish
-                ? 'traslado ${ItineraryPlanner.formatDuration(stop.travelMinutes)}'
-                : 'travel ${ItineraryPlanner.formatDuration(stop.travelMinutes)}',
-          if (!place.hasLocation) isSpanish ? 'sin ubicación' : 'no location',
-        ].join(' · ');
-
-        return Card(
-          key: ValueKey(place.id),
-          color: Colors.white,
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: ListTile(
-            contentPadding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-            onTap: () => context.push('/attractions/${place.id}'),
-            leading: CircleAvatar(
-              backgroundColor: AppTheme.accentLightBlue,
-              child: Text(
-                ItineraryPlanner.formatClock(stop.arrivalMinute),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryDark,
-                ),
-              ),
-            ),
-            title: Text(
-              place.name(isSpanish),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text(
-              [if (category != null && category.isNotEmpty) category, details].join('\n'),
-            ),
-            isThreeLine: category != null && category.isNotEmpty,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: isSpanish ? 'Quitar' : 'Remove',
-                  icon: const Icon(Icons.remove_circle_outline_rounded),
-                  onPressed: () => notifier.removeAt(index),
-                ),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Icon(
-                      Icons.drag_handle_rounded,
-                      semanticLabel: isSpanish ? 'Mover' : 'Move',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
-  Future<void> _openAddSheet(BuildContext context, WidgetRef ref) async {
+  Future<void> _openAddSheet(BuildContext context) async {
     final notifier = ref.read(plannerProvider.notifier);
     unawaited(notifier.ensureCandidates());
 
@@ -644,9 +552,224 @@ class _ProposalView extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _AddPlaceSheet(isSpanish: isSpanish),
+      builder: (context) => _AddPlaceSheet(isSpanish: _es),
     );
-    if (selected != null) notifier.add(selected);
+    if (selected != null) {
+      notifier.add(selected);
+      if (mounted) setState(() => _mode = ItineraryViewMode.day);
+    }
+  }
+}
+
+/// Resumen del día activo: horario, tiempo usado y avisos.
+class _Summary extends ConsumerWidget {
+  const _Summary({required this.isSpanish});
+
+  final bool isSpanish;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final es = isSpanish;
+    final state = ref.watch(plannerProvider);
+    final schedule = state.schedule;
+    final exceeds = schedule.totalMinutes > state.availableMinutes;
+    final isEmpty = schedule.stops.isEmpty;
+    final count = schedule.stops.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: BcColors.surface,
+        borderRadius: BorderRadius.circular(BcRadius.tile),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isEmpty
+                ? (es ? 'Sin lugares en este día' : 'No places on this day')
+                : '${ItineraryPlanner.formatClock(schedule.startMinute)} – '
+                      '${ItineraryPlanner.formatClock(schedule.endMinute)}',
+            style: BcText.title().copyWith(fontSize: 20),
+          ),
+          const SizedBox(height: 4),
+          if (!isEmpty)
+            Text(
+              es
+                  ? '$count ${count == 1 ? 'lugar' : 'lugares'} · ${ItineraryPlanner.formatDuration(schedule.totalMinutes)} de ${ItineraryPlanner.formatDuration(state.availableMinutes)} disponibles'
+                  : '$count ${count == 1 ? 'place' : 'places'} · ${ItineraryPlanner.formatDuration(schedule.totalMinutes)} of ${ItineraryPlanner.formatDuration(state.availableMinutes)} available',
+              style: BcText.caption(),
+            ),
+          Text(
+            state.origin.isUserLocation
+                ? (es ? 'Desde tu ubicación' : 'From your location')
+                : (es
+                      ? 'Desde la Plaza de Armas de Coyhaique'
+                      : 'From the Plaza de Armas in Coyhaique'),
+            style: BcText.caption(),
+          ),
+          if (state.locationFallback)
+            _Note(
+              icon: Icons.location_off_rounded,
+              text: es
+                  ? 'No se pudo obtener tu ubicación; se calculó desde Coyhaique.'
+                  : 'Your location could not be obtained; Coyhaique was used.',
+            ),
+          if (isEmpty && state.dayCount == 1)
+            _Note(
+              icon: Icons.info_outline_rounded,
+              text: es
+                  ? 'Ningún lugar cabe en el tiempo indicado con esos intereses. Aumenta el tiempo, cambia los intereses o agrega lugares a mano.'
+                  : 'No place fits the time given with those interests. Increase the time, change the interests or add places by hand.',
+            ),
+          if (exceeds)
+            _Note(
+              icon: Icons.warning_amber_rounded,
+              color: BcColors.danger,
+              text: es
+                  ? 'Este día supera tu tiempo disponible. Quita algún lugar o revisa el orden.'
+                  : 'This day exceeds your available time. Remove a place or check the order.',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tarjetas del día activo, reordenables.
+class _DayContent extends ConsumerWidget {
+  const _DayContent({super.key, required this.isSpanish, required this.onAdd});
+
+  final bool isSpanish;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(plannerProvider);
+    final notifier = ref.read(plannerProvider.notifier);
+    final stops = state.schedule.stops;
+
+    if (stops.isEmpty) {
+      return ItineraryEmptyDay(isSpanish: isSpanish, onAdd: onAdd);
+    }
+
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: stops.length,
+      onReorder: notifier.reorder,
+      proxyDecorator: (child, index, animation) =>
+          Material(type: MaterialType.transparency, child: child),
+      itemBuilder: (context, index) {
+        final stop = stops[index];
+        return ItineraryStopCard(
+          key: ValueKey(stop.place.id),
+          stop: stop,
+          index: index,
+          isSpanish: isSpanish,
+          onRemove: () => notifier.removeAt(index),
+        );
+      },
+    );
+  }
+}
+
+class _Footer extends ConsumerWidget {
+  const _Footer({required this.isSpanish, required this.onSave});
+
+  final bool isSpanish;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final es = isSpanish;
+    final state = ref.watch(plannerProvider);
+    final notifier = ref.read(plannerProvider.notifier);
+    final schedule = state.schedule;
+    final nothingToSave = state.allPlaces.isEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (schedule.stops.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: BcSpace.s3),
+            child: Text(
+              es
+                  ? 'Regreso estimado: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}'
+                  : 'Estimated way back: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}',
+              style: BcText.caption(),
+            ),
+          ),
+        BcButton(
+          label: state.savedItineraryId != null
+              ? (es ? 'Guardar cambios' : 'Save changes')
+              : (es ? 'Guardar itinerario' : 'Save itinerary'),
+          icon: Icons.bookmark_add_rounded,
+          isLoading: state.isSaving,
+          onPressed: nothingToSave ? null : onSave,
+        ),
+        const SizedBox(height: BcSpace.s2),
+        if (state.dayCount > 1)
+          TextButton.icon(
+            onPressed: () => _confirmRemoveDay(context, ref),
+            icon: const Icon(Icons.event_busy_rounded),
+            label: Text(
+              es
+                  ? 'Quitar ${itineraryDayLabel(state.activeDay, true).toLowerCase()}'
+                  : 'Remove ${itineraryDayLabel(state.activeDay, false).toLowerCase()}',
+            ),
+          ),
+        TextButton.icon(
+          onPressed: notifier.reset,
+          icon: const Icon(Icons.restart_alt_rounded),
+          label: Text(es ? 'Nueva propuesta' : 'New proposal'),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          es
+              ? 'Propuesta referencial: no es una reserva ni una ruta de navegación. Los traslados se estiman en línea recta a ${ItineraryPlanner.averageSpeedKmh.round()} km/h y no consideran el estado del camino ni el clima. La duración de cada visita es una estimación. Confirma horarios con cada lugar.'
+              : 'Reference proposal: it is not a booking or a navigation route. Travel times are estimated in a straight line at ${ItineraryPlanner.averageSpeedKmh.round()} km/h and do not consider road conditions or weather. Visit lengths are estimates. Confirm opening hours with each place.',
+          style: BcText.caption(),
+        ),
+      ],
+    );
+  }
+
+  /// Quita el día activo; si tiene lugares pide confirmación.
+  Future<void> _confirmRemoveDay(BuildContext context, WidgetRef ref) async {
+    final es = isSpanish;
+    final state = ref.read(plannerProvider);
+    final notifier = ref.read(plannerProvider.notifier);
+    final day = state.activeDay;
+
+    if (state.schedule.stops.isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(es ? 'Quitar día' : 'Remove day'),
+          content: Text(
+            es
+                ? 'Se quitarán ${itineraryDayLabel(day, true)} y sus lugares del itinerario.'
+                : '${itineraryDayLabel(day, false)} and its places will be removed from the itinerary.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(es ? 'Cancelar' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(es ? 'Quitar' : 'Remove'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    notifier.removeDay(day);
   }
 }
 
@@ -694,7 +817,7 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
   Widget build(BuildContext context) {
     final es = widget.isSpanish;
     final state = ref.watch(plannerProvider);
-    final inItinerary = {...?state.stops};
+    final inItinerary = state.allPlaces;
     final term = normalizeForSearch(_query);
 
     final options = state.candidates
