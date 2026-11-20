@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -16,8 +15,8 @@ import '../../../categories/data/providers/places_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
 import '../../domain/route_tracking.dart';
 import '../map_places.dart';
+import '../widgets/map_place_preview_card.dart';
 import 'mapbox_directions_services.dart';
-import 'transport_mode_screen.dart';
 
 // ===============================================================
 // ESTILOS DE MAPA
@@ -95,6 +94,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
   bool _redrawAgain = false;
 
   MapPlace _selectedPlace = _center;
+
+  /// Lugar de la tarjeta flotante (marcador tocado o resultado del
+  /// buscador). Null = sin tarjeta.
+  MapPlace? _previewPlace;
+
+  /// Medio cuya ruta se está pidiendo desde la tarjeta (obtener la ubicación
+  /// puede tardar hasta 10 s).
+  MapRouteMode? _routeMode;
+
+  /// Medio de la ruta dibujada (a pie o en auto).
+  String _routeProfile = RouteProfile.walking;
   MapStyleOption _style = MapStyleOption.outdoors;
 
   // Ruta activa (si hay una dibujada en el mapa).
@@ -211,6 +221,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ? dto.getDescription(false)
           : descriptionEs;
 
+      // Fotografías reales del catálogo, sin repetir; si el lugar no tiene
+      // galería se usa su foto principal.
+      final photos = <String>[
+        for (final media in dto.media)
+          if ((media.externalUrl ?? '').isNotEmpty) media.externalUrl!,
+      ];
+      final mainPhoto = dto.imageUrl ?? '';
+      if (photos.isEmpty && mainPhoto.isNotEmpty) photos.add(mainPhoto);
+
       result.add(
         MapPlace(
           id: dto.id,
@@ -221,6 +240,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
           icon: dto.category?.icon ?? Icons.place_outlined,
           longitude: lng,
           latitude: lat,
+          categoryEs: dto.category?.getNombre('es') ?? '',
+          categoryEn: dto.category?.getNombre('en') ?? '',
+          address: dto.address ?? dto.meetingPoint,
+          photoUrls: photos.toSet().toList(),
         ),
       );
     }
@@ -450,9 +473,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   /// Único punto de entrada para mover la cámara y actualizar el estado.
-  Future<void> _goToPlace(MapPlace place) async {
+  /// Con [showPreview] (por defecto) abre la tarjeta del lugar; el botón de
+  /// centrar el mapa la cierra.
+  Future<void> _goToPlace(MapPlace place, {bool showPreview = true}) async {
     _searchFocus.unfocus();
-    setState(() => _selectedPlace = place);
+    setState(() {
+      _selectedPlace = place;
+      _previewPlace = showPreview ? place : null;
+    });
 
     final map = _mapboxMap;
     if (map == null) return;
@@ -548,6 +576,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _route = route;
         _routeFrom = from;
         _routeTo = to;
+        _routeProfile = profile;
       });
       _startTracking();
 
@@ -571,21 +600,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  /// Pregunta si la persona anda a pie o en auto y calcula la ruta desde la
-  /// ubicación actual del usuario con ese medio. Si cierra la pantalla, no
-  /// pasa nada.
-  Future<void> _chooseTransportAndRoute(MapPlace place) async {
-    if (_blockRouteIfOffline()) return;
-    final profile = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(
-        fullscreenDialog: true,
-        builder: (_) => const TransportModeScreen(),
-      ),
-    );
-    if (profile == null || !mounted) return;
-    final origin = await _currentUserOrigin();
-    if (origin == null || !mounted) return;
-    await _showRoute(from: origin, to: place, profile: profile);
+  /// Calcula la ruta desde la ubicación actual del usuario hasta [place] con
+  /// el medio elegido en la tarjeta (a pie o en auto). Sin conexión avisa; sin
+  /// ubicación no traza nada.
+  Future<void> _routeToPlace(MapPlace place, MapRouteMode mode) async {
+    if (_routeMode != null || _blockRouteIfOffline()) return;
+
+    setState(() => _routeMode = mode);
+    try {
+      final origin = await _currentUserOrigin();
+      if (origin == null || !mounted) return;
+      await _showRoute(
+        from: origin,
+        to: place,
+        profile: mode == MapRouteMode.walking
+            ? RouteProfile.walking
+            : RouteProfile.driving,
+      );
+    } finally {
+      if (mounted) setState(() => _routeMode = null);
+    }
   }
 
   /// Ubicación actual del usuario como origen de la ruta. Devuelve null si
@@ -940,8 +974,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ),
         ),
 
-        // Tarjeta de información del lugar seleccionado.
-        Positioned(left: 16, right: 76, bottom: 110, child: _buildInfoCard()),
+        // Tarjeta flotante del lugar elegido (marcador o buscador).
+        Positioned(
+          left: 16,
+          right: 76,
+          bottom: 110,
+          child: _buildPreviewCard(),
+        ),
 
         // Controles del mapa.
         Positioned(right: 16, bottom: 110, child: _buildControls()),
@@ -1198,7 +1237,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 ? 'Centrar en Coyhaique'
                 : 'Center on Coyhaique',
             icon: const Icon(Icons.center_focus_strong, color: Colors.white),
-            onPressed: () => _goToPlace(_center),
+            onPressed: () => _goToPlace(_center, showPreview: false),
           ),
         ),
       ],
@@ -1296,190 +1335,43 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   // ===============================================================
-  // TARJETA DE INFORMACIÓN
+  // TARJETA FLOTANTE DEL LUGAR
   // ===============================================================
 
-  Widget _buildInfoCard() {
-    final place = _selectedPlace;
-    final description = place.description(isSpanish: _isSpanish);
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(place.icon, color: AppTheme.primaryDark, size: 18),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  place.name(isSpanish: _isSpanish),
-                  style: const TextStyle(
-                    color: AppTheme.primaryDark,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              description,
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 12.5,
-                height: 1.3,
-              ),
-            ),
-          ],
-          ..._buildDetailSection(place),
-          ..._buildRouteSection(place),
-          if (!place.verified) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.info_outline, size: 14, color: Colors.orange),
-                const SizedBox(width: 4),
-                Text(
-                  _isSpanish ? 'Ubicación aproximada' : 'Approximate location',
-                  style: const TextStyle(fontSize: 11.5, color: Colors.orange),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ===============================================================
-  // FICHA DEL LUGAR
-  // ===============================================================
-
-  /// «Ver ficha»: solo para lugares que vienen de places_v2 (tienen id) y
-  /// cuando el router conectó la navegación. Los puntos fijos no tienen ficha.
-  List<Widget> _buildDetailSection(MapPlace place) {
-    final onOpenPlace = widget.onOpenPlace;
-    if (place.id == null || onOpenPlace == null) return const [];
-
-    return [
-      const SizedBox(height: 6),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: () => onOpenPlace(place),
-          icon: const Icon(Icons.arrow_forward, size: 16),
-          label: Text(_isSpanish ? 'Ver ficha' : 'View details'),
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const ui.Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-      ),
-    ];
-  }
-
-  // ===============================================================
-  // RUTA EN LA TARJETA
-  // ===============================================================
-
-  List<Widget> _buildRouteSection(MapPlace place) {
+  /// Conecta [MapPlacePreviewCard] con la ficha (`onOpenPlace`, que define el
+  /// router) y con el sistema de rutas de esta pantalla.
+  Widget _buildPreviewCard() {
+    final place = _previewPlace;
     final route = _route;
 
-    // Hay una ruta activa: muestra distancia, tiempo y botón para quitarla.
-    if (route != null) {
-      final from = _routeFrom?.name(isSpanish: _isSpanish) ?? '';
-      final to = _routeTo?.name(isSpanish: _isSpanish) ?? '';
-
-      return [
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Icon(
-              Icons.directions_car_outlined,
-              size: 16,
-              color: AppTheme.primaryDark,
+    return MapPlacePreviewCard(
+      place: place,
+      isSpanish: _isSpanish,
+      online: _online,
+      // La plaza y el centro son el punto de partida: no tienen ruta.
+      canRoute:
+          place != null &&
+          !identical(place, _plaza) &&
+          !identical(place, _center),
+      routingMode: _routeMode,
+      onClose: () => setState(() => _previewPlace = null),
+      onOpenDetail: widget.onOpenPlace,
+      onRoute: (mode) {
+        if (place != null) _routeToPlace(place, mode);
+      },
+      routeSummary: route == null
+          ? null
+          : MapRouteSummary(
+              text:
+                  '${_routeFrom?.name(isSpanish: _isSpanish) ?? ''} → '
+                  '${_routeTo?.name(isSpanish: _isSpanish) ?? ''} · '
+                  '${route.distanceLabel} · ${route.durationLabel}',
+              mode: _routeProfile == RouteProfile.walking
+                  ? MapRouteMode.walking
+                  : MapRouteMode.driving,
+              onClear: _clearRoute,
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '$from → $to · ${route.distanceLabel} · ${route.durationLabel}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryDark,
-                ),
-              ),
-            ),
-          ],
-        ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: _clearRoute,
-            icon: const Icon(Icons.close, size: 16),
-            label: Text(_isSpanish ? 'Quitar ruta' : 'Remove route'),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const ui.Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ),
-      ];
-    }
-
-    // La plaza y el centro son el punto de partida: no tienen ruta.
-    if (identical(place, _plaza) || identical(place, _center)) {
-      return const [];
-    }
-
-    return [
-      const SizedBox(height: 6),
-      Align(
-        alignment: Alignment.centerLeft,
-        // Sin conexión se ve atenuado, pero sigue tocable para explicar por
-        // qué no se puede calcular la ruta (FIX-001).
-        child: Opacity(
-          opacity: _online ? 1 : 0.45,
-          child: TextButton.icon(
-            onPressed: _loadingRoute
-                ? null
-                : () => _chooseTransportAndRoute(place),
-            icon: _loadingRoute
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.directions, size: 18),
-            label: Text(
-              _isSpanish ? '¿Andas a pie o en auto?' : 'On foot or by car?',
-            ),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const ui.Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ),
-      ),
-    ];
+    );
   }
 }
 
