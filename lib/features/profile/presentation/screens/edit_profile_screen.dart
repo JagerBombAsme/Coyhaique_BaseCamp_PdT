@@ -7,8 +7,8 @@ import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../../authentication/data/providers/auth_controller.dart';
-import '../../../home/presentation/widgets/home_visual_tokens.dart';
-import '../../../home/presentation/widgets/pressable_scale.dart';
+import '../../../../core/theme/home_visual_tokens.dart';
+import '../../../../core/widgets/pressable_scale.dart';
 
 import '../../data/models/profile_dto.dart';
 import '../../data/providers/profile_provider.dart';
@@ -22,8 +22,6 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
-  bool _pauseNotifications = false;
-  bool _darkMode = false;
 
   // ValueNotifier: el bottom sheet vive en otra ruta, por lo que
   // setState de esta pantalla no lo reconstruye.
@@ -54,18 +52,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _isLoggingOut = true;
     });
 
+    // Se toman antes del await: al cerrar sesión esta vista se desmonta y
+    // ya no se pueden usar context ni ref (H-08).
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final auth = ref.read(authControllerProvider.notifier);
+
     try {
-      await ref.read(authControllerProvider.notifier).signOut();
-
-      ref.invalidate(profileProvider);
-
-      if (!context.mounted) return;
-
-      context.go('/auth-gateway');
-    } catch (_) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
+      await auth.signOut();
+      // profileProvider se recalcula solo al cambiar la sesión.
+      router.go('/auth-gateway');
+    } catch (error) {
+      debugPrint('ERROR cerrar sesión: $error');
+      messenger.showSnackBar(
         _snackBar(
           isSpanish ? 'No fue posible cerrar la sesión.' : 'Unable to log out.',
         ),
@@ -156,19 +155,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _buildGroupLabel(isSpanish ? 'General' : 'General'),
 
         _buildCardGroup([
-          _buildSwitchTile(
-            icon: Icons.notifications_none_rounded,
-            title: isSpanish ? 'Pausar notificaciones' : 'Pause notifications',
-            value: _pauseNotifications,
-            onChanged: (value) {
-              setState(() {
-                _pauseNotifications = value;
-              });
-            },
-          ),
-
-          _buildDivider(),
-
           _buildNavigationTile(
             icon: Icons.edit_outlined,
             title: isSpanish ? 'Editar información' : 'Edit information',
@@ -250,27 +236,34 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 textAlign: TextAlign.center,
                 style: ProfileUi.body.copyWith(fontSize: 13),
               ),
+
+              const SizedBox(height: 14),
+
+              // La cuenta aún no tiene fila en profiles: se abre el mismo
+              // formulario con un perfil vacío y se guarda con upsert (H-04).
+              FilledButton(
+                onPressed: () {
+                  final user = ref.read(authUserProvider).value;
+                  if (user == null) return;
+                  _showEditProfileModal(
+                    context,
+                    ProfileDto(
+                      id: user.id,
+                      fullName: '',
+                      language: isSpanish ? 'es' : 'en',
+                      role: 'tourist',
+                      isVerified: false,
+                    ),
+                    isSpanish,
+                  );
+                },
+                child: Text(
+                  isSpanish ? 'Completar perfil' : 'Complete profile',
+                ),
+              ),
             ],
           ),
         ),
-
-        // ====================================================
-        // CONFIGURACIÓN GENERAL
-        // ====================================================
-        _buildGroupLabel(isSpanish ? 'General' : 'General'),
-
-        _buildCardGroup([
-          _buildSwitchTile(
-            icon: Icons.notifications_none_rounded,
-            title: isSpanish ? 'Pausar notificaciones' : 'Pause notifications',
-            value: _pauseNotifications,
-            onChanged: (value) {
-              setState(() {
-                _pauseNotifications = value;
-              });
-            },
-          ),
-        ]),
 
         _buildGroupLabel(isSpanish ? 'Preferencias' : 'Preferences'),
 
@@ -372,14 +365,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Widget _buildPreferencesGroup(BuildContext context, bool isSpanish) {
     return _buildCardGroup([
-      _buildSwitchTile(
+      // Modo oscuro: planificado para la Versión 2.0 (FIX-004). Igual que en
+      // la pantalla Perfil, solo muestra el aviso.
+      _buildNavigationTile(
         icon: Icons.dark_mode_outlined,
         title: isSpanish ? 'Modo oscuro' : 'Dark mode',
-        value: _darkMode,
-        onChanged: (value) {
-          setState(() {
-            _darkMode = value;
-          });
+        trailingText: isSpanish ? 'Versión 2.0' : 'Version 2.0',
+        onTap: () {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              _snackBar(
+                isSpanish
+                    ? 'Disponible en la Versión 2.0. ¡Espéranos y disfruta!'
+                    : 'Available in Version 2.0. Stay tuned and enjoy!',
+              ),
+            );
         },
       ),
 
@@ -432,37 +433,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         },
       ),
 
-      _buildDivider(),
-
-      _buildNavigationTile(
-        icon: Icons.description_outlined,
-        title: isSpanish ? 'Términos del servicio' : 'Terms of service',
-        onTap: () {
-          _showInfoDialog(
-            context,
-            isSpanish ? 'Términos del servicio' : 'Terms of service',
-            isSpanish
-                ? 'Los términos y condiciones definitivos se incorporarán en esta sección.'
-                : 'The final terms and conditions will be included in this section.',
-          );
-        },
-      ),
-
-      _buildDivider(),
-
-      _buildNavigationTile(
-        icon: Icons.privacy_tip_outlined,
-        title: isSpanish ? 'Política de privacidad' : 'Privacy policy',
-        onTap: () {
-          _showInfoDialog(
-            context,
-            isSpanish ? 'Política de privacidad' : 'Privacy policy',
-            isSpanish
-                ? 'La política de privacidad definitiva se incorporará en esta sección.'
-                : 'The final privacy policy will be included in this section.',
-          );
-        },
-      ),
     ]);
   }
 
@@ -651,58 +621,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     letterSpacing: -0.1,
   );
 
-  // ================================================================
-  // SWITCH TILE
-  // ================================================================
-
-  Widget _buildSwitchTile({
-    required IconData icon,
-    required String title,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    // Toda la fila es tocable, no solo el interruptor.
-    return MergeSemantics(
-      child: InkWell(
-        onTap: () => onChanged(!value),
-        splashColor: HomeVisualTokens.iceBlue.withValues(alpha: 0.6),
-        highlightColor: HomeVisualTokens.surfaceElevated,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 60),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              _tileHorizontalPadding,
-              6,
-              _tileHorizontalPadding - 4,
-              6,
-            ),
-            child: Row(
-              children: [
-                _buildTileIcon(icon),
-
-                const SizedBox(width: _tileGap),
-
-                Expanded(child: Text(title, style: _tileTitleStyle)),
-
-                Switch(
-                  value: value,
-                  onChanged: onChanged,
-                  activeThumbColor: Colors.white,
-                  activeTrackColor: HomeVisualTokens.accentStrong,
-                  inactiveThumbColor: HomeVisualTokens.surface,
-                  inactiveTrackColor: HomeVisualTokens.iceBlueMedium,
-                  trackOutlineColor: const WidgetStatePropertyAll(
-                    Colors.transparent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildDivider() {
     return const Divider(
       height: 1,
@@ -812,6 +730,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      // Se abre sobre toda la app: la barra de navegación inferior
+      // (extendBody) tapaba el botón «Guardar cambios».
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: HomeVisualTokens.surface,
@@ -1009,7 +930,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
       final repository = ref.read(profileRepositoryProvider);
 
-      await repository.updateProfile(userId: user.id, profile: updatedProfile);
+      // Crea la fila si no existe y la actualiza si ya existe (H-04).
+      await repository.upsertProfile(userId: user.id, profile: updatedProfile);
 
       ref.invalidate(profileProvider);
 
@@ -1024,7 +946,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               : 'Profile updated successfully.',
         ),
       );
-    } catch (_) {
+    } catch (error) {
+      debugPrint('ERROR guardar perfil: $error');
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(

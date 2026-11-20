@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/language_provider.dart';
-import '../../../home/presentation/widgets/home_visual_tokens.dart';
-import '../../../home/presentation/widgets/pressable_scale.dart';
+import '../../../../core/theme/home_visual_tokens.dart';
+import '../../../../core/widgets/pressable_scale.dart';
 
 /// Ruta de la pantalla «Antes de tu viaje».
 const String tripInfoRoute = '/trip-info';
