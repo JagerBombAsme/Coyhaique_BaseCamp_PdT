@@ -76,10 +76,7 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
                 isSpanish: isSpanish,
                 onSave: () => _onSave(isSpanish),
               )
-            : _PlannerForm(
-                key: const ValueKey('form'),
-                isSpanish: isSpanish,
-              ),
+            : _PlannerForm(key: const ValueKey('form'), isSpanish: isSpanish),
       ),
     );
   }
@@ -97,7 +94,9 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
     final goToLogin = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isSpanish ? 'Inicia sesión para guardar' : 'Sign in to save'),
+        title: Text(
+          isSpanish ? 'Inicia sesión para guardar' : 'Sign in to save',
+        ),
         content: Text(
           isSpanish
               ? 'Puedes generar y revisar la propuesta sin cuenta. Para guardarla y verla después, inicia sesión. Tu propuesta se mantiene mientras tanto.'
@@ -122,7 +121,8 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
 
   Future<void> _openSaveDialog(bool isSpanish) async {
     final state = ref.read(plannerProvider);
-    final suggested = state.savedName ??
+    final suggested =
+        state.savedName ??
         (isSpanish
             ? 'Mi visita ${DateFormat('dd-MM-yyyy').format(DateTime.now())}'
             : 'My visit ${DateFormat('yyyy-MM-dd').format(DateTime.now())}');
@@ -143,7 +143,9 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
       await ref.read(plannerProvider.notifier).save(name);
       messenger.showSnackBar(
         SnackBar(
-          content: Text(isSpanish ? 'Itinerario guardado.' : 'Itinerary saved.'),
+          content: Text(
+            isSpanish ? 'Itinerario guardado.' : 'Itinerary saved.',
+          ),
           action: SnackBarAction(
             label: isSpanish ? 'Ver mis itinerarios' : 'My itineraries',
             onPressed: () => router.push(savedItinerariesRoute),
@@ -219,7 +221,9 @@ class _PlannerForm extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(isSpanish ? 'Duración del día' : 'Length of the day'),
+                  child: Text(
+                    isSpanish ? 'Duración del día' : 'Length of the day',
+                  ),
                 ),
                 Text(
                   '$hours h',
@@ -240,7 +244,10 @@ class _PlannerForm extends ConsumerWidget {
               isSpanish
                   ? 'Termina cerca de las ${ItineraryPlanner.formatClock(state.startMinute + state.availableMinutes)}, incluido el regreso.'
                   : 'Ends around ${ItineraryPlanner.formatClock(state.startMinute + state.availableMinutes)}, including the way back.',
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppTheme.textSecondary,
+              ),
             ),
           ],
         ),
@@ -254,31 +261,39 @@ class _PlannerForm extends ConsumerWidget {
             Text(
               interests.isEmpty
                   ? (isSpanish
-                      ? 'Sin intereses seleccionados se consideran todas las categorías.'
-                      : 'With no interests selected, all categories are considered.')
+                        ? 'Sin intereses seleccionados se consideran todas las categorías.'
+                        : 'With no interests selected, all categories are considered.')
                   : (isSpanish
-                      ? 'Se guardan solo en tu teléfono.'
-                      : 'They are stored only on your phone.'),
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                        ? 'Se guardan solo en tu teléfono.'
+                        : 'They are stored only on your phone.'),
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppTheme.textSecondary,
+              ),
             ),
             const SizedBox(height: 8),
             categoriesAsync.when(
               data: (categories) {
-                final visible = categories
-                    .where((c) => c.isActive && isPlannerCategory(c.groupType))
-                    .toList()
-                  ..sort(
-                    (a, b) => a
-                        .getNombre(isSpanish ? 'es' : 'en')
-                        .compareTo(b.getNombre(isSpanish ? 'es' : 'en')),
-                  );
+                final visible =
+                    categories
+                        .where(
+                          (c) => c.isActive && isPlannerCategory(c.groupType),
+                        )
+                        .toList()
+                      ..sort(
+                        (a, b) => a
+                            .getNombre(isSpanish ? 'es' : 'en')
+                            .compareTo(b.getNombre(isSpanish ? 'es' : 'en')),
+                      );
                 return Wrap(
                   spacing: 8,
                   runSpacing: 4,
                   children: [
                     for (final category in visible)
                       FilterChip(
-                        label: Text(category.getNombre(isSpanish ? 'es' : 'en')),
+                        label: Text(
+                          category.getNombre(isSpanish ? 'es' : 'en'),
+                        ),
                         selected: interests.contains(category.id),
                         onSelected: (_) => ref
                             .read(interestsProvider.notifier)
@@ -320,18 +335,22 @@ class _PlannerForm extends ConsumerWidget {
                 ),
               ],
               selected: {state.useMyLocation},
-              onSelectionChanged: (value) => notifier.setUseMyLocation(value.first),
+              onSelectionChanged: (value) =>
+                  notifier.setUseMyLocation(value.first),
             ),
             const SizedBox(height: 6),
             Text(
               state.useMyLocation
                   ? (isSpanish
-                      ? 'Se usa tu ubicación solo para calcular distancias; no se guarda.'
-                      : 'Your location is used only to calculate distances; it is not stored.')
+                        ? 'Se usa tu ubicación solo para calcular distancias; no se guarda.'
+                        : 'Your location is used only to calculate distances; it is not stored.')
                   : (isSpanish
-                      ? 'Desde la Plaza de Armas de Coyhaique.'
-                      : 'From the Plaza de Armas in Coyhaique.'),
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                        ? 'Desde la Plaza de Armas de Coyhaique.'
+                        : 'From the Plaza de Armas in Coyhaique.'),
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppTheme.textSecondary,
+              ),
             ),
           ],
         ),
@@ -358,7 +377,10 @@ class _PlannerForm extends ConsumerWidget {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.auto_awesome_motion_rounded),
           label: Text(isSpanish ? 'Generar propuesta' : 'Create proposal'),
@@ -790,7 +812,9 @@ class _Note extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: c),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 12.5, color: c))),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12.5, color: c)),
+          ),
         ],
       ),
     );
@@ -843,8 +867,12 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                 autofocus: true,
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search_rounded),
-                  hintText: es ? 'Buscar un lugar o actividad' : 'Search a place or activity',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  hintText: es
+                      ? 'Buscar un lugar o actividad'
+                      : 'Search a place or activity',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 onChanged: (value) => setState(() => _query = value),
               ),
@@ -863,32 +891,33 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                       ),
                     )
                   : options.isEmpty
-                      ? Center(child: Text(es ? 'Sin resultados.' : 'No results.'))
-                      : ListView.separated(
-                          itemCount: options.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final place = options[index];
-                            return ListTile(
-                              leading: Icon(
-                                place.kind == 'activity'
-                                    ? Icons.directions_run_rounded
-                                    : Icons.place_rounded,
-                              ),
-                              title: Text(place.name(es)),
-                              subtitle: Text(
-                                [
-                                  if (place.categoryName(es) != null) place.categoryName(es)!,
-                                  es
-                                      ? 'Visita ${ItineraryPlanner.formatDuration(place.visitMinutes)}'
-                                      : 'Visit ${ItineraryPlanner.formatDuration(place.visitMinutes)}',
-                                ].join(' · '),
-                              ),
-                              trailing: const Icon(Icons.add_rounded),
-                              onTap: () => Navigator.pop(context, place),
-                            );
-                          },
-                        ),
+                  ? Center(child: Text(es ? 'Sin resultados.' : 'No results.'))
+                  : ListView.separated(
+                      itemCount: options.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final place = options[index];
+                        return ListTile(
+                          leading: Icon(
+                            place.kind == 'activity'
+                                ? Icons.directions_run_rounded
+                                : Icons.place_rounded,
+                          ),
+                          title: Text(place.name(es)),
+                          subtitle: Text(
+                            [
+                              if (place.categoryName(es) != null)
+                                place.categoryName(es)!,
+                              es
+                                  ? 'Visita ${ItineraryPlanner.formatDuration(place.visitMinutes)}'
+                                  : 'Visit ${ItineraryPlanner.formatDuration(place.visitMinutes)}',
+                            ].join(' · '),
+                          ),
+                          trailing: const Icon(Icons.add_rounded),
+                          onTap: () => Navigator.pop(context, place),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -917,8 +946,9 @@ class _SaveDialog extends StatefulWidget {
 }
 
 class _SaveDialogState extends State<_SaveDialog> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initialName);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialName,
+  );
   String? _error;
 
   @override
@@ -930,7 +960,10 @@ class _SaveDialogState extends State<_SaveDialog> {
   void _submit() {
     final name = _controller.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = widget.isSpanish ? 'Escribe un nombre.' : 'Enter a name.');
+      setState(
+        () =>
+            _error = widget.isSpanish ? 'Escribe un nombre.' : 'Enter a name.',
+      );
       return;
     }
     Navigator.pop(context, name);
@@ -961,10 +994,7 @@ class _SaveDialogState extends State<_SaveDialog> {
           onPressed: () => Navigator.pop(context),
           child: Text(es ? 'Cancelar' : 'Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: Text(es ? 'Guardar' : 'Save'),
-        ),
+        FilledButton(onPressed: _submit, child: Text(es ? 'Guardar' : 'Save')),
       ],
     );
   }
