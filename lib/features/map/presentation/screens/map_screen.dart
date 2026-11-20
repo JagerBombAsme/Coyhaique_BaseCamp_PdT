@@ -129,8 +129,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
   late bool _pendingAirportRoute = widget.routeFromAirport;
 
-  /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
+  /// Estado de la ubicación. El mapa se muestra siempre: sin permiso solo se
+  /// muestra un aviso con la acción para activarla (M-07).
   _LocationGate _gate = _LocationGate.checking;
+
+  /// El usuario cerró el aviso de ubicación en esta visita al mapa.
+  bool _locationNoticeDismissed = false;
 
   /// Conexión a internet. Sin conexión el mapa muestra su propio aviso fijo
   /// y las rutas avisan antes de calcularse (FIX-001, FIX-002).
@@ -155,16 +159,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Al abrir el mapa se pide la ubicación (no se muestra el mapa sin ella).
-    _checkLocation(requestIfNeeded: true);
+    // El mapa no exige la ubicación: solo se revisa el estado, sin pedir el
+    // permiso. Se pide al usar "Mi ubicación", A pie o En auto (M-07).
+    unawaited(_checkLocation(requestIfNeeded: false));
 
     // Conexión: estado inicial y cambios mientras el mapa está abierto.
     _connectivitySub = Connectivity().onConnectivityChanged.listen(
       _onConnectivityChanged,
     );
-    unawaited(
-      Connectivity().checkConnectivity().then(_onConnectivityChanged),
-    );
+    unawaited(Connectivity().checkConnectivity().then(_onConnectivityChanged));
 
     // Carga los lugares de places_v2 y los dibuja cuando llegan.
     ref.listenManual<AsyncValue<List<PlaceDto>>>(placesProvider, (_, next) {
@@ -274,7 +277,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkLocation(requestIfNeeded: false);
+      unawaited(_checkLocation(requestIfNeeded: false));
     }
   }
 
@@ -637,6 +640,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (permission == geolocator.LocationPermission.denied) {
       permission = await geolocator.Geolocator.requestPermission();
     }
+    unawaited(_checkLocation(requestIfNeeded: false));
     if (permission == geolocator.LocationPermission.denied ||
         permission == geolocator.LocationPermission.deniedForever) {
       _showMessage(
@@ -833,6 +837,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (permission == geolocator.LocationPermission.denied) {
       permission = await geolocator.Geolocator.requestPermission();
     }
+    unawaited(_checkLocation(requestIfNeeded: false));
     if (permission == geolocator.LocationPermission.denied ||
         permission == geolocator.LocationPermission.deniedForever) {
       _showMessage(
@@ -917,11 +922,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _applyMapLanguage(next.languageCode);
     });
 
-    return Scaffold(
-      body: _gate == _LocationGate.granted
-          ? _buildMapStack()
-          : _buildLocationGate(),
-    );
+    return Scaffold(body: _buildMapStack());
   }
 
   Widget _buildMapStack() {
@@ -968,6 +969,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 if (!_online) ...[
                   const SizedBox(height: 10),
                   _buildOfflineNotice(),
+                ],
+                // Aviso para activar la ubicación; el mapa funciona sin ella.
+                if (_showLocationNotice) ...[
+                  const SizedBox(height: 10),
+                  _buildLocationNotice(),
                 ],
               ],
             ),
@@ -1077,84 +1083,90 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
-  /// Pantalla que reemplaza al mapa mientras no hay permiso de ubicación.
-  Widget _buildLocationGate() {
-    final es = _isSpanish;
+  /// Si hay que avisar que la ubicación no está disponible.
+  bool get _showLocationNotice =>
+      !_locationNoticeDismissed &&
+      _gate != _LocationGate.granted &&
+      _gate != _LocationGate.checking;
 
-    if (_gate == _LocationGate.checking) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  /// Aviso descartable bajo el buscador cuando falta GPS o permiso. No
+  /// bloquea el mapa: se puede explorar sin la ubicación (M-07).
+  Widget _buildLocationNotice() {
+    final es = _isSpanish;
 
     final (String text, String action, VoidCallback onAction) = switch (_gate) {
       _LocationGate.serviceOff => (
         es
-            ? 'Activa la ubicación de tu teléfono para ver el mapa.'
-            : 'Turn on your phone location to see the map.',
-        es ? 'Activar ubicación' : 'Turn on location',
+            ? 'La ubicación del teléfono está desactivada. Actívala para ver dónde estás.'
+            : 'Phone location is off. Turn it on to see where you are.',
+        es ? 'Activar' : 'Turn on',
         () => geolocator.Geolocator.openLocationSettings(),
       ),
       _LocationGate.deniedForever => (
         es
-            ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes de la aplicación para ver el mapa.'
-            : 'Location permission is blocked. Turn it on in the app settings to see the map.',
-        es ? 'Abrir ajustes' : 'Open settings',
+            ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes para ver dónde estás.'
+            : 'Location permission is blocked. Turn it on in settings to see where you are.',
+        es ? 'Ajustes' : 'Settings',
         () => geolocator.Geolocator.openAppSettings(),
       ),
       _ => (
         es
-            ? 'Activa los permisos de ubicación para ver el mapa.'
-            : 'Turn on location permissions to see the map.',
-        es ? 'Permitir ubicación' : 'Allow location',
+            ? 'Permite la ubicación para ver dónde estás y trazar rutas desde ti.'
+            : 'Allow location to see where you are and plan routes from you.',
+        es ? 'Permitir' : 'Allow',
         () => _checkLocation(requestIfNeeded: true),
       ),
     };
 
-    return ColoredBox(
-      color: const Color(0xFFE8EBED),
-      child: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.location_off_rounded,
-                  size: 56,
-                  color: AppTheme.primaryDark,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  es ? 'Ubicación necesaria' : 'Location needed',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, height: 1.4),
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: onAction,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primaryDark,
-                  ),
-                  child: Text(action),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => _checkLocation(requestIfNeeded: false),
-                  child: Text(es ? 'Ya la activé' : 'I turned it on'),
-                ),
-              ],
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        padding: const EdgeInsetsDirectional.only(start: 12, top: 4, bottom: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
             ),
-          ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const ExcludeSemantics(
+              child: Icon(
+                Icons.location_off_rounded,
+                size: 20,
+                color: AppTheme.primaryDark,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(fontSize: 13, height: 1.3),
+              ),
+            ),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primaryDark,
+              ),
+              child: Text(
+                action,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            IconButton(
+              tooltip: es ? 'Cerrar aviso' : 'Dismiss',
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              icon: const Icon(Icons.close_rounded, size: 18),
+              onPressed: () => setState(() => _locationNoticeDismissed = true),
+            ),
+          ],
         ),
       ),
     );
