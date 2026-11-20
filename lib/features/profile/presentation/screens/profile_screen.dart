@@ -570,13 +570,16 @@ class _AccountProfile extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
+    // Se toman antes del await: al cerrar sesión esta vista se desmonta y
+    // ya no se pueden usar context ni ref (H-08).
     final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final auth = ref.read(authControllerProvider.notifier);
+
     try {
-      await ref.read(authControllerProvider.notifier).signOut();
-      ref.invalidate(profileProvider);
-      if (!context.mounted) return;
-      context.go('/auth-gateway');
-    } catch (_) {
+      await auth.signOut();
+    } catch (error) {
+      debugPrint('ERROR cerrar sesión: $error');
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -586,7 +589,10 @@ class _AccountProfile extends ConsumerWidget {
           ),
         ),
       );
+      return;
     }
+    // profileProvider se recalcula solo al cambiar la sesión.
+    router.go('/auth-gateway');
   }
 }
 
