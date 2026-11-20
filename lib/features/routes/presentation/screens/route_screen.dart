@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../data/providers/route_provider.dart';
 
 class RouteScreen extends ConsumerWidget {
@@ -37,7 +38,10 @@ class RouteScreen extends ConsumerWidget {
               itemCount: routes.length,
               itemBuilder: (context, index) {
                 final item = routes[index];
-                return Card(
+                return BcEntrance(
+                  key: ValueKey(item.id),
+                  index: index,
+                  child: Card(
                   margin: const EdgeInsets.only(bottom: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   elevation: 2,
@@ -116,6 +120,7 @@ class RouteScreen extends ConsumerWidget {
                         ],
                       ),
                     ),
+                  ),
                   ),
                 );
               },
