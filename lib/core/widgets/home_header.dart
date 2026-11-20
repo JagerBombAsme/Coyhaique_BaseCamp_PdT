@@ -251,6 +251,7 @@ class HomeHeader extends ConsumerWidget {
     return CachedNetworkImage(
       imageUrl: avatarUrl,
       fit: BoxFit.cover,
+      memCacheWidth: 160,
       placeholder: (context, url) {
         return _buildLoadingAvatar();
       },

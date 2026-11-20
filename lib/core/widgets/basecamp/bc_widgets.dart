@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/basecamp_tokens.dart';
@@ -59,6 +62,10 @@ class BcPhotoImage extends StatelessWidget {
   final Alignment alignment;
   final BoxFit fit;
 
+  /// Ancho máximo de decodificación, en píxeles. Una foto a pantalla
+  /// completa en un teléfono de 3x no necesita más.
+  static const int _maxDecodeWidth = 1440;
+
   @override
   Widget build(BuildContext context) {
     // Sin foto: fondo tinta con el logo BC tenue, nunca una foto ajena.
@@ -66,21 +73,39 @@ class BcPhotoImage extends StatelessWidget {
 
     if (source.trim().isEmpty) return fallback;
 
-    final image = source.startsWith('http')
-        ? Image.network(
-            source,
-            fit: fit,
-            alignment: alignment,
-            errorBuilder: (_, _, _) => fallback,
-          )
-        : Image.asset(
-            source,
-            fit: fit,
-            alignment: alignment,
-            errorBuilder: (_, _, _) => fallback,
-          );
+    // La foto se decodifica al tamaño con que se dibuja y no al de su
+    // archivo original (muchas vienen de sitios externos en alta
+    // resolución). Sin ancho acotado se decodifica completa.
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
 
-    return ColorFiltered(colorFilter: BcPhoto.filter, child: image);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final decodeWidth = width.isFinite && width > 0
+            ? math.min((width * pixelRatio).ceil(), _maxDecodeWidth)
+            : null;
+
+        final image = source.startsWith('http')
+            // Con caché en disco: una foto ya vista se reutiliza.
+            ? CachedNetworkImage(
+                imageUrl: source,
+                fit: fit,
+                alignment: alignment,
+                memCacheWidth: decodeWidth,
+                fadeInDuration: const Duration(milliseconds: 200),
+                errorWidget: (_, _, _) => fallback,
+              )
+            : Image.asset(
+                source,
+                fit: fit,
+                alignment: alignment,
+                cacheWidth: decodeWidth,
+                errorBuilder: (_, _, _) => fallback,
+              );
+
+        return ColorFiltered(colorFilter: BcPhoto.filter, child: image);
+      },
+    );
   }
 }
 
