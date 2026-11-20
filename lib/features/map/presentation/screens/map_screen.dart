@@ -42,15 +42,28 @@ enum MapStyleOption {
   String label({required bool isSpanish}) => isSpanish ? labelEs : labelEn;
 }
 
-/// Estado del permiso de ubicación. Sin permiso no se muestra el mapa.
+/// Estado del permiso de ubicación. El mapa se muestra siempre; sin permiso
+/// solo aparece un aviso (M-07).
 enum _LocationGate { checking, granted, serviceOff, denied, deniedForever }
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key, this.routeFromAirport = false, this.onOpenPlace});
+  const MapScreen({
+    super.key,
+    this.routeFromAirport = false,
+    this.routePlaceId,
+    this.routeMode,
+    this.onOpenPlace,
+  });
 
   /// Abre el mapa con la ruta Aeropuerto Balmaceda → Plaza de Armas
   /// (pantalla «¿Desde dónde partes?», viaje en transporte propio).
   final bool routeFromAirport;
+
+  /// Lugar (id de places_v2) que se muestra al abrir el mapa, por ejemplo
+  /// desde el itinerario. Con [routeMode] también se traza la ruta hasta él
+  /// desde la ubicación del usuario, igual que los botones de su tarjeta.
+  final String? routePlaceId;
+  final MapRouteMode? routeMode;
 
   /// Abre la ficha del lugar (botón «Ver ficha»). Lo conecta el router.
   /// Solo se ofrece para lugares que vienen de places_v2 (tienen id).
@@ -129,6 +142,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
   late bool _pendingAirportRoute = widget.routeFromAirport;
 
+  /// Lugar pedido desde fuera del mapa (itinerario) que aún no se pudo
+  /// mostrar porque faltaba el estilo del mapa o la carga de lugares.
+  late String? _pendingPlaceId = widget.routePlaceId;
+  late MapRouteMode? _pendingPlaceMode = widget.routeMode;
+
   /// Estado de la ubicación. El mapa se muestra siempre: sin permiso solo se
   /// muestra un aviso con la acción para activarla (M-07).
   _LocationGate _gate = _LocationGate.checking;
@@ -203,6 +221,27 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     setState(() => _places = all);
     _redrawMarkers();
+    unawaited(_openRequestedPlace());
+  }
+
+  /// Muestra el lugar pedido desde el itinerario y, si se indicó, traza la
+  /// ruta a pie o en auto. Espera a que el estilo y los lugares estén
+  /// cargados; se reintenta cuando llegan.
+  Future<void> _openRequestedPlace() async {
+    final id = _pendingPlaceId;
+    if (id == null || !_styleLoaded || !mounted) return;
+
+    MapPlace? place;
+    for (final candidate in _places) {
+      if (candidate.id == id) place = candidate;
+    }
+    if (place == null) return;
+
+    final mode = _pendingPlaceMode;
+    _pendingPlaceId = null;
+    _pendingPlaceMode = null;
+    await _goToPlace(place);
+    if (mode != null && mounted) await _routeToPlace(place, mode);
   }
 
   /// Convierte los lugares de places_v2 en puntos del mapa. Solo incluye
@@ -320,6 +359,16 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _pendingAirportRoute = true;
       }
     }
+
+    // Nuevo lugar pedido desde el itinerario (la pestaña se conserva).
+    final placeId = widget.routePlaceId;
+    if (placeId != null &&
+        (placeId != oldWidget.routePlaceId ||
+            widget.routeMode != oldWidget.routeMode)) {
+      _pendingPlaceId = placeId;
+      _pendingPlaceMode = widget.routeMode;
+      unawaited(_openRequestedPlace());
+    }
   }
 
   /// Ruta Aeropuerto Balmaceda → Plaza de Armas de Coyhaique.
@@ -387,6 +436,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _pendingAirportRoute = false;
       await _showAirportRoute();
     }
+
+    await _openRequestedPlace();
   }
 
   /// Error al cargar el mapa. Solo cuenta si el estilo aún no cargó (una
