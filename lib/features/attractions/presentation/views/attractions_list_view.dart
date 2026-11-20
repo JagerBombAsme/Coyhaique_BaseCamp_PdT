@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -81,10 +82,12 @@ class AttractionsListView extends ConsumerWidget {
                             height: 80,
                             color: Colors.grey[200],
                             child: place.imageUrl != null && place.imageUrl!.isNotEmpty
-                                ? Image.network(
-                                    place.imageUrl!,
+                                // Miniatura de 80 px: se decodifica a ~240 px.
+                                ? CachedNetworkImage(
+                                    imageUrl: place.imageUrl!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const BcLogoPlaceholder(),
+                                    memCacheWidth: 240,
+                                    errorWidget: (_, _, _) => const BcLogoPlaceholder(),
                                   )
                                 : const BcLogoPlaceholder(),
                           ),

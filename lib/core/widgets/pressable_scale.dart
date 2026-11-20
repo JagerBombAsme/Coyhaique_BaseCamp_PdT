@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'home_visual_tokens.dart';
+import '../theme/home_visual_tokens.dart';
 
 /// Feedback táctil unificado: scale 0.96 al presionar.
 /// Respeta "reducir movimiento": sin escala, usa un atenuado como señal.
