@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'bc_page_transitions.dart';
 import 'nav_glass_colors.dart';
 
 export 'nav_glass_colors.dart';
@@ -13,10 +14,19 @@ class AppTheme {
   static const Color accentBlue = Color(0xFF2E7BB4);
   static const Color accentLightBlue = Color(0xFFE8F2FA);
 
+  /// Transición común entre pantallas (ver [BcPageTransitionsBuilder]).
+  static const PageTransitionsTheme _pageTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: BcPageTransitionsBuilder(),
+      TargetPlatform.iOS: BcPageTransitionsBuilder(),
+    },
+  );
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       scaffoldBackgroundColor: slateLight,
+      pageTransitionsTheme: _pageTransitions,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryDark,
         surface: slateLight,
@@ -38,6 +48,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      pageTransitionsTheme: _pageTransitions,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryDark,
         brightness: Brightness.dark,

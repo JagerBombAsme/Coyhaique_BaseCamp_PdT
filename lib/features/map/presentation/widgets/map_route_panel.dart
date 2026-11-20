@@ -13,37 +13,6 @@ const List<BoxShadow> _floatingShadow = [
   BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 6)),
 ];
 
-/// Entrada suave del modo ruta (aparece y sube o baja unos píxeles). Sin
-/// animación cuando el sistema pide reducir el movimiento.
-class MapRouteEntrance extends StatelessWidget {
-  const MapRouteEntrance({super.key, required this.child, this.fromTop = false});
-
-  final Widget child;
-
-  /// true = entra desde arriba (barra superior); false = desde abajo.
-  final bool fromTop;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final shift = fromTop ? -24.0 : 24.0;
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: reduceMotion ? 1 : 0, end: 1),
-      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      child: child,
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, (1 - value) * shift),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
 /// Barra superior del modo ruta: reemplaza al buscador mientras hay una ruta
 /// activa. Muestra la próxima maniobra (si la hay), el medio y el destino.
 /// Terminar la ruta se hace desde el panel inferior, donde llega el pulgar.
