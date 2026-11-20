@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
+import '../../../../core/local/catalog_local_db.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../data/models/place_dto.dart';
@@ -25,7 +26,6 @@ class PlaceDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
-  bool _isFavorite = false;
   bool _isReloading = false;
 
   Future<void> _reloadPlace({bool showMessage = false}) async {
@@ -140,6 +140,12 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     final subtitle = place.getSubtitle(isSpanish);
 
     final description = place.getDescription(isSpanish);
+
+    // El subtítulo cae en la descripción o en la dirección cuando no hay uno
+    // propio; en ese caso se omite para no repetir el mismo texto (C-04).
+    final showSubtitle = subtitle.trim().isNotEmpty &&
+        subtitle.trim() != description.trim() &&
+        subtitle.trim() != (place.address ?? '').trim();
 
     final imageUrl = place.imageUrl;
 
@@ -258,78 +264,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                                 ),
                         ),
                       ),
-
-                      const SizedBox(width: 12),
-
-                      // ============================================
-                      // FAVORITOS
-                      // ============================================
-                      CircleAvatar(
-                        backgroundColor: Colors.white.withValues(alpha: 0.85),
-
-                        child: IconButton(
-                          icon: Icon(
-                            _isFavorite
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-
-                            color: _isFavorite
-                                ? const Color(0xFFD32F2F)
-                                : AppTheme.primaryDark,
-                          ),
-
-                          onPressed: () {
-                            setState(() {
-                              _isFavorite = !_isFavorite;
-                            });
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  _isFavorite
-                                      ? (isSpanish
-                                            ? 'Añadido a favoritos'
-                                            : 'Added to favorites')
-                                      : (isSpanish
-                                            ? 'Eliminado de favoritos'
-                                            : 'Removed from favorites'),
-                                ),
-
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      // ============================================
-                      // COMPARTIR
-                      // ============================================
-                      CircleAvatar(
-                        backgroundColor: Colors.white.withValues(alpha: 0.85),
-
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.share,
-
-                            color: AppTheme.primaryDark,
-                          ),
-
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  isSpanish
-                                      ? 'Función de compartir no implementada.'
-                                      : 'Share function not implemented.',
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -415,7 +349,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   // =================================================
                   // SUBTÍTULO
                   // =================================================
-                  if (subtitle.isNotEmpty) ...[
+                  if (showSubtitle) ...[
                     Text(subtitle, style: BcText.title(color: BcColors.ink)),
                     const SizedBox(height: 12),
                   ],
@@ -820,6 +754,21 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
   // ERROR
   // ================================================================
 
+  /// Texto para el usuario según el tipo de fallo; el detalle técnico queda
+  /// solo en el registro (debugPrint en `build`).
+  String _errorMessage(Object error, bool isSpanish) {
+    if (error is CatalogUnavailableException) {
+      return isSpanish
+          ? 'No hay conexión ni información descargada. '
+              'Conéctate a Internet y vuelve a intentarlo.'
+          : 'No connection and no downloaded information. '
+              'Connect to the Internet and try again.';
+    }
+    return isSpanish
+        ? 'No fue posible mostrar este lugar. Inténtalo de nuevo.'
+        : 'This place could not be displayed. Please try again.';
+  }
+
   Widget _buildErrorWidget(Object error, bool isSpanish) {
     return Center(
       child: SingleChildScrollView(
@@ -844,7 +793,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
             const SizedBox(height: 8),
 
             Text(
-              error.toString(),
+              _errorMessage(error, isSpanish),
 
               textAlign: TextAlign.center,
 
