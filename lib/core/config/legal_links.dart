@@ -10,4 +10,6 @@ abstract final class LegalLinks {
   static const String termsUrl = String.fromEnvironment('TERMS_URL');
 
   static bool get hasPrivacyPolicy => privacyPolicyUrl.isNotEmpty;
+
+  static bool get hasTerms => termsUrl.isNotEmpty;
 }
