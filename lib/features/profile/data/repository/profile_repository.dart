@@ -83,6 +83,20 @@ class ProfileRepository {
   }
 
   // ================================================================
+  // ELIMINAR CUENTA (HU-19)
+  //
+  // Llama a la RPC delete_my_account() (migración
+  // eliminar_cuenta_y_localidades, 04-11-2026). En el servidor borra el
+  // perfil y el usuario de Auth; la cascada borra itinerarios y
+  // profiles_v2. Si falla, lanza la excepción y no se borra nada.
+  // ================================================================
+
+  Future<void> deleteAccount() async {
+    await _client.rpc('delete_my_account');
+    _cachedProfile = null;
+  }
+
+  // ================================================================
   // LIMPIAR CACHÉ
   // ================================================================
 
