@@ -52,4 +52,19 @@ class ProfileDto {
       'is_verified': isVerified,
     };
   }
+
+  /// Columnas que el propio usuario puede escribir en profiles (H-03).
+  /// role e is_verified quedan fuera: solo se cambian desde el panel.
+  Map<String, dynamic> toWriteJson() {
+    return {
+      'id': id,
+      'full_name': fullName,
+      'username': username,
+      'biography': biography,
+      'avatar_url': avatarUrl,
+      'language': language,
+      'country': country,
+      'city': city,
+    };
+  }
 }
