@@ -7,8 +7,8 @@ import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 
 import '../../../authentication/data/providers/auth_controller.dart';
-import '../../../home/presentation/widgets/home_visual_tokens.dart';
-import '../../../home/presentation/widgets/pressable_scale.dart';
+import '../../../../core/theme/home_visual_tokens.dart';
+import '../../../../core/widgets/pressable_scale.dart';
 
 import '../../data/models/profile_dto.dart';
 import '../../data/providers/profile_provider.dart';
