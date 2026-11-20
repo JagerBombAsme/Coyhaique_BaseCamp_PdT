@@ -19,6 +19,7 @@ import '../../features/home/presentation/screens/home_screen.dart';
 
 import '../../features/location/presentation/views/initial_location_view.dart';
 import '../../features/map/presentation/screens/map_screen.dart';
+import '../../features/map/presentation/widgets/map_place_preview_card.dart';
 
 // ================================================================
 // IDIOMA
@@ -315,9 +316,16 @@ GoRouter _createRouter() {
               GoRoute(
                 path: '/map',
                 builder: (context, state) {
+                  // `lugar` y `modo` (pie | auto) llegan desde el itinerario.
+                  final query = state.uri.queryParameters;
                   return MapScreen(
-                    routeFromAirport:
-                        state.uri.queryParameters['ruta'] == 'aeropuerto',
+                    routeFromAirport: query['ruta'] == 'aeropuerto',
+                    routePlaceId: query['lugar'],
+                    routeMode: switch (query['modo']) {
+                      'pie' => MapRouteMode.walking,
+                      'auto' => MapRouteMode.driving,
+                      _ => null,
+                    },
                     onOpenPlace: (place) {
                       final id = place.id;
                       if (id != null) context.push('/attractions/$id');

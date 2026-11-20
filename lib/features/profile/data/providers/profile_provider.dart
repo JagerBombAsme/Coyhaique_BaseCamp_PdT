@@ -1,11 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/providers/auth/auth_user_provider.dart';
+import '../../../../core/providers/supabase_provider.dart';
 import '../models/profile_dto.dart';
 import '../repository/profile_repository.dart';
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  return ProfileRepository();
+  return ProfileRepository(client: ref.watch(supabaseClientProvider));
 });
 
 final profileProvider = FutureProvider<ProfileDto?>((ref) async {

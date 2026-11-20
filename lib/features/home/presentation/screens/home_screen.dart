@@ -10,12 +10,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/models/category_model.dart';
 import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../categories/data/providers/places_provider.dart' as places;
@@ -508,7 +508,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         : homeCategories;
     final isLoggedIn =
         ref.watch(authUserProvider).valueOrNull != null ||
-        _currentSessionUser();
+        ref.read(supabaseClientProvider).auth.currentUser != null;
     // Intereses guardados (ids de categorías principales), en orden alfabético.
     final interestIds = ref.watch(places.validInterestsProvider);
     final interestCategories =
@@ -1227,15 +1227,6 @@ Future<void> downloadOfflineCatalog(BuildContext context, WidgetRef ref) async {
       ),
     ),
   );
-}
-
-/// true si hay una sesión de Supabase abierta (sin esperar al stream).
-bool _currentSessionUser() {
-  try {
-    return Supabase.instance.client.auth.currentUser != null;
-  } catch (_) {
-    return false;
-  }
 }
 
 /// Tours de una categoría de interés elegida por el usuario.
