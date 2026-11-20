@@ -44,9 +44,54 @@ Duration _motion(BuildContext context, Duration normal) =>
 
 /// Fotografía a ancho completo con la categoría y el nombre encima.
 /// Sin barra superior: solo Atrás y Actualizar flotando sobre la foto.
+/// Etiqueta común de la foto de un lugar entre la lista y su ficha: con ella
+/// la foto «viaja» desde la tarjeta hasta la cabecera al abrirla.
+Object placePhotoHeroTag(String placeId) => 'place-photo-$placeId';
+
+/// Foto de un lugar que se mueve entre pantallas (Hero). Mientras viaja, sus
+/// esquinas pasan del radio de la tarjeta a rectas en la ficha, y al revés.
+class PlacePhotoHero extends StatelessWidget {
+  const PlacePhotoHero({
+    super.key,
+    required this.placeId,
+    required this.photoUrl,
+    this.radius = 0,
+  });
+
+  final String placeId;
+  final String? photoUrl;
+
+  /// Radio de las esquinas en reposo (el de la tarjeta; 0 en la ficha).
+  final double radius;
+
+  /// Radio de las esquinas de la foto en las tarjetas de las listas.
+  static const double cardRadius = BcRadius.control;
+
+  Widget _photo(double r) => ClipRRect(
+    borderRadius: BorderRadius.circular(r),
+    child: BcPhotoImage(source: photoUrl ?? ''),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Hero(
+      tag: placePhotoHeroTag(placeId),
+      flightShuttleBuilder: (context, animation, direction, from, to) {
+        // animation: 0 = tarjeta, 1 = ficha, tanto al abrir como al volver.
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, _) => _photo(cardRadius * (1 - animation.value)),
+        );
+      },
+      child: _photo(radius),
+    );
+  }
+}
+
 class PlaceHero extends StatelessWidget {
   const PlaceHero({
     super.key,
+    this.placeId,
     required this.title,
     required this.categoryLabel,
     required this.photoUrl,
@@ -56,6 +101,9 @@ class PlaceHero extends StatelessWidget {
     required this.onBack,
     required this.onReload,
   });
+
+  /// Si viene, la foto viaja desde la tarjeta de la lista (ver [PlacePhotoHero]).
+  final String? placeId;
 
   final String title;
   final String categoryLabel;
@@ -86,7 +134,10 @@ class PlaceHero extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          BcPhotoImage(source: photoUrl ?? ''),
+          if (placeId == null)
+            BcPhotoImage(source: photoUrl ?? '')
+          else
+            PlacePhotoHero(placeId: placeId!, photoUrl: photoUrl),
           const BcPhotoShade(from: 0.3, topShade: 0.4),
           PositionedDirectional(
             top: top + BcSpace.s3,

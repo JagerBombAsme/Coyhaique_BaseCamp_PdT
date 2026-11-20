@@ -13,6 +13,7 @@ import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
+import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../../categories/data/models/place_dto.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
@@ -1220,6 +1221,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   Widget _buildMapStack() {
+    final inRoute = _route != null;
     return Stack(
       children: [
         Positioned.fill(
@@ -1257,21 +1259,31 @@ class _MapScreenState extends ConsumerState<MapScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               children: [
-                // Modo ruta: sin buscador ni lugares rápidos, solo el destino.
-                if (_route != null)
-                  MapRouteEntrance(fromTop: true, child: _buildRouteHeader())
-                else ...[
-                  _buildSearchBar(),
-                  const SizedBox(height: 12),
-                  _buildQuickLocations(),
-                ],
+                // Buscador y lugares rápidos se van hacia arriba y en su lugar
+                // llega la barra de la ruta (y al revés al terminarla).
+                BcSwitcher(
+                  offset: const Offset(0, -0.25),
+                  child: inRoute
+                      ? KeyedSubtree(
+                          key: const ValueKey('route-header'),
+                          child: _buildRouteHeader(),
+                        )
+                      : Column(
+                          key: const ValueKey('search-group'),
+                          children: [
+                            _buildSearchBar(),
+                            const SizedBox(height: 12),
+                            _buildQuickLocations(),
+                          ],
+                        ),
+                ),
                 // Aviso fijo sin conexión, propio del mapa (FIX-002).
                 if (!_online) ...[
                   const SizedBox(height: 10),
                   _buildOfflineNotice(),
                 ],
                 // Aviso para activar la ubicación; el mapa funciona sin ella.
-                if (_showLocationNotice && _route == null) ...[
+                if (_showLocationNotice && !inRoute) ...[
                   const SizedBox(height: 10),
                   _buildLocationNotice(),
                 ],
@@ -1280,39 +1292,43 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ),
         ),
 
-        if (_route != null)
-          // Modo ruta: controles en fila sobre el panel, ambos a todo el ancho.
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 110,
-            child: MapRouteEntrance(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _buildControls(horizontal: true),
+        // Parte baja: tarjeta del lugar y controles al costado, o bien, en
+        // modo ruta, controles en fila sobre el panel. Un grupo sale hacia
+        // abajo mientras el otro sube.
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 110,
+          child: BcSwitcher(
+            alignment: Alignment.bottomCenter,
+            animateSize: false,
+            offset: const Offset(0, 0.18),
+            child: inRoute
+                ? Column(
+                    key: const ValueKey('route-bottom'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _buildControls(horizontal: true),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildRoutePanel(),
+                    ],
+                  )
+                : Row(
+                    key: const ValueKey('place-bottom'),
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Tarjeta flotante del lugar elegido (marcador o buscador).
+                      Expanded(child: _buildPreviewCard()),
+                      const SizedBox(width: 14),
+                      _buildControls(),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  _buildRoutePanel(),
-                ],
-              ),
-            ),
-          )
-        else ...[
-          // Tarjeta flotante del lugar elegido (marcador o buscador).
-          Positioned(
-            left: 16,
-            right: 76,
-            bottom: 110,
-            child: _buildPreviewCard(),
           ),
-
-          // Controles del mapa.
-          Positioned(right: 16, bottom: 110, child: _buildControls()),
-        ],
+        ),
 
         // El mapa no cargó teniendo conexión (FIX-010).
         if (_online && _mapLoadFailed)

@@ -231,23 +231,43 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
         },
 
         loading: () {
-          return SafeArea(
-            child: Stack(
-              children: [
-                const Center(
-                  child: CircularProgressIndicator(color: BcColors.glacierDeep),
-                ),
-                PositionedDirectional(
-                  top: BcSpace.s3,
-                  start: BcSpace.gutter,
-                  child: BcCornerButton(
-                    icon: Icons.arrow_back_rounded,
-                    semanticLabel: isSpanish ? 'Volver' : 'Back',
-                    onTap: widget.onBack,
+          // Si el lugar ya está en la lista, su foto está desde el primer
+          // cuadro: así la foto de la tarjeta puede viajar hasta aquí mientras
+          // llegan los datos completos.
+          final seed = _seedPlace();
+
+          return Stack(
+            children: [
+              if (seed != null)
+                SizedBox(
+                  height: _heroHeight(context),
+                  width: double.infinity,
+                  child: PlacePhotoHero(
+                    placeId: seed.id,
+                    photoUrl: seed.imageUrl,
                   ),
                 ),
-              ],
-            ),
+              SafeArea(
+                child: Stack(
+                  children: [
+                    const Center(
+                      child: CircularProgressIndicator(
+                        color: BcColors.glacierDeep,
+                      ),
+                    ),
+                    PositionedDirectional(
+                      top: BcSpace.s3,
+                      start: BcSpace.gutter,
+                      child: BcCornerButton(
+                        icon: Icons.arrow_back_rounded,
+                        semanticLabel: isSpanish ? 'Volver' : 'Back',
+                        onTap: widget.onBack,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           );
         },
 
@@ -275,6 +295,26 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     );
   }
 
+  /// Alto de la foto de cabecera (igual en la carga y en el contenido).
+  double _heroHeight(BuildContext context) =>
+      (MediaQuery.sizeOf(context).height * 0.6).clamp(380.0, 600.0);
+
+  /// El lugar tal como está en las listas ya cargadas, si está. Se lee sin
+  /// suscribirse: no dispara cargas nuevas ni reconstruye esta pantalla.
+  PlaceDto? _seedPlace() {
+    final lists = [
+      ref.read(placesProvider).valueOrNull,
+      ref.read(activitiesProvider).valueOrNull,
+    ];
+    for (final items in lists) {
+      if (items == null) continue;
+      for (final place in items) {
+        if (place.id == widget.placeId) return place;
+      }
+    }
+    return null;
+  }
+
   // ================================================================
   // CONTENIDO
   // ================================================================
@@ -293,10 +333,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     final heroUrl = photos.isEmpty ? null : photos.first;
     final gallery = photos.length > 1 ? photos.sublist(1) : <String>[];
 
-    final heroHeight = (MediaQuery.sizeOf(context).height * 0.6).clamp(
-      380.0,
-      600.0,
-    );
+    final heroHeight = _heroHeight(context);
 
     final categoryName = place.category?.getNombre(language);
     final categoryLabel = placeHasText(categoryName)
@@ -318,6 +355,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             PlaceHero(
+              placeId: place.id,
               title: title,
               categoryLabel: categoryLabel,
               photoUrl: heroUrl,

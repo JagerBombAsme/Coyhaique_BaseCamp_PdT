@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../data/models/itinerary_models.dart';
 import '../../data/providers/planner_provider.dart';
 import 'planificacion_screen.dart';
@@ -85,8 +86,11 @@ class _SavedList extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             itemCount: items.length,
             separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) =>
-                _ItineraryTile(item: items[index], isSpanish: isSpanish),
+            itemBuilder: (context, index) => BcEntrance(
+              key: ValueKey(items[index].id),
+              index: index,
+              child: _ItineraryTile(item: items[index], isSpanish: isSpanish),
+            ),
           ),
         );
       },
