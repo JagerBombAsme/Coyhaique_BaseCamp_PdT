@@ -1,0 +1,249 @@
+diff --git a/lib/features/map/domain/route_tracking.dart b/lib/features/map/domain/route_tracking.dart
+new file mode 100644
+index 0000000..dbe014f
+--- /dev/null
++++ b/lib/features/map/domain/route_tracking.dart
+@@ -0,0 +1,57 @@
++import 'dart:math' as math;
++
++/// Distancia, en metros, a partir de la cual se avisa que el usuario se alejó
++/// de la ruta. Sirve para no avisar por el error normal del GPS.
++const double offRouteMeters = 50;
++
++/// Distancia en metros desde un punto hasta la parte más cercana de la ruta.
++///
++/// [coordinates] viene en formato [longitud, latitud], como lo entrega
++/// Mapbox. La proyección es plana y local: basta para distancias de pocos km.
++double distanceToRouteMeters(
++  double lat,
++  double lng,
++  List<List<double>> coordinates,
++) {
++  if (coordinates.isEmpty) return double.infinity;
++
++  if (coordinates.length == 1) {
++    final p = coordinates.first;
++    return _distanceToSegmentMeters(lat, lng, p[1], p[0], p[1], p[0]);
++  }
++
++  var best = double.infinity;
++  for (var i = 0; i < coordinates.length - 1; i++) {
++    final a = coordinates[i];
++    final b = coordinates[i + 1];
++    final d = _distanceToSegmentMeters(lat, lng, a[1], a[0], b[1], b[0]);
++    if (d < best) best = d;
++  }
++  return best;
++}
++
++double _distanceToSegmentMeters(
++  double lat,
++  double lng,
++  double lat1,
++  double lng1,
++  double lat2,
++  double lng2,
++) {
++  const kmPerDegLat = 111.2;
++  final kmPerDegLng = kmPerDegLat * math.cos(lat * math.pi / 180);
++
++  final px = (lng - lng1) * kmPerDegLng;
++  final py = (lat - lat1) * kmPerDegLat;
++  final bx = (lng2 - lng1) * kmPerDegLng;
++  final by = (lat2 - lat1) * kmPerDegLat;
++
++  final lengthSquared = bx * bx + by * by;
++  final t = lengthSquared == 0
++      ? 0.0
++      : ((px * bx + py * by) / lengthSquared).clamp(0.0, 1.0);
++
++  final dx = px - t * bx;
++  final dy = py - t * by;
++  return math.sqrt(dx * dx + dy * dy) * 1000;
++}
+diff --git a/lib/features/map/presentation/screens/map_screen.dart b/lib/features/map/presentation/screens/map_screen.dart
+index c305c83..11bd0ec 100644
+--- a/lib/features/map/presentation/screens/map_screen.dart
++++ b/lib/features/map/presentation/screens/map_screen.dart
+@@ -1,3 +1,4 @@
++import 'dart:async';
+ import 'dart:ui' as ui;
+ 
+ import 'package:flutter/material.dart';
+@@ -10,6 +11,7 @@ import '../../../../core/theme/app_theme.dart';
+ import '../../../categories/data/models/place_dto.dart';
+ import '../../../categories/data/providers/places_provider.dart';
+ import '../../../trip_info/presentation/widgets/trip_notice.dart';
++import '../../domain/route_tracking.dart';
+ import '../map_places.dart';
+ import 'mapbox_directions_services.dart';
+ import 'transport_mode_screen.dart';
+@@ -97,6 +99,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
+   RouteResult? _route;
+   MapPlace? _routeFrom;
+   MapPlace? _routeTo;
++
++  /// Posición en vivo mientras hay una ruta (solo mueve el punto, no recalcula).
++  StreamSubscription<geolocator.Position>? _trackSub;
++
++  /// Evita repetir el aviso de «te alejaste» mientras sigue fuera de la ruta.
++  bool _offRoute = false;
+   bool _loadingRoute = false;
+ 
+   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
+@@ -250,6 +258,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
+   @override
+   void dispose() {
+     WidgetsBinding.instance.removeObserver(this);
++    _trackSub?.cancel();
+     _searchController.dispose();
+     _searchFocus.dispose();
+     super.dispose();
+@@ -434,7 +443,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
+       }
+ 
+       if (route == null) {
+-        _showMessage(_isSpanish ? 'No se encontró una ruta' : 'No route found');
++        // Mapbox respondió, pero no hay ruta entre los puntos: es la distancia.
++        _showMessage(
++          _isSpanish
++              ? 'No se encontró una ruta por la distancia entre estos puntos.'
++              : 'No route was found because of the distance between these points.',
++        );
+         return;
+       }
+ 
+@@ -457,6 +471,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
+         _routeFrom = from;
+         _routeTo = to;
+       });
++      _startTracking();
+ 
+       // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
+       TripNotice.show(
+@@ -467,10 +482,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
+       );
+     } catch (e) {
+       debugPrint('ERROR RUTA: $e');
++      // Fallo de la app o de la conexión con el servicio, no de la distancia.
+       _showMessage(
+         _isSpanish
+-            ? 'No se pudo calcular la ruta'
+-            : 'The route could not be calculated',
++            ? 'No se pudo calcular la ruta por un fallo de la aplicación. Inténtalo de nuevo.'
++            : 'The route could not be calculated due to an app error. Please try again.',
+       );
+     } finally {
+       if (mounted) setState(() => _loadingRoute = false);
+@@ -575,7 +591,60 @@ class _MapScreenState extends ConsumerState<MapScreen>
+     );
+   }
+ 
++  /// Mueve el punto del usuario mientras la ruta está activa y avisa si se
++  /// aleja. No recalcula la ruta: cada cálculo es una solicitud a Mapbox.
++  void _startTracking() {
++    _trackSub?.cancel();
++    _offRoute = false;
++
++    final map = _mapboxMap;
++    if (map != null) {
++      unawaited(
++        map.location
++            .updateSettings(LocationComponentSettings(enabled: true))
++            .catchError((Object e) => debugPrint('ERROR PUNTO USUARIO: $e')),
++      );
++    }
++
++    _trackSub = geolocator.Geolocator.getPositionStream(
++      locationSettings: geolocator.LocationSettings(
++        accuracy: geolocator.LocationAccuracy.high,
++        distanceFilter: 10,
++      ),
++    ).listen(
++      _onTrackedPosition,
++      onError: (Object e) => debugPrint('ERROR SEGUIMIENTO: $e'),
++    );
++  }
++
++  void _onTrackedPosition(geolocator.Position position) {
++    final route = _route;
++    if (!mounted || route == null) return;
++
++    final meters = distanceToRouteMeters(
++      position.latitude,
++      position.longitude,
++      route.coordinates,
++    );
++    final off = meters > offRouteMeters;
++
++    if (off && !_offRoute) {
++      _offRoute = true;
++      _showMessage(
++        _isSpanish
++            ? 'Te alejaste de la ruta. Vuelve a elegir el lugar para recalcularla.'
++            : 'You left the route. Select the place again to recalculate it.',
++      );
++    } else if (!off) {
++      _offRoute = false;
++    }
++  }
++
+   Future<void> _clearRoute() async {
++    _trackSub?.cancel();
++    _trackSub = null;
++    _offRoute = false;
++
+     final map = _mapboxMap;
+     final manager = _routeManager;
+ 
+diff --git a/lib/features/map/presentation/screens/mapbox_directions_services.dart b/lib/features/map/presentation/screens/mapbox_directions_services.dart
+index 799e3e2..9de371e 100644
+--- a/lib/features/map/presentation/screens/mapbox_directions_services.dart
++++ b/lib/features/map/presentation/screens/mapbox_directions_services.dart
+@@ -71,6 +71,12 @@ class MapboxDirectionsService {
+         .get(uri)
+         .timeout(const Duration(seconds: 15));
+ 
++    // 422: Mapbox no puede generar una ruta entre estos puntos (por ejemplo,
++    // están demasiado lejos). Es un «sin ruta», no un fallo de la app.
++    if (response.statusCode == 422) {
++      return null;
++    }
++
+     if (response.statusCode != 200) {
+       throw Exception('Directions API: HTTP ${response.statusCode}');
+     }
+diff --git a/test/route_tracking_test.dart b/test/route_tracking_test.dart
+new file mode 100644
+index 0000000..414d697
+--- /dev/null
++++ b/test/route_tracking_test.dart
+@@ -0,0 +1,28 @@
++import 'package:coyhaique_basecamp_pt/features/map/domain/route_tracking.dart';
++import 'package:flutter_test/flutter_test.dart';
++
++void main() {
++  // Ruta de prueba de oeste a este, sobre la latitud -45,57. Formato [lng, lat].
++  final route = [
++    [-72.07, -45.57],
++    [-72.05, -45.57],
++  ];
++
++  test('a point on the route is at distance zero', () {
++    expect(distanceToRouteMeters(-45.57, -72.06, route), closeTo(0, 1));
++  });
++
++  test('a point about 1 km north of the route is about 1 km away', () {
++    // 0,009° de latitud equivalen a cerca de 1 km.
++    expect(distanceToRouteMeters(-45.561, -72.06, route), closeTo(1000, 30));
++  });
++
++  test('a point past the end of the route is measured to the end', () {
++    // 0,05° de longitud a esa latitud son cerca de 3,9 km.
++    expect(distanceToRouteMeters(-45.57, -72.0, route), closeTo(3885, 40));
++  });
++
++  test('an empty route is infinitely far', () {
++    expect(distanceToRouteMeters(-45.57, -72.06, const []), double.infinity);
++  });
++}

@@ -1,18 +1,22 @@
-import 'dart:ui' as ui;
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../categories/data/models/place_dto.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../../domain/route_tracking.dart';
 import '../map_places.dart';
+import '../widgets/map_place_preview_card.dart';
 import 'mapbox_directions_services.dart';
-import 'transport_mode_screen.dart';
 
 // ===============================================================
 // ESTILOS DE MAPA
@@ -38,15 +42,28 @@ enum MapStyleOption {
   String label({required bool isSpanish}) => isSpanish ? labelEs : labelEn;
 }
 
-/// Estado del permiso de ubicación. Sin permiso no se muestra el mapa.
+/// Estado del permiso de ubicación. El mapa se muestra siempre; sin permiso
+/// solo aparece un aviso (M-07).
 enum _LocationGate { checking, granted, serviceOff, denied, deniedForever }
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key, this.routeFromAirport = false, this.onOpenPlace});
+  const MapScreen({
+    super.key,
+    this.routeFromAirport = false,
+    this.routePlaceId,
+    this.routeMode,
+    this.onOpenPlace,
+  });
 
   /// Abre el mapa con la ruta Aeropuerto Balmaceda → Plaza de Armas
   /// (pantalla «¿Desde dónde partes?», viaje en transporte propio).
   final bool routeFromAirport;
+
+  /// Lugar (id de places_v2) que se muestra al abrir el mapa, por ejemplo
+  /// desde el itinerario. Con [routeMode] también se traza la ruta hasta él
+  /// desde la ubicación del usuario, igual que los botones de su tarjeta.
+  final String? routePlaceId;
+  final MapRouteMode? routeMode;
 
   /// Abre la ficha del lugar (botón «Ver ficha»). Lo conecta el router.
   /// Solo se ofrece para lugares que vienen de places_v2 (tienen id).
@@ -90,6 +107,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
   bool _redrawAgain = false;
 
   MapPlace _selectedPlace = _center;
+
+  /// Lugar de la tarjeta flotante (marcador tocado o resultado del
+  /// buscador). Null = sin tarjeta.
+  MapPlace? _previewPlace;
+
+  /// Medio cuya ruta se está pidiendo desde la tarjeta (obtener la ubicación
+  /// puede tardar hasta 10 s).
+  MapRouteMode? _routeMode;
+
+  /// Medio de la ruta dibujada (a pie o en auto).
+  String _routeProfile = RouteProfile.walking;
   MapStyleOption _style = MapStyleOption.outdoors;
 
   // Ruta activa (si hay una dibujada en el mapa).
@@ -97,13 +125,48 @@ class _MapScreenState extends ConsumerState<MapScreen>
   RouteResult? _route;
   MapPlace? _routeFrom;
   MapPlace? _routeTo;
+
+  /// Posición en vivo mientras hay una ruta (solo mueve el punto, no recalcula).
+  StreamSubscription<geolocator.Position>? _trackSub;
+
+  /// Evita repetir el aviso de «te alejaste» mientras sigue fuera de la ruta.
+  bool _offRoute = false;
+
+  /// Punto de la ruta donde está el usuario. Lo que queda atrás se borra.
+  int _trimIndex = 0;
+
+  /// Evita dos redibujos de la línea a la vez.
+  bool _trimBusy = false;
   bool _loadingRoute = false;
 
   /// Ruta desde el aeropuerto pedida antes de que el mapa terminara de cargar.
   late bool _pendingAirportRoute = widget.routeFromAirport;
 
-  /// Permiso de ubicación: el mapa solo se muestra cuando está concedido.
+  /// Lugar pedido desde fuera del mapa (itinerario) que aún no se pudo
+  /// mostrar porque faltaba el estilo del mapa o la carga de lugares.
+  late String? _pendingPlaceId = widget.routePlaceId;
+  late MapRouteMode? _pendingPlaceMode = widget.routeMode;
+
+  /// Estado de la ubicación. El mapa se muestra siempre: sin permiso solo se
+  /// muestra un aviso con la acción para activarla (M-07).
   _LocationGate _gate = _LocationGate.checking;
+
+  /// El usuario cerró el aviso de ubicación en esta visita al mapa.
+  bool _locationNoticeDismissed = false;
+
+  /// Conexión a internet. Sin conexión el mapa muestra su propio aviso fijo
+  /// y las rutas avisan antes de calcularse (FIX-001, FIX-002).
+  bool _online = true;
+
+  /// Fecha de la última descarga del catálogo, para el aviso sin conexión.
+  DateTime? _lastSync;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+
+  /// El estilo del mapa terminó de cargar. Se reinicia al cambiar de estilo.
+  bool _styleLoaded = false;
+
+  /// El estilo no cargó teniendo conexión: Mapbox no disponible (FIX-010).
+  bool _mapLoadFailed = false;
 
   /// Lugares filtrados según el texto del buscador.
   List<MapPlace> get _filteredPlaces {
@@ -114,8 +177,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Al abrir el mapa se pide la ubicación (no se muestra el mapa sin ella).
-    _checkLocation(requestIfNeeded: true);
+    // El mapa no exige la ubicación: solo se revisa el estado, sin pedir el
+    // permiso. Se pide al usar "Mi ubicación", A pie o En auto (M-07).
+    unawaited(_checkLocation(requestIfNeeded: false));
+
+    // Conexión: estado inicial y cambios mientras el mapa está abierto.
+    _connectivitySub = Connectivity().onConnectivityChanged.listen(
+      _onConnectivityChanged,
+    );
+    unawaited(Connectivity().checkConnectivity().then(_onConnectivityChanged));
 
     // Carga los lugares de places_v2 y los dibuja cuando llegan.
     ref.listenManual<AsyncValue<List<PlaceDto>>>(placesProvider, (_, next) {
@@ -151,6 +221,27 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     setState(() => _places = all);
     _redrawMarkers();
+    unawaited(_openRequestedPlace());
+  }
+
+  /// Muestra el lugar pedido desde el itinerario y, si se indicó, traza la
+  /// ruta a pie o en auto. Espera a que el estilo y los lugares estén
+  /// cargados; se reintenta cuando llegan.
+  Future<void> _openRequestedPlace() async {
+    final id = _pendingPlaceId;
+    if (id == null || !_styleLoaded || !mounted) return;
+
+    MapPlace? place;
+    for (final candidate in _places) {
+      if (candidate.id == id) place = candidate;
+    }
+    if (place == null) return;
+
+    final mode = _pendingPlaceMode;
+    _pendingPlaceId = null;
+    _pendingPlaceMode = null;
+    await _goToPlace(place);
+    if (mode != null && mounted) await _routeToPlace(place, mode);
   }
 
   /// Convierte los lugares de places_v2 en puntos del mapa. Solo incluye
@@ -172,6 +263,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ? dto.getDescription(false)
           : descriptionEs;
 
+      // Fotografías reales del catálogo, sin repetir; si el lugar no tiene
+      // galería se usa su foto principal.
+      final photos = <String>[
+        for (final media in dto.media)
+          if ((media.externalUrl ?? '').isNotEmpty) media.externalUrl!,
+      ];
+      final mainPhoto = dto.imageUrl ?? '';
+      if (photos.isEmpty && mainPhoto.isNotEmpty) photos.add(mainPhoto);
+
       result.add(
         MapPlace(
           id: dto.id,
@@ -182,17 +282,41 @@ class _MapScreenState extends ConsumerState<MapScreen>
           icon: dto.category?.icon ?? Icons.place_outlined,
           longitude: lng,
           latitude: lat,
+          categoryEs: dto.category?.getNombre('es') ?? '',
+          categoryEn: dto.category?.getNombre('en') ?? '',
+          address: dto.address ?? dto.meetingPoint,
+          photoUrls: photos.toSet().toList(),
         ),
       );
     }
     return result;
   }
 
+  /// Actualiza el estado de conexión y la fecha de la última descarga.
+  /// Al volver la conexión se reintenta un mapa que no había cargado.
+  Future<void> _onConnectivityChanged(List<ConnectivityResult> results) async {
+    final online = results.any((r) => r != ConnectivityResult.none);
+    DateTime? lastSync;
+    if (!online) {
+      try {
+        lastSync = await ref.read(catalogLocalDbProvider).getLastSyncAt();
+      } catch (_) {
+        lastSync = null;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _online = online;
+      _lastSync = lastSync;
+    });
+    if (online && _mapLoadFailed) await _retryMapLoad();
+  }
+
   /// Al volver de los ajustes del teléfono se revisa de nuevo el permiso.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkLocation(requestIfNeeded: false);
+      unawaited(_checkLocation(requestIfNeeded: false));
     }
   }
 
@@ -235,6 +359,16 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _pendingAirportRoute = true;
       }
     }
+
+    // Nuevo lugar pedido desde el itinerario (la pestaña se conserva).
+    final placeId = widget.routePlaceId;
+    if (placeId != null &&
+        (placeId != oldWidget.routePlaceId ||
+            widget.routeMode != oldWidget.routeMode)) {
+      _pendingPlaceId = placeId;
+      _pendingPlaceMode = widget.routeMode;
+      unawaited(_openRequestedPlace());
+    }
   }
 
   /// Ruta Aeropuerto Balmaceda → Plaza de Armas de Coyhaique.
@@ -250,6 +384,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _trackSub?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -282,6 +417,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final map = _mapboxMap;
     if (map == null || !mounted) return;
 
+    setState(() {
+      _styleLoaded = true;
+      _mapLoadFailed = false;
+    });
+
     await _applyMapLanguage(ref.read(languageProvider).languageCode);
 
     await _redrawMarkers();
@@ -296,6 +436,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _pendingAirportRoute = false;
       await _showAirportRoute();
     }
+
+    await _openRequestedPlace();
+  }
+
+  /// Error al cargar el mapa. Solo cuenta si el estilo aún no cargó (una
+  /// tesela suelta que falla no impide usar el mapa) y si hay conexión: sin
+  /// conexión ya se muestra el aviso propio del mapa.
+  void _onMapLoadError(MapLoadingErrorEventData _) {
+    if (!mounted || _styleLoaded || !_online) return;
+    setState(() => _mapLoadFailed = true);
+  }
+
+  /// Vuelve a pedir el estilo del mapa (botón «Reintentar»).
+  Future<void> _retryMapLoad() async {
+    if (!mounted) return;
+    setState(() {
+      _mapLoadFailed = false;
+      _styleLoaded = false;
+    });
+    await _mapboxMap?.loadStyleURI(_style.uri);
   }
 
   /// Dibuja un marcador por lugar. Se llama al cargar el mapa, al cambiar el
@@ -367,9 +527,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   /// Único punto de entrada para mover la cámara y actualizar el estado.
-  Future<void> _goToPlace(MapPlace place) async {
+  /// Con [showPreview] (por defecto) abre la tarjeta del lugar; el botón de
+  /// centrar el mapa la cierra.
+  Future<void> _goToPlace(MapPlace place, {bool showPreview = true}) async {
     _searchFocus.unfocus();
-    setState(() => _selectedPlace = place);
+    setState(() {
+      _selectedPlace = place;
+      _previewPlace = showPreview ? place : null;
+    });
 
     final map = _mapboxMap;
     if (map == null) return;
@@ -396,7 +561,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _changeStyle(MapStyleOption option) async {
     if (option == _style) return;
-    setState(() => _style = option);
+    setState(() {
+      _style = option;
+      _styleLoaded = false;
+    });
     await _mapboxMap?.loadStyleURI(option.uri);
   }
 
@@ -412,6 +580,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }) async {
     final map = _mapboxMap;
     if (map == null || _loadingRoute) return;
+    if (_blockRouteIfOffline()) return;
 
     setState(() => _loadingRoute = true);
 
@@ -420,17 +589,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
       final token = await MapboxOptions.getAccessToken();
       final service = MapboxDirectionsService(accessToken: token);
 
-      final route = await service.getRoute(
-        fromLongitude: from.longitude,
-        fromLatitude: from.latitude,
-        toLongitude: to.longitude,
-        toLatitude: to.latitude,
-        profile: profile,
-      );
-      service.dispose();
+      final RouteResult? route;
+      try {
+        route = await service.getRoute(
+          fromLongitude: from.longitude,
+          fromLatitude: from.latitude,
+          toLongitude: to.longitude,
+          toLatitude: to.latitude,
+          profile: profile,
+        );
+      } finally {
+        service.dispose();
+      }
 
       if (route == null) {
-        _showMessage(_isSpanish ? 'No se encontró una ruta' : 'No route found');
+        // Mapbox respondió, pero no hay ruta entre los puntos: es la distancia.
+        _showMessage(
+          _isSpanish
+              ? 'No se encontró una ruta por la distancia entre estos puntos.'
+              : 'No route was found because of the distance between these points.',
+        );
         return;
       }
 
@@ -452,7 +630,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _route = route;
         _routeFrom = from;
         _routeTo = to;
+        _routeProfile = profile;
       });
+      _startTracking();
 
       // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
       TripNotice.show(
@@ -463,27 +643,105 @@ class _MapScreenState extends ConsumerState<MapScreen>
       );
     } catch (e) {
       debugPrint('ERROR RUTA: $e');
+      // Fallo de la app o de la conexión con el servicio, no de la distancia.
       _showMessage(
         _isSpanish
-            ? 'No se pudo calcular la ruta'
-            : 'The route could not be calculated',
+            ? 'No se pudo calcular la ruta por un fallo de la aplicación. Inténtalo de nuevo.'
+            : 'The route could not be calculated due to an app error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
     }
   }
 
-  /// Pregunta si la persona anda a pie o en auto y calcula la ruta desde la
-  /// Plaza de Armas con ese medio. Si cierra la pantalla, no pasa nada.
-  Future<void> _chooseTransportAndRoute(MapPlace place) async {
-    final profile = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(
-        fullscreenDialog: true,
-        builder: (_) => const TransportModeScreen(),
-      ),
+  /// Calcula la ruta desde la ubicación actual del usuario hasta [place] con
+  /// el medio elegido en la tarjeta (a pie o en auto). Sin conexión avisa; sin
+  /// ubicación no traza nada.
+  Future<void> _routeToPlace(MapPlace place, MapRouteMode mode) async {
+    if (_routeMode != null || _blockRouteIfOffline()) return;
+
+    setState(() => _routeMode = mode);
+    try {
+      final origin = await _currentUserOrigin();
+      if (origin == null || !mounted) return;
+      await _showRoute(
+        from: origin,
+        to: place,
+        profile: mode == MapRouteMode.walking
+            ? RouteProfile.walking
+            : RouteProfile.driving,
+      );
+    } finally {
+      if (mounted) setState(() => _routeMode = null);
+    }
+  }
+
+  /// Ubicación actual del usuario como origen de la ruta. Devuelve null si
+  /// falta GPS o permiso, o si no se pudo obtener a tiempo: en ese caso no
+  /// se traza ninguna ruta (no se usa la Plaza como respaldo).
+  Future<MapPlace?> _currentUserOrigin() async {
+    if (!await geolocator.Geolocator.isLocationServiceEnabled()) {
+      _showMessage(
+        _isSpanish ? 'Activa el GPS de tu teléfono' : 'Turn on your phone GPS',
+      );
+      return null;
+    }
+
+    var permission = await geolocator.Geolocator.checkPermission();
+    if (permission == geolocator.LocationPermission.denied) {
+      permission = await geolocator.Geolocator.requestPermission();
+    }
+    unawaited(_checkLocation(requestIfNeeded: false));
+    if (permission == geolocator.LocationPermission.denied ||
+        permission == geolocator.LocationPermission.deniedForever) {
+      _showMessage(
+        _isSpanish
+            ? 'Se necesita permiso de ubicación'
+            : 'Location permission is required',
+      );
+      return null;
+    }
+
+    try {
+      final position = await geolocator.Geolocator.getCurrentPosition(
+        locationSettings: const geolocator.LocationSettings(
+          accuracy: geolocator.LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return null;
+      return MapPlace(
+        nameEs: 'Tu ubicación',
+        nameEn: 'Your location',
+        descriptionEs: 'Punto de partida desde tu posición actual.',
+        descriptionEn: 'Starting point from your current position.',
+        icon: Icons.my_location,
+        longitude: position.longitude,
+        latitude: position.latitude,
+      );
+    } catch (e) {
+      debugPrint('ERROR UBICACIÓN: $e');
+      if (mounted) {
+        _showMessage(
+          _isSpanish
+              ? 'No se pudo obtener tu ubicación'
+              : 'Your location could not be determined',
+        );
+      }
+      return null;
+    }
+  }
+
+  /// Sin conexión las rutas no se calculan (las calcula Mapbox en línea):
+  /// se avisa de inmediato, sin esperar ni mostrar un error (FIX-001).
+  bool _blockRouteIfOffline() {
+    if (_online) return false;
+    _showMessage(
+      _isSpanish
+          ? 'Las rutas necesitan conexión a internet. Mientras tanto, puedes ver dónde está el lugar en el mapa.'
+          : 'Routes need an internet connection. Meanwhile, you can see where the place is on the map.',
     );
-    if (profile == null || !mounted) return;
-    await _showRoute(from: _plaza, to: place, profile: profile);
+    return true;
   }
 
   /// Dibuja la línea de la ruta en el mapa.
@@ -513,7 +771,91 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
+  /// Mueve el punto del usuario mientras la ruta está activa y avisa si se
+  /// aleja. No recalcula la ruta: cada cálculo es una solicitud a Mapbox.
+  void _startTracking() {
+    _trackSub?.cancel();
+    _offRoute = false;
+    _trimIndex = 0;
+
+    final map = _mapboxMap;
+    if (map != null) {
+      unawaited(
+        map.location
+            .updateSettings(LocationComponentSettings(enabled: true))
+            .catchError((Object e) => debugPrint('ERROR PUNTO USUARIO: $e')),
+      );
+    }
+
+    _trackSub =
+        geolocator.Geolocator.getPositionStream(
+          locationSettings: geolocator.LocationSettings(
+            accuracy: geolocator.LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen(
+          _onTrackedPosition,
+          onError: (Object e) => debugPrint('ERROR SEGUIMIENTO: $e'),
+        );
+  }
+
+  void _onTrackedPosition(geolocator.Position position) {
+    final route = _route;
+    if (!mounted || route == null) return;
+
+    final meters = distanceToRouteMeters(
+      position.latitude,
+      position.longitude,
+      route.coordinates,
+    );
+    final off = meters > offRouteMeters;
+
+    if (off && !_offRoute) {
+      _offRoute = true;
+      _showMessage(
+        _isSpanish
+            ? 'Te alejaste de la ruta. Vuelve a elegir el lugar para recalcularla.'
+            : 'You left the route. Select the place again to recalculate it.',
+      );
+    } else if (!off) {
+      _offRoute = false;
+    }
+
+    // La línea se borra detrás del usuario: solo avanza, nunca vuelve atrás.
+    final index = nearestRouteIndex(
+      position.latitude,
+      position.longitude,
+      route.coordinates,
+    );
+    if (index > _trimIndex) {
+      _trimIndex = index;
+      unawaited(_redrawFromIndex(route));
+    }
+  }
+
+  /// Vuelve a dibujar la línea solo con el tramo que falta por recorrer.
+  Future<void> _redrawFromIndex(RouteResult route) async {
+    if (_trimBusy || _trimIndex >= route.coordinates.length - 1) return;
+
+    _trimBusy = true;
+    try {
+      await _drawRouteLine(
+        RouteResult(
+          coordinates: route.coordinates.sublist(_trimIndex),
+          distanceMeters: route.distanceMeters,
+          durationSeconds: route.durationSeconds,
+        ),
+      );
+    } finally {
+      _trimBusy = false;
+    }
+  }
+
   Future<void> _clearRoute() async {
+    _trackSub?.cancel();
+    _trackSub = null;
+    _offRoute = false;
+
     final map = _mapboxMap;
     final manager = _routeManager;
 
@@ -546,6 +888,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (permission == geolocator.LocationPermission.denied) {
       permission = await geolocator.Geolocator.requestPermission();
     }
+    unawaited(_checkLocation(requestIfNeeded: false));
     if (permission == geolocator.LocationPermission.denied ||
         permission == geolocator.LocationPermission.deniedForever) {
       _showMessage(
@@ -630,11 +973,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _applyMapLanguage(next.languageCode);
     });
 
-    return Scaffold(
-      body: _gate == _LocationGate.granted
-          ? _buildMapStack()
-          : _buildLocationGate(),
-    );
+    return Scaffold(body: _buildMapStack());
   }
 
   Widget _buildMapStack() {
@@ -651,8 +990,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
             ),
             onMapCreated: _onMapCreated,
             onStyleLoadedListener: _onStyleLoaded,
+            onMapLoadErrorListener: _onMapLoadError,
           ),
         ),
+
+        // Mapa cargando (con conexión): indicador para que no parezca colgado.
+        if (_online && !_styleLoaded && !_mapLoadFailed)
+          const IgnorePointer(
+            child: Center(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: AppTheme.primaryDark,
+                ),
+              ),
+            ),
+          ),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -661,52 +1016,86 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 _buildSearchBar(),
                 const SizedBox(height: 12),
                 _buildQuickLocations(),
+                // Aviso fijo sin conexión, propio del mapa (FIX-002).
+                if (!_online) ...[
+                  const SizedBox(height: 10),
+                  _buildOfflineNotice(),
+                ],
+                // Aviso para activar la ubicación; el mapa funciona sin ella.
+                if (_showLocationNotice) ...[
+                  const SizedBox(height: 10),
+                  _buildLocationNotice(),
+                ],
               ],
             ),
           ),
         ),
 
-        // Tarjeta de información del lugar seleccionado.
-        Positioned(left: 16, right: 76, bottom: 110, child: _buildInfoCard()),
+        // Tarjeta flotante del lugar elegido (marcador o buscador).
+        Positioned(
+          left: 16,
+          right: 76,
+          bottom: 110,
+          child: _buildPreviewCard(),
+        ),
 
         // Controles del mapa.
         Positioned(right: 16, bottom: 110, child: _buildControls()),
+
+        // El mapa no cargó teniendo conexión (FIX-010).
+        if (_online && _mapLoadFailed)
+          Positioned.fill(child: _buildMapErrorCard()),
       ],
     );
   }
 
-  /// Pantalla que reemplaza al mapa mientras no hay permiso de ubicación.
-  Widget _buildLocationGate() {
+  /// Aviso fijo bajo el buscador mientras no hay conexión. El mapa sigue
+  /// usable con lo ya cargado y el GPS, que no necesita internet.
+  Widget _buildOfflineNotice() {
     final es = _isSpanish;
+    final sync = _lastSync;
+    final date = sync == null ? null : _formatSyncDate(sync);
+    final text = es
+        ? (date == null
+              ? 'Sin conexión. Las rutas necesitan internet.'
+              : 'Sin conexión · Datos del $date. Las rutas necesitan internet.')
+        : (date == null
+              ? 'No connection. Routes need internet.'
+              : 'No connection · Data from $date. Routes need internet.');
 
-    if (_gate == _LocationGate.checking) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryDark,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-    final (String text, String action, VoidCallback onAction) = switch (_gate) {
-      _LocationGate.serviceOff => (
-        es
-            ? 'Activa la ubicación de tu teléfono para ver el mapa.'
-            : 'Turn on your phone location to see the map.',
-        es ? 'Activar ubicación' : 'Turn on location',
-        () => geolocator.Geolocator.openLocationSettings(),
-      ),
-      _LocationGate.deniedForever => (
-        es
-            ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes de la aplicación para ver el mapa.'
-            : 'Location permission is blocked. Turn it on in the app settings to see the map.',
-        es ? 'Abrir ajustes' : 'Open settings',
-        () => geolocator.Geolocator.openAppSettings(),
-      ),
-      _ => (
-        es
-            ? 'Activa los permisos de ubicación para ver el mapa.'
-            : 'Turn on location permissions to see the map.',
-        es ? 'Permitir ubicación' : 'Allow location',
-        () => _checkLocation(requestIfNeeded: true),
-      ),
-    };
-
+  /// Tarjeta cuando el mapa no carga teniendo conexión, con «Reintentar».
+  /// El resto de la app (pestañas, fichas) sigue disponible.
+  Widget _buildMapErrorCard() {
+    final es = _isSpanish;
     return ColoredBox(
       color: const Color(0xFFE8EBED),
       child: SafeArea(
@@ -717,42 +1106,118 @@ class _MapScreenState extends ConsumerState<MapScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(
-                  Icons.location_off_rounded,
+                  Icons.map_outlined,
                   size: 56,
                   color: AppTheme.primaryDark,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  es ? 'Ubicación necesaria' : 'Location needed',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  text,
+                  es
+                      ? 'No se pudo cargar el mapa. Revisa tu conexión e inténtalo de nuevo.'
+                      : 'The map could not be loaded. Check your connection and try again.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 15, height: 1.4),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 FilledButton(
-                  onPressed: onAction,
+                  onPressed: _retryMapLoad,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primaryDark,
                   ),
-                  child: Text(action),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => _checkLocation(requestIfNeeded: false),
-                  child: Text(es ? 'Ya la activé' : 'I turned it on'),
+                  child: Text(es ? 'Reintentar' : 'Try again'),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Si hay que avisar que la ubicación no está disponible.
+  bool get _showLocationNotice =>
+      !_locationNoticeDismissed &&
+      _gate != _LocationGate.granted &&
+      _gate != _LocationGate.checking;
+
+  /// Aviso descartable bajo el buscador cuando falta GPS o permiso. No
+  /// bloquea el mapa: se puede explorar sin la ubicación (M-07).
+  Widget _buildLocationNotice() {
+    final es = _isSpanish;
+
+    final (String text, String action, VoidCallback onAction) = switch (_gate) {
+      _LocationGate.serviceOff => (
+        es
+            ? 'La ubicación del teléfono está desactivada. Actívala para ver dónde estás.'
+            : 'Phone location is off. Turn it on to see where you are.',
+        es ? 'Activar' : 'Turn on',
+        () => geolocator.Geolocator.openLocationSettings(),
+      ),
+      _LocationGate.deniedForever => (
+        es
+            ? 'El permiso de ubicación está bloqueado. Actívalo en los ajustes para ver dónde estás.'
+            : 'Location permission is blocked. Turn it on in settings to see where you are.',
+        es ? 'Ajustes' : 'Settings',
+        () => geolocator.Geolocator.openAppSettings(),
+      ),
+      _ => (
+        es
+            ? 'Permite la ubicación para ver dónde estás y trazar rutas desde ti.'
+            : 'Allow location to see where you are and plan routes from you.',
+        es ? 'Permitir' : 'Allow',
+        () => _checkLocation(requestIfNeeded: true),
+      ),
+    };
+
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        padding: const EdgeInsetsDirectional.only(start: 12, top: 4, bottom: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const ExcludeSemantics(
+              child: Icon(
+                Icons.location_off_rounded,
+                size: 20,
+                color: AppTheme.primaryDark,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(fontSize: 13, height: 1.3),
+              ),
+            ),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primaryDark,
+              ),
+              child: Text(
+                action,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            IconButton(
+              tooltip: es ? 'Cerrar aviso' : 'Dismiss',
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              icon: const Icon(Icons.close_rounded, size: 18),
+              onPressed: () => setState(() => _locationNoticeDismissed = true),
+            ),
+          ],
         ),
       ),
     );
@@ -835,7 +1300,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 ? 'Centrar en Coyhaique'
                 : 'Center on Coyhaique',
             icon: const Icon(Icons.center_focus_strong, color: Colors.white),
-            onPressed: () => _goToPlace(_center),
+            onPressed: () => _goToPlace(_center, showPreview: false),
           ),
         ),
       ],
@@ -933,184 +1398,48 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   // ===============================================================
-  // TARJETA DE INFORMACIÓN
+  // TARJETA FLOTANTE DEL LUGAR
   // ===============================================================
 
-  Widget _buildInfoCard() {
-    final place = _selectedPlace;
-    final description = place.description(isSpanish: _isSpanish);
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(place.icon, color: AppTheme.primaryDark, size: 18),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  place.name(isSpanish: _isSpanish),
-                  style: const TextStyle(
-                    color: AppTheme.primaryDark,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              description,
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 12.5,
-                height: 1.3,
-              ),
-            ),
-          ],
-          ..._buildDetailSection(place),
-          ..._buildRouteSection(place),
-          if (!place.verified) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.info_outline, size: 14, color: Colors.orange),
-                const SizedBox(width: 4),
-                Text(
-                  _isSpanish ? 'Ubicación aproximada' : 'Approximate location',
-                  style: const TextStyle(fontSize: 11.5, color: Colors.orange),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ===============================================================
-  // FICHA DEL LUGAR
-  // ===============================================================
-
-  /// «Ver ficha»: solo para lugares que vienen de places_v2 (tienen id) y
-  /// cuando el router conectó la navegación. Los puntos fijos no tienen ficha.
-  List<Widget> _buildDetailSection(MapPlace place) {
-    final onOpenPlace = widget.onOpenPlace;
-    if (place.id == null || onOpenPlace == null) return const [];
-
-    return [
-      const SizedBox(height: 6),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: () => onOpenPlace(place),
-          icon: const Icon(Icons.arrow_forward, size: 16),
-          label: Text(_isSpanish ? 'Ver ficha' : 'View details'),
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const ui.Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-      ),
-    ];
-  }
-
-  // ===============================================================
-  // RUTA EN LA TARJETA
-  // ===============================================================
-
-  List<Widget> _buildRouteSection(MapPlace place) {
+  /// Conecta [MapPlacePreviewCard] con la ficha (`onOpenPlace`, que define el
+  /// router) y con el sistema de rutas de esta pantalla.
+  Widget _buildPreviewCard() {
+    final place = _previewPlace;
     final route = _route;
 
-    // Hay una ruta activa: muestra distancia, tiempo y botón para quitarla.
-    if (route != null) {
-      final from = _routeFrom?.name(isSpanish: _isSpanish) ?? '';
-      final to = _routeTo?.name(isSpanish: _isSpanish) ?? '';
-
-      return [
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Icon(
-              Icons.directions_car_outlined,
-              size: 16,
-              color: AppTheme.primaryDark,
+    return MapPlacePreviewCard(
+      place: place,
+      isSpanish: _isSpanish,
+      online: _online,
+      // La plaza y el centro son el punto de partida: no tienen ruta.
+      canRoute:
+          place != null &&
+          !identical(place, _plaza) &&
+          !identical(place, _center),
+      routingMode: _routeMode,
+      onClose: () => setState(() => _previewPlace = null),
+      onOpenDetail: widget.onOpenPlace,
+      onRoute: (mode) {
+        if (place != null) _routeToPlace(place, mode);
+      },
+      routeSummary: route == null
+          ? null
+          : MapRouteSummary(
+              text:
+                  '${_routeFrom?.name(isSpanish: _isSpanish) ?? ''} → '
+                  '${_routeTo?.name(isSpanish: _isSpanish) ?? ''} · '
+                  '${route.distanceLabel} · ${route.durationLabel}',
+              mode: _routeProfile == RouteProfile.walking
+                  ? MapRouteMode.walking
+                  : MapRouteMode.driving,
+              onClear: _clearRoute,
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '$from → $to · ${route.distanceLabel} · ${route.durationLabel}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryDark,
-                ),
-              ),
-            ),
-          ],
-        ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: _clearRoute,
-            icon: const Icon(Icons.close, size: 16),
-            label: Text(_isSpanish ? 'Quitar ruta' : 'Remove route'),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const ui.Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ),
-      ];
-    }
-
-    // La plaza y el centro son el punto de partida: no tienen ruta.
-    if (identical(place, _plaza) || identical(place, _center)) {
-      return const [];
-    }
-
-    return [
-      const SizedBox(height: 6),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: _loadingRoute
-              ? null
-              : () => _chooseTransportAndRoute(place),
-          icon: _loadingRoute
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.directions, size: 18),
-          label: Text(
-            _isSpanish ? '¿Andas a pie o en auto?' : 'On foot or by car?',
-          ),
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const ui.Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-      ),
-    ];
+    );
   }
+}
+
+/// Fecha de descarga para el aviso sin conexión (dd-mm-aaaa).
+String _formatSyncDate(DateTime d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(d.day)}-${two(d.month)}-${d.year}';
 }
