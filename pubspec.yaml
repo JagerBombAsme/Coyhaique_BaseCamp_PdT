@@ -60,6 +60,9 @@ dependencies:
   # Generación de códigos QR
   qr_flutter: ^4.1.0
 
+  # Animaciones (entradas escalonadas y movimiento de botones)
+  flutter_animate: ^4.5.2
+
   # Fuentes
   google_fonts: ^6.2.1
   mapbox_maps_flutter: ^2.31.1
