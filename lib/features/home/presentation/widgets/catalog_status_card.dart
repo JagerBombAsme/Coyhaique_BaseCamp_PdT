@@ -6,7 +6,7 @@ import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../categories/data/providers/places_provider.dart' as places;
 import '../../../routes/data/providers/activity_provider.dart' as routes;
-import 'home_visual_tokens.dart';
+import '../../../../core/theme/home_visual_tokens.dart';
 
 /// Estado de la información descargada y botón «Descargar ahora»
 /// (HU-09, HU-10; BPMN de descarga y uso sin conexión).
