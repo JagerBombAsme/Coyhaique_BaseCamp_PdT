@@ -317,6 +317,8 @@ class _GuestProfile extends StatelessWidget {
         ),
         _SectionLabel(isSpanish ? 'Preferencias' : 'Preferences'),
         _PreferencesGroup(isSpanish: isSpanish, includeInterests: true),
+        _SectionLabel(isSpanish ? 'Información legal' : 'Legal'),
+        _LegalGroup(isSpanish: isSpanish),
       ],
     );
   }
@@ -428,15 +430,6 @@ class _AccountProfile extends ConsumerWidget {
                   : (isSpanish ? 'Editar perfil' : 'Edit profile'),
               onTap: () => context.push('/profile/edit'),
             ),
-            if (LegalLinks.hasPrivacyPolicy)
-              BcListRow(
-                icon: Icons.privacy_tip_rounded,
-                label: isSpanish ? 'Política de privacidad' : 'Privacy policy',
-                onTap: () => launchUrl(
-                  Uri.parse(LegalLinks.privacyPolicyUrl),
-                  mode: LaunchMode.externalApplication,
-                ),
-              ),
             BcListRow(
               icon: Icons.logout_rounded,
               label: isSpanish ? 'Cerrar sesión' : 'Sign out',
@@ -452,6 +445,8 @@ class _AccountProfile extends ConsumerWidget {
             ),
           ],
         ),
+        _SectionLabel(isSpanish ? 'Información legal' : 'Legal'),
+        _LegalGroup(isSpanish: isSpanish),
       ],
     );
   }
@@ -600,6 +595,72 @@ class _AccountProfile extends ConsumerWidget {
 // PREFERENCIAS (COMÚN)
 // =================================================================
 
+/// Política de privacidad y términos del servicio (HU-19, HU-30).
+///
+/// Visibles siempre, con o sin cuenta. Abren la página publicada en la
+/// landing (--dart-define PRIVACY_POLICY_URL y TERMS_URL); si el build no
+/// trae la URL, avisan que el documento está en preparación.
+class _LegalGroup extends StatelessWidget {
+  const _LegalGroup({required this.isSpanish});
+
+  final bool isSpanish;
+
+  @override
+  Widget build(BuildContext context) {
+    return BcListGroup(
+      children: [
+        BcListRow(
+          icon: Icons.privacy_tip_rounded,
+          label: isSpanish ? 'Política de privacidad' : 'Privacy policy',
+          onTap: () => _open(
+            context,
+            LegalLinks.privacyPolicyUrl,
+            isSpanish
+                ? 'La política de privacidad se publicará en la página de Coyhaique BaseCamp.'
+                : 'The privacy policy will be published on the Coyhaique BaseCamp website.',
+          ),
+        ),
+        BcListRow(
+          icon: Icons.description_rounded,
+          label: isSpanish ? 'Términos del servicio' : 'Terms of service',
+          onTap: () => _open(
+            context,
+            LegalLinks.termsUrl,
+            isSpanish
+                ? 'Los términos del servicio se publicarán en la página de Coyhaique BaseCamp.'
+                : 'The terms of service will be published on the Coyhaique BaseCamp website.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _open(BuildContext context, String url, String pending) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (url.isEmpty) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(pending)));
+      return;
+    }
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'No se pudo abrir el enlace. Revisa tu conexión.'
+                : 'The link could not be opened. Check your connection.',
+          ),
+        ),
+      );
+    }
+  }
+}
+
 class _PreferencesGroup extends ConsumerWidget {
   const _PreferencesGroup({
     required this.isSpanish,
@@ -670,15 +731,6 @@ class _PreferencesGroup extends ConsumerWidget {
           label: isSpanish ? 'Antes de tu viaje' : 'Before your trip',
           onTap: () => context.push(tripInfoRoute),
         ),
-        if (includeInterests && LegalLinks.hasPrivacyPolicy)
-          BcListRow(
-            icon: Icons.privacy_tip_rounded,
-            label: isSpanish ? 'Política de privacidad' : 'Privacy policy',
-            onTap: () => launchUrl(
-              Uri.parse(LegalLinks.privacyPolicyUrl),
-              mode: LaunchMode.externalApplication,
-            ),
-          ),
       ],
     );
   }

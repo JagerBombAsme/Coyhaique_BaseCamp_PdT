@@ -57,7 +57,10 @@ class ProfileRepository {
       throw StateError('El perfil no corresponde al usuario autenticado.');
     }
 
-    await _client.from('profiles').update(profile.toJson()).eq('id', userId);
+    await _client
+        .from('profiles')
+        .update(profile.toWriteJson())
+        .eq('id', userId);
 
     _cachedProfile = profile;
   }
@@ -65,8 +68,8 @@ class ProfileRepository {
   // ================================================================
   // CREAR O ACTUALIZAR PERFIL
   //
-  // Lo utilizaremos posteriormente cuando construyamos
-  // "Personaliza tu perfil".
+  // Crea la fila si la cuenta aún no tiene perfil y la actualiza si ya
+  // existe (H-04). Solo envía las columnas que el usuario puede escribir.
   // ================================================================
 
   Future<void> upsertProfile({
@@ -77,7 +80,9 @@ class ProfileRepository {
       throw StateError('El perfil no corresponde al usuario autenticado.');
     }
 
-    await _client.from('profiles').upsert(profile.toJson(), onConflict: 'id');
+    await _client
+        .from('profiles')
+        .upsert(profile.toWriteJson(), onConflict: 'id');
 
     _cachedProfile = profile;
   }
