@@ -54,18 +54,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _isLoggingOut = true;
     });
 
+    // Se toman antes del await: al cerrar sesión esta vista se desmonta y
+    // ya no se pueden usar context ni ref (H-08).
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final auth = ref.read(authControllerProvider.notifier);
+
     try {
-      await ref.read(authControllerProvider.notifier).signOut();
-
-      ref.invalidate(profileProvider);
-
-      if (!context.mounted) return;
-
-      context.go('/auth-gateway');
-    } catch (_) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
+      await auth.signOut();
+      // profileProvider se recalcula solo al cambiar la sesión.
+      router.go('/auth-gateway');
+    } catch (error) {
+      debugPrint('ERROR cerrar sesión: $error');
+      messenger.showSnackBar(
         _snackBar(
           isSpanish ? 'No fue posible cerrar la sesión.' : 'Unable to log out.',
         ),
@@ -1024,7 +1025,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               : 'Profile updated successfully.',
         ),
       );
-    } catch (_) {
+    } catch (error) {
+      debugPrint('ERROR guardar perfil: $error');
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
