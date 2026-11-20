@@ -592,6 +592,9 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
                               fit: BoxFit.cover,
 
+                              // Miniatura de 140 px: se decodifica a ~420 px.
+                              memCacheWidth: 420,
+
                               placeholder: (context, url) {
                                 return Container(
                                   width: 140,
@@ -691,6 +694,8 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     return CachedNetworkImage(
       imageUrl: imageUrl!,
       fit: BoxFit.cover,
+      // Foto de portada: nunca se decodifica a más de 1080 px de ancho.
+      memCacheWidth: 1080,
       placeholder: (context, url) =>
           const BcLogoPlaceholder(showProgress: true),
       errorWidget: (context, url, error) => const BcLogoPlaceholder(),
