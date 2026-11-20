@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
@@ -10,12 +12,17 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../categories/data/models/place_dto.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../../domain/route_step.dart';
 import '../../domain/route_tracking.dart';
 import '../map_places.dart';
+import '../widgets/destination_pin.dart';
 import '../widgets/map_place_preview_card.dart';
+import '../widgets/map_route_panel.dart';
+import '../widgets/route_maneuver.dart';
 import 'mapbox_directions_services.dart';
 
 // ===============================================================
@@ -99,6 +106,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   MapboxMap? _mapboxMap;
   CircleAnnotationManager? _markerManager;
+
+  /// Pin del destino (modo ruta) y su imagen, que se dibuja una sola vez.
+  PointAnnotationManager? _pinManager;
+  Uint8List? _pinImage;
   final Map<String, MapPlace> _placeByAnnotationId = {};
 
   /// Evita dos redibujos de marcadores a la vez (estilo y datos pueden
@@ -126,6 +137,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   MapPlace? _routeFrom;
   MapPlace? _routeTo;
 
+  /// La ruta parte de la ubicación del usuario (se puede recalcular).
+  bool _routeFromUser = false;
+
   /// Posición en vivo mientras hay una ruta (solo mueve el punto, no recalcula).
   StreamSubscription<geolocator.Position>? _trackSub;
 
@@ -134,6 +148,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   /// Punto de la ruta donde está el usuario. Lo que queda atrás se borra.
   int _trimIndex = 0;
+
+  /// El usuario llegó al destino (a menos de [arrivalMeters]).
+  bool _arrived = false;
+
+  /// La cámara sigue al usuario con el mapa girado según su rumbo (modo
+  /// navegación). Se apaga al mover el mapa con el dedo.
+  bool _followUser = false;
+  Timer? _followTimer;
 
   /// Evita dos redibujos de la línea a la vez.
   bool _trimBusy = false;
@@ -385,6 +407,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _trackSub?.cancel();
+    _followTimer?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -488,19 +511,58 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
     _placeByAnnotationId.clear();
 
+    final oldPin = _pinManager;
+    if (oldPin != null) {
+      await map.annotations.removeAnnotationManager(oldPin);
+      _pinManager = null;
+    }
+
+    // Modo ruta: solo el pin del destino, con forma propia para que no se
+    // confunda con el punto azul de la ubicación del usuario.
+    final target = _routeTo;
+    if (target != null) {
+      try {
+        final pins = await map.annotations.createPointAnnotationManager();
+        _pinManager = pins;
+        final image = _pinImage ??= await buildDestinationPinPng();
+        await pins.create(
+          PointAnnotationOptions(
+            geometry: Point(
+              coordinates: Position(target.longitude, target.latitude),
+            ),
+            image: image,
+            iconAnchor: IconAnchor.BOTTOM,
+            iconSize: 1.0,
+          ),
+        );
+        return;
+      } catch (e) {
+        // Sin pin se dibuja el círculo grande de respaldo (abajo).
+        debugPrint('ERROR PIN DESTINO: $e');
+      }
+    }
+
     final manager = await map.annotations.createCircleAnnotationManager();
     _markerManager = manager;
 
-    for (final place in _places.where((p) => p.verified)) {
+    // Con una ruta activa solo se ve el destino (modo ruta).
+    final destination = _routeTo;
+    final visible = destination != null
+        ? [destination]
+        : _places.where((p) => p.verified).toList();
+
+    for (final place in visible) {
+      final isDestination = destination != null;
       final annotation = await manager.create(
         CircleAnnotationOptions(
           geometry: Point(
             coordinates: Position(place.longitude, place.latitude),
           ),
-          circleRadius: 9,
-          circleColor: AppTheme.primaryDark.toARGB32(),
+          circleRadius: isDestination ? 13 : 9,
+          circleColor: (isDestination ? BcColors.glacierDeep : AppTheme.primaryDark)
+              .toARGB32(),
           circleStrokeColor: Colors.white.toARGB32(),
-          circleStrokeWidth: 3,
+          circleStrokeWidth: isDestination ? 4 : 3,
         ),
       );
       _placeByAnnotationId[annotation.id] = place;
@@ -510,6 +572,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
     // «Ver ficha» cuando el lugar viene de places_v2.
     manager.tapEvents(
       onTap: (annotation) {
+        // En modo ruta los marcadores no abren otras fichas.
+        if (_route != null) return;
         final place = _placeByAnnotationId[annotation.id];
         if (place != null) _goToPlace(place);
       },
@@ -577,6 +641,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     required MapPlace from,
     required MapPlace to,
     String profile = RouteProfile.walking,
+    bool fromUser = false,
   }) async {
     final map = _mapboxMap;
     if (map == null || _loadingRoute) return;
@@ -615,24 +680,37 @@ class _MapScreenState extends ConsumerState<MapScreen>
       await _drawRouteLine(route);
 
       // Encuadra la ruta completa en pantalla.
-      final camera = await map.cameraForCoordinates(
-        route.coordinates
-            .map((c) => Point(coordinates: Position(c[0], c[1])))
-            .toList(),
-        MbxEdgeInsets(top: 180, left: 40, bottom: 280, right: 90),
-        null,
-        null,
-      );
-      await map.flyTo(camera, MapAnimationOptions(duration: 1200));
+      await _frameRoute(route: route, duration: 1200);
 
       if (!mounted) return;
+      _searchFocus.unfocus();
+      // Solo la ruta que parte del usuario lo sigue: una ruta de referencia
+      // (aeropuerto → plaza) no debe recortarse ni avisar que se alejó.
+      if (fromUser) {
+        _startTracking();
+      } else {
+        _stopTracking();
+      }
       setState(() {
         _route = route;
         _routeFrom = from;
         _routeTo = to;
         _routeProfile = profile;
+        _routeFromUser = fromUser;
+        _previewPlace = null;
+        _followUser = false;
       });
-      _startTracking();
+      // Modo ruta: solo queda el marcador del destino.
+      unawaited(_redrawMarkers());
+
+      // Se muestra la ruta completa un momento y luego la cámara pasa a
+      // seguir al usuario (solo si la ruta parte de su ubicación).
+      _followTimer?.cancel();
+      if (fromUser) {
+        _followTimer = Timer(const Duration(milliseconds: 2800), () {
+          if (mounted && _route != null) unawaited(_startFollowing());
+        });
+      }
 
       // Aviso de uso seguro cada vez que se genera una ruta (RNF-14).
       TripNotice.show(
@@ -667,6 +745,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       await _showRoute(
         from: origin,
         to: place,
+        fromUser: true,
         profile: mode == MapRouteMode.walking
             ? RouteProfile.walking
             : RouteProfile.driving,
@@ -771,12 +850,122 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
+  /// Apaga el seguimiento de la cámara (sin redibujar: lo hace quien llama).
+  void _stopFollowing() {
+    _followTimer?.cancel();
+    _followTimer = null;
+    _followUser = false;
+  }
+
+  /// El usuario movió el mapa con el dedo: se deja de seguirlo.
+  void _onUserMovedMap() {
+    if (!_followUser || !mounted) return;
+    setState(() => _followUser = false);
+  }
+
+  /// Activa la cámara de navegación: centrada en el usuario, inclinada y
+  /// girada hacia donde avanza. Las siguientes posiciones la mantienen.
+  Future<void> _startFollowing() async {
+    if (_mapboxMap == null || _route == null || !_routeFromUser) return;
+    setState(() => _followUser = true);
+
+    try {
+      final position = await geolocator.Geolocator.getCurrentPosition(
+        locationSettings: const geolocator.LocationSettings(
+          accuracy: geolocator.LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      if (!mounted || !_followUser) return;
+      await _moveFollowCamera(
+        lat: position.latitude,
+        lng: position.longitude,
+        heading: position.heading,
+        speed: position.speed,
+        initial: true,
+      );
+    } catch (e) {
+      debugPrint('ERROR CÁMARA DE SEGUIMIENTO: $e');
+    }
+  }
+
+  /// Centra la cámara en el usuario y la gira hacia su rumbo. En movimiento
+  /// usa el rumbo del GPS; parado, el de la ruta, para que el giro que se
+  /// muestra coincida con lo que se ve. Zoom e inclinación solo se fijan al
+  /// empezar: después el usuario puede acercar o alejar a su gusto.
+  Future<void> _moveFollowCamera({
+    required double lat,
+    required double lng,
+    double? heading,
+    double? speed,
+    bool initial = false,
+    bool onRoute = true,
+  }) async {
+    final map = _mapboxMap;
+    final route = _route;
+    if (map == null || route == null) return;
+
+    final moving =
+        speed != null && speed >= 1.5 && heading != null && heading >= 0;
+    final double? bearing = moving
+        ? heading
+        : (onRoute ? routeBearingAt(route.coordinates, _trimIndex) : null);
+    final walking = _routeProfile == RouteProfile.walking;
+
+    await map.easeTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        bearing: bearing,
+        zoom: initial ? (walking ? 18.0 : 17.0) : null,
+        pitch: initial ? (walking ? 45.0 : 50.0) : null,
+      ),
+      MapAnimationOptions(duration: initial ? 1000 : 700),
+    );
+  }
+
+  /// Deja de seguir al usuario y reinicia el avance de la ruta.
+  void _stopTracking() {
+    _trackSub?.cancel();
+    _trackSub = null;
+    _offRoute = false;
+    _arrived = false;
+    _trimIndex = 0;
+  }
+
+  /// Encuadra la ruta en el espacio libre entre la barra superior y el panel.
+  /// Sin [route] usa la ruta activa y solo el tramo que falta por recorrer.
+  Future<void> _frameRoute({RouteResult? route, int duration = 800}) async {
+    final map = _mapboxMap;
+    final active = route ?? _route;
+    if (map == null || active == null) return;
+    // Pedir la ruta completa a mano apaga el seguimiento.
+    if (route == null) _stopFollowing();
+
+    var coordinates = active.coordinates;
+    if (route == null && _trimIndex < coordinates.length - 1) {
+      coordinates = coordinates.sublist(_trimIndex);
+    }
+
+    final camera = await map.cameraForCoordinates(
+      coordinates.map((c) => Point(coordinates: Position(c[0], c[1]))).toList(),
+      MbxEdgeInsets(
+        // Más espacio arriba cuando la barra muestra la próxima maniobra.
+        top: active.steps.isEmpty ? 150 : 230,
+        left: 40,
+        bottom: 330,
+        right: 40,
+      ),
+      // Vista general siempre con el norte arriba y sin inclinación.
+      0,
+      0,
+    );
+    await map.flyTo(camera, MapAnimationOptions(duration: duration));
+  }
+
   /// Mueve el punto del usuario mientras la ruta está activa y avisa si se
   /// aleja. No recalcula la ruta: cada cálculo es una solicitud a Mapbox.
   void _startTracking() {
-    _trackSub?.cancel();
-    _offRoute = false;
-    _trimIndex = 0;
+    _stopTracking();
 
     final map = _mapboxMap;
     if (map != null) {
@@ -810,15 +999,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
     final off = meters > offRouteMeters;
 
-    if (off && !_offRoute) {
-      _offRoute = true;
-      _showMessage(
-        _isSpanish
-            ? 'Te alejaste de la ruta. Vuelve a elegir el lugar para recalcularla.'
-            : 'You left the route. Select the place again to recalculate it.',
+    // El aviso y el botón «Recalcular» viven en el panel de la ruta.
+    if (off != _offRoute) {
+      setState(() => _offRoute = off);
+      if (off) unawaited(HapticFeedback.mediumImpact());
+    }
+
+    // Llegada: se mide contra el destino, no contra el último punto de la ruta.
+    final destination = _routeTo;
+    if (destination != null && !_arrived) {
+      final toDestination = distanceToRouteMeters(
+        position.latitude,
+        position.longitude,
+        [
+          [destination.longitude, destination.latitude],
+        ],
       );
-    } else if (!off) {
-      _offRoute = false;
+      if (toDestination <= arrivalMeters) {
+        setState(() => _arrived = true);
+        unawaited(HapticFeedback.mediumImpact());
+      }
     }
 
     // La línea se borra detrás del usuario: solo avanza, nunca vuelve atrás.
@@ -828,8 +1028,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
       route.coordinates,
     );
     if (index > _trimIndex) {
-      _trimIndex = index;
+      setState(() => _trimIndex = index);
       unawaited(_redrawFromIndex(route));
+    }
+
+    if (_followUser) {
+      unawaited(
+        _moveFollowCamera(
+          lat: position.latitude,
+          lng: position.longitude,
+          heading: position.heading,
+          speed: position.speed,
+          onRoute: !off,
+        ),
+      );
     }
   }
 
@@ -852,9 +1064,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   Future<void> _clearRoute() async {
-    _trackSub?.cancel();
-    _trackSub = null;
-    _offRoute = false;
+    _stopTracking();
+    _stopFollowing();
 
     final map = _mapboxMap;
     final manager = _routeManager;
@@ -867,9 +1078,34 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (!mounted) return;
     setState(() {
       _route = null;
+      // Al terminar la ruta se vuelve a la tarjeta del lugar de destino.
+      _previewPlace = _routeTo;
       _routeFrom = null;
       _routeTo = null;
+      _routeFromUser = false;
     });
+    // Termina el modo ruta: vuelven todos los marcadores y el mapa se
+    // endereza (norte arriba, sin inclinación).
+    unawaited(_redrawMarkers());
+    unawaited(
+      _mapboxMap?.easeTo(
+        CameraOptions(bearing: 0, pitch: 0),
+        MapAnimationOptions(duration: 600),
+      ),
+    );
+  }
+
+  /// Vuelve a calcular la ruta desde la ubicación actual hasta el mismo
+  /// destino y con el mismo medio (cuando el usuario se alejó).
+  Future<void> _recalculateRoute() async {
+    final to = _routeTo;
+    if (to == null || !_routeFromUser) return;
+    await _routeToPlace(
+      to,
+      _routeProfile == RouteProfile.walking
+          ? MapRouteMode.walking
+          : MapRouteMode.driving,
+    );
   }
 
   /// Ubicación real del usuario (GPS).
@@ -973,7 +1209,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _applyMapLanguage(next.languageCode);
     });
 
-    return Scaffold(body: _buildMapStack());
+    // Con una ruta activa, «atrás» termina la ruta en vez de salir de la app.
+    return PopScope(
+      canPop: _route == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_clearRoute());
+      },
+      child: Scaffold(body: _buildMapStack()),
+    );
   }
 
   Widget _buildMapStack() {
@@ -991,6 +1234,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             onMapCreated: _onMapCreated,
             onStyleLoadedListener: _onStyleLoaded,
             onMapLoadErrorListener: _onMapLoadError,
+            onScrollListener: (_) => _onUserMovedMap(),
           ),
         ),
 
@@ -1013,16 +1257,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               children: [
-                _buildSearchBar(),
-                const SizedBox(height: 12),
-                _buildQuickLocations(),
+                // Modo ruta: sin buscador ni lugares rápidos, solo el destino.
+                if (_route != null)
+                  MapRouteEntrance(fromTop: true, child: _buildRouteHeader())
+                else ...[
+                  _buildSearchBar(),
+                  const SizedBox(height: 12),
+                  _buildQuickLocations(),
+                ],
                 // Aviso fijo sin conexión, propio del mapa (FIX-002).
                 if (!_online) ...[
                   const SizedBox(height: 10),
                   _buildOfflineNotice(),
                 ],
                 // Aviso para activar la ubicación; el mapa funciona sin ella.
-                if (_showLocationNotice) ...[
+                if (_showLocationNotice && _route == null) ...[
                   const SizedBox(height: 10),
                   _buildLocationNotice(),
                 ],
@@ -1031,16 +1280,39 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ),
         ),
 
-        // Tarjeta flotante del lugar elegido (marcador o buscador).
-        Positioned(
-          left: 16,
-          right: 76,
-          bottom: 110,
-          child: _buildPreviewCard(),
-        ),
+        if (_route != null)
+          // Modo ruta: controles en fila sobre el panel, ambos a todo el ancho.
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 110,
+            child: MapRouteEntrance(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildControls(horizontal: true),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildRoutePanel(),
+                ],
+              ),
+            ),
+          )
+        else ...[
+          // Tarjeta flotante del lugar elegido (marcador o buscador).
+          Positioned(
+            left: 16,
+            right: 76,
+            bottom: 110,
+            child: _buildPreviewCard(),
+          ),
 
-        // Controles del mapa.
-        Positioned(right: 16, bottom: 110, child: _buildControls()),
+          // Controles del mapa.
+          Positioned(right: 16, bottom: 110, child: _buildControls()),
+        ],
 
         // El mapa no cargó teniendo conexión (FIX-010).
         if (_online && _mapLoadFailed)
@@ -1227,8 +1499,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // CONTROLES (zoom, estilo, GPS, centrar)
   // ===============================================================
 
-  Widget _buildControls() {
-    return Column(
+  Widget _buildControls({bool horizontal = false}) {
+    // En una ruta propia el botón de ubicación activa la cámara de navegación.
+    final followRoute = _route != null && _routeFromUser;
+    return Flex(
+      direction: horizontal ? Axis.horizontal : Axis.vertical,
       mainAxisSize: MainAxisSize.min,
       children: [
         _circleButton(
@@ -1238,7 +1513,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             onPressed: () => _zoomBy(1),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(width: 8, height: 8),
         _circleButton(
           child: IconButton(
             tooltip: _isSpanish ? 'Alejar' : 'Zoom out',
@@ -1246,7 +1521,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
             onPressed: () => _zoomBy(-1),
           ),
         ),
-        const SizedBox(height: 8),
+        if (_route == null) ...[
+        const SizedBox(width: 8, height: 8),
         _circleButton(
           child: PopupMenuButton<MapStyleOption>(
             tooltip: _isSpanish ? 'Estilo del mapa' : 'Map style',
@@ -1284,25 +1560,47 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 .toList(),
           ),
         ),
-        const SizedBox(height: 8),
+        ],
+        const SizedBox(width: 8, height: 8),
         _circleButton(
+          filled: _followUser,
           child: IconButton(
-            tooltip: _isSpanish ? 'Mi ubicación' : 'My location',
-            icon: const Icon(Icons.my_location, color: AppTheme.primaryDark),
-            onPressed: _goToMyLocation,
+            tooltip: followRoute
+                ? (_isSpanish ? 'Seguir mi ubicación' : 'Follow my location')
+                : (_isSpanish ? 'Mi ubicación' : 'My location'),
+            icon: Icon(
+              followRoute ? Icons.navigation_rounded : Icons.my_location,
+              color: _followUser ? Colors.white : AppTheme.primaryDark,
+            ),
+            onPressed: followRoute
+                ? () => unawaited(_startFollowing())
+                : _goToMyLocation,
           ),
         ),
-        const SizedBox(height: 8),
-        _circleButton(
-          filled: true,
-          child: IconButton(
-            tooltip: _isSpanish
-                ? 'Centrar en Coyhaique'
-                : 'Center on Coyhaique',
-            icon: const Icon(Icons.center_focus_strong, color: Colors.white),
-            onPressed: () => _goToPlace(_center, showPreview: false),
+        if (_route != null) ...[
+          const SizedBox(width: 8, height: 8),
+          _circleButton(
+            filled: true,
+            child: IconButton(
+              tooltip: _isSpanish ? 'Ver toda la ruta' : 'Show full route',
+              icon: const Icon(Icons.route_rounded, color: Colors.white),
+              onPressed: () => unawaited(_frameRoute()),
+            ),
           ),
-        ),
+        ],
+        if (_route == null) ...[
+          const SizedBox(width: 8, height: 8),
+          _circleButton(
+            filled: true,
+            child: IconButton(
+              tooltip: _isSpanish
+                  ? 'Centrar en Coyhaique'
+                  : 'Center on Coyhaique',
+              icon: const Icon(Icons.center_focus_strong, color: Colors.white),
+              onPressed: () => _goToPlace(_center, showPreview: false),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1394,6 +1692,72 @@ class _MapScreenState extends ConsumerState<MapScreen>
           );
         }).toList(),
       ),
+    );
+  }
+
+  // ===============================================================
+  // MODO RUTA (barra superior y panel inferior)
+  // ===============================================================
+
+  MapRouteMode get _activeMode => _routeProfile == RouteProfile.walking
+      ? MapRouteMode.walking
+      : MapRouteMode.driving;
+
+  Widget _buildRouteHeader() {
+    return MapRouteHeader(
+      destination: _routeTo?.name(isSpanish: _isSpanish) ?? '',
+      mode: _activeMode,
+      isSpanish: _isSpanish,
+      origin: _routeFromUser ? null : _routeFrom?.name(isSpanish: _isSpanish),
+      maneuver: _currentManeuver(),
+    );
+  }
+
+  /// Próximo giro según el avance del usuario. Solo con seguimiento, en la
+  /// ruta y antes de llegar: fuera de ruta las indicaciones ya no sirven.
+  MapManeuver? _currentManeuver() {
+    final route = _route;
+    if (route == null || !_routeFromUser || _arrived || _offRoute) return null;
+
+    final step = nextManeuverStep(route.steps, _trimIndex);
+    if (step == null) return null;
+
+    return MapManeuver.fromStep(
+      step: step,
+      meters: routeLengthMeters(route.coordinates, _trimIndex, step.coordIndex),
+      isSpanish: _isSpanish,
+    );
+  }
+
+  Widget _buildRoutePanel() {
+    final route = _route;
+    final destination = _routeTo;
+    if (route == null || destination == null) return const SizedBox.shrink();
+
+    // Lo que falta por recorrer, estimado según el avance del usuario.
+    final fraction = remainingRouteFraction(route.coordinates, _trimIndex);
+    final remaining = RouteResult(
+      coordinates: const [],
+      distanceMeters: route.distanceMeters * fraction,
+      durationSeconds: route.durationSeconds * fraction,
+    );
+
+    final openDetail = widget.onOpenPlace;
+    return MapRoutePanel(
+      destination: destination.name(isSpanish: _isSpanish),
+      mode: _activeMode,
+      isSpanish: _isSpanish,
+      durationLabel: remaining.durationLabel,
+      distanceLabel: remaining.distanceLabel,
+      tracking: _routeFromUser,
+      offRoute: _offRoute,
+      arrived: _arrived,
+      recalculating: _loadingRoute || _routeMode != null,
+      onEnd: _clearRoute,
+      onRecalculate: _routeFromUser ? _recalculateRoute : null,
+      onOpenDetail: destination.id != null && openDetail != null
+          ? () => openDetail(destination)
+          : null,
     );
   }
 

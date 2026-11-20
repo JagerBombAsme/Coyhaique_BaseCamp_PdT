@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../domain/route_step.dart';
+
 /// Resultado de una ruta calculada por Mapbox.
 class RouteResult {
   /// Puntos de la ruta en formato [longitud, latitud].
@@ -9,10 +11,14 @@ class RouteResult {
   final double distanceMeters;
   final double durationSeconds;
 
+  /// Maniobras de la ruta (giros, rotondas, llegada). Vacío si no se pidieron.
+  final List<RouteStep> steps;
+
   const RouteResult({
     required this.coordinates,
     required this.distanceMeters,
     required this.durationSeconds,
+    this.steps = const [],
   });
 
   String get distanceLabel {
@@ -63,6 +69,7 @@ class MapboxDirectionsService {
       {
         'geometries': 'geojson', // la línea llega como lista de coordenadas
         'overview': 'full', // geometría completa (no simplificada)
+        'steps': 'true', // maniobras: giros, rotondas y llegada
         'access_token': accessToken,
       },
     );
@@ -105,7 +112,45 @@ class MapboxDirectionsService {
       coordinates: coordinates,
       distanceMeters: (best['distance'] as num).toDouble(),
       durationSeconds: (best['duration'] as num).toDouble(),
+      steps: _parseSteps(best['legs'], coordinates),
     );
+  }
+
+  /// Convierte las maniobras de Mapbox y las ubica sobre la línea, en orden.
+  /// Una maniobra mal formada se omite: no debe impedir mostrar la ruta.
+  List<RouteStep> _parseSteps(Object? legs, List<List<double>> coordinates) {
+    final steps = <RouteStep>[];
+    if (legs is! List<dynamic>) return steps;
+
+    var searchFrom = 0;
+    for (final leg in legs) {
+      final rawSteps = leg is Map<String, dynamic> ? leg['steps'] : null;
+      if (rawSteps is! List<dynamic>) continue;
+
+      for (final raw in rawSteps) {
+        final maneuver = raw is Map<String, dynamic> ? raw['maneuver'] : null;
+        if (maneuver is! Map<String, dynamic>) continue;
+        final location = maneuver['location'];
+        if (location is! List<dynamic> || location.length < 2) continue;
+
+        final index = routeIndexOf(
+          coordinates,
+          (location[0] as num).toDouble(),
+          (location[1] as num).toDouble(),
+          start: searchFrom,
+        );
+        searchFrom = index;
+        steps.add(
+          RouteStep(
+            type: maneuver['type'] as String? ?? '',
+            modifier: maneuver['modifier'] as String?,
+            name: (raw as Map<String, dynamic>)['name'] as String? ?? '',
+            coordIndex: index,
+          ),
+        );
+      }
+    }
+    return steps;
   }
 
   void dispose() => _client.close();
