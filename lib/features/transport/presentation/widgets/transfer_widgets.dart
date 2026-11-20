@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
+import '../../data/providers/airport_zone_provider.dart';
+import '../../domain/airport_zone.dart';
 
 /// Rutas del flujo de transfer (HU-18).
 const String transfersRoute = '/transport/transfers';
 const String transferCodeRoute = '/transport/transfer-code';
+
+/// Misma lista de transfers, con el aviso de que el viaje es hacia el
+/// aeropuerto.
+const String transfersToAirportRoute = '$transfersRoute?sentido=aeropuerto';
 String transferRequestRoute(String serviceId) =>
     '$transfersRoute/$serviceId';
+
+/// Sentido del traslado que ofrece la tarjeta.
+enum TransferDirection { fromAirport, toAirport }
 
 /// Acceso al flujo desde la categoría Transporte.
 class TransferEntryCard extends StatelessWidget {
@@ -15,23 +26,98 @@ class TransferEntryCard extends StatelessWidget {
     super.key,
     required this.isSpanish,
     required this.onTap,
+    this.direction = TransferDirection.fromAirport,
   });
 
   final bool isSpanish;
   final VoidCallback onTap;
+  final TransferDirection direction;
 
   @override
   Widget build(BuildContext context) {
+    final toAirport = direction == TransferDirection.toAirport;
+
     return BcInfoTile(
       icon: Icons.airport_shuttle_rounded,
       dark: true,
-      title: isSpanish
-          ? 'Transfer desde el aeropuerto'
-          : 'Airport transfer',
-      subtitle: isSpanish
-          ? 'Prepara tu traslado y muéstrale un código al conductor'
-          : 'Set up your ride and show the driver a code',
+      title: toAirport
+          ? (isSpanish
+                ? '¿Necesitas transfer para el aeropuerto?'
+                : 'Need a transfer to the airport?')
+          : (isSpanish ? 'Transfer desde el aeropuerto' : 'Airport transfer'),
+      subtitle: toAirport
+          ? (isSpanish
+                ? 'Coordina tu traslado con un prestador'
+                : 'Arrange your ride with a provider')
+          : (isSpanish
+                ? 'Prepara tu traslado y muéstrale un código al conductor'
+                : 'Set up your ride and show the driver a code'),
       onTap: onTap,
+    );
+  }
+}
+
+/// Tarjeta del inicio según dónde está el usuario: «desde el aeropuerto»
+/// a menos de 5 km del aeropuerto, «para el aeropuerto» en la ciudad y
+/// oculta en cualquier otro caso (también sin ubicación). Se vuelve a
+/// calcular al volver a la app, para que cambie si el usuario se mueve.
+class LocationAwareTransferEntry extends ConsumerStatefulWidget {
+  const LocationAwareTransferEntry({super.key, required this.isSpanish});
+
+  final bool isSpanish;
+
+  @override
+  ConsumerState<LocationAwareTransferEntry> createState() =>
+      _LocationAwareTransferEntryState();
+}
+
+class _LocationAwareTransferEntryState
+    extends ConsumerState<LocationAwareTransferEntry>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(airportZoneProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final zone = ref.watch(airportZoneProvider).valueOrNull;
+    final direction = switch (zone) {
+      AirportZone.atAirport => TransferDirection.fromAirport,
+      AirportZone.inCity => TransferDirection.toAirport,
+      AirportZone.elsewhere || null => null,
+    };
+
+    return AnimatedSwitcher(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
+      child: direction == null
+          ? const SizedBox.shrink(key: ValueKey('sin-transfer'))
+          : TransferEntryCard(
+              key: ValueKey(direction),
+              isSpanish: widget.isSpanish,
+              direction: direction,
+              onTap: () => context.push(
+                direction == TransferDirection.toAirport
+                    ? transfersToAirportRoute
+                    : transfersRoute,
+              ),
+            ),
     );
   }
 }
