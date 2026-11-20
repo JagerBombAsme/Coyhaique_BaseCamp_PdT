@@ -106,12 +106,17 @@ abstract final class BcSpace {
 /// Estilos de texto. Display: Inter 900 en MAYÚSCULAS (el texto se pasa ya
 /// en mayúsculas con `.toUpperCase()`).
 abstract final class BcText {
+  /// Los tamaños que se piden a [display] se multiplican por este factor,
+  /// para que los títulos grandes no ocupen media pantalla.
+  static const double displayScale = 0.8;
+
   static TextStyle display(double size, {Color color = BcColors.ink}) {
+    final scaled = size * displayScale;
     return GoogleFonts.inter(
-      fontSize: size,
+      fontSize: scaled,
       height: 0.9,
       fontWeight: FontWeight.w900,
-      letterSpacing: size * -0.04,
+      letterSpacing: scaled * -0.04,
       color: color,
     );
   }
