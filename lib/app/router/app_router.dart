@@ -406,7 +406,9 @@ GoRouter _createRouter() {
       // =============================================================
       GoRoute(
         path: transfersRoute,
-        builder: (context, state) => const TransfersScreen(),
+        builder: (context, state) => TransfersScreen(
+          toAirport: state.uri.queryParameters['sentido'] == 'aeropuerto',
+        ),
       ),
 
       GoRoute(
