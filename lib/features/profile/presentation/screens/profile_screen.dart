@@ -55,7 +55,9 @@ class ProfileScreen extends ConsumerWidget {
           data: (user) {
             if (user == null) return _GuestProfile(isSpanish: isSpanish);
 
-            return ref.watch(profileProvider).when(
+            return ref
+                .watch(profileProvider)
+                .when(
                   loading: () => const _Loading(),
                   error: (_, _) => _ErrorView(
                     isSpanish: isSpanish,
@@ -234,7 +236,10 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
-      child: Text(text.toUpperCase(), style: BcText.label(color: BcColors.muted)),
+      child: Text(
+        text.toUpperCase(),
+        style: BcText.label(color: BcColors.muted),
+      ),
     );
   }
 }
@@ -401,8 +406,8 @@ class _AccountProfile extends ConsumerWidget {
                   subtitle: interests.isEmpty
                       ? (isSpanish ? 'Sin elegir' : 'None selected')
                       : isSpanish
-                          ? '${interests.length} ${interests.length == 1 ? 'categoría' : 'categorías'}'
-                          : '${interests.length} ${interests.length == 1 ? 'category' : 'categories'}',
+                      ? '${interests.length} ${interests.length == 1 ? 'categoría' : 'categorías'}'
+                      : '${interests.length} ${interests.length == 1 ? 'category' : 'categories'}',
                   onTap: () => context.push(interestsRoute),
                 ),
               ),
@@ -411,7 +416,9 @@ class _AccountProfile extends ConsumerWidget {
         ),
         _SectionLabel(isSpanish ? 'Preferencias' : 'Preferences'),
         _PreferencesGroup(isSpanish: isSpanish, includeInterests: false),
-        _SectionLabel(isSpanish ? 'Cuenta y privacidad' : 'Account and privacy'),
+        _SectionLabel(
+          isSpanish ? 'Cuenta y privacidad' : 'Account and privacy',
+        ),
         BcListGroup(
           children: [
             BcListRow(
@@ -436,10 +443,93 @@ class _AccountProfile extends ConsumerWidget {
               showChevron: false,
               onTap: () => _confirmSignOut(context, ref),
             ),
+            BcListRow(
+              icon: Icons.delete_forever_rounded,
+              label: isSpanish ? 'Eliminar cuenta' : 'Delete account',
+              danger: true,
+              showChevron: false,
+              onTap: () => _confirmDeleteAccount(context, ref),
+            ),
           ],
         ),
       ],
     );
+  }
+
+  /// Pide confirmación y elimina la cuenta: perfil, itinerarios guardados y
+  /// el usuario de Auth (en el servidor). Luego cierra la sesión local.
+  Future<void> _confirmDeleteAccount(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: BcColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BcRadius.tile),
+        ),
+        title: Text(
+          isSpanish ? '¿Eliminar tu cuenta?' : 'Delete your account?',
+          style: BcText.title().copyWith(fontSize: 18),
+        ),
+        content: Text(
+          isSpanish
+              ? 'Se borrarán tu perfil y todos tus itinerarios guardados. Esta acción no se puede deshacer.'
+              : 'Your profile and all your saved itineraries will be deleted. This cannot be undone.',
+          style: BcText.body(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            style: TextButton.styleFrom(foregroundColor: BcColors.ink),
+            child: Text(isSpanish ? 'Cancelar' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: BcColors.ink,
+              foregroundColor: BcColors.onPhoto,
+            ),
+            child: Text(isSpanish ? 'Eliminar' : 'Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    // Se toman antes del primer await: al cerrar sesión esta vista se
+    // desmonta y ya no se pueden usar context ni ref (H-02).
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final repository = ref.read(profileRepositoryProvider);
+    final auth = ref.read(authControllerProvider.notifier);
+
+    try {
+      await repository.deleteAccount();
+    } catch (error) {
+      debugPrint('ERROR eliminar cuenta: $error');
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            isSpanish
+                ? 'No fue posible eliminar tu cuenta. Revisa tu conexión e inténtalo de nuevo.'
+                : 'Unable to delete your account. Check your connection and try again.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // La cuenta ya no existe en el servidor: se limpia la sesión local.
+    // profileProvider se recalcula solo al cambiar la sesión.
+    try {
+      await auth.signOut();
+    } catch (error) {
+      debugPrint('signOut tras eliminar cuenta: $error');
+    }
+    router.go('/auth-gateway');
   }
 
   Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
@@ -562,7 +652,11 @@ class _PreferencesGroup extends ConsumerWidget {
                     color: BcColors.ink,
                   ),
                 )
-              : const Icon(Icons.refresh_rounded, size: 20, color: BcColors.muted),
+              : const Icon(
+                  Icons.refresh_rounded,
+                  size: 20,
+                  color: BcColors.muted,
+                ),
           onTap: status.isSyncing ? null : () => _download(context, ref),
         ),
         BcListRow(
@@ -614,11 +708,11 @@ class _PreferencesGroup extends ConsumerWidget {
         content: Text(
           ok
               ? (isSpanish
-                  ? 'Descarga completa. La información está disponible sin conexión.'
-                  : 'Download complete. Information is available offline.')
+                    ? 'Descarga completa. La información está disponible sin conexión.'
+                    : 'Download complete. Information is available offline.')
               : (isSpanish
-                  ? 'No se pudo descargar. Se conserva la información anterior.'
-                  : 'Download failed. The previous information was kept.'),
+                    ? 'No se pudo descargar. Se conserva la información anterior.'
+                    : 'Download failed. The previous information was kept.'),
         ),
       ),
     );

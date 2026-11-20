@@ -69,7 +69,9 @@ class _SavedList extends ConsumerWidget {
             text: isSpanish
                 ? 'Aún no guardas itinerarios.'
                 : 'You have not saved any itineraries yet.',
-            actionLabel: isSpanish ? 'Crear una propuesta' : 'Create a proposal',
+            actionLabel: isSpanish
+                ? 'Crear una propuesta'
+                : 'Create a proposal',
             onAction: () => _backToPlanner(context),
           );
         }
@@ -83,10 +85,8 @@ class _SavedList extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             itemCount: items.length,
             separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) => _ItineraryTile(
-              item: items[index],
-              isSpanish: isSpanish,
-            ),
+            itemBuilder: (context, index) =>
+                _ItineraryTile(item: items[index], isSpanish: isSpanish),
           ),
         );
       },
@@ -117,13 +117,16 @@ class _ItineraryTile extends ConsumerWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
         leading: const Icon(Icons.route_rounded, color: AppTheme.primaryDark),
-        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(
+          item.name,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
         subtitle: Text(
           date == null
               ? count
               : isSpanish
-                  ? '$count · actualizado el $date'
-                  : '$count · updated $date',
+              ? '$count · actualizado el $date'
+              : '$count · updated $date',
         ),
         onTap: () => _open(context, ref),
         trailing: IconButton(
@@ -138,7 +141,9 @@ class _ItineraryTile extends ConsumerWidget {
   Future<void> _open(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final detail = await ref.read(plannerProvider.notifier).loadSaved(item.id);
+      final detail = await ref
+          .read(plannerProvider.notifier)
+          .loadSaved(item.id);
       if (!context.mounted) return;
       _backToPlanner(context);
       if (detail.missingPlaces > 0) {
@@ -202,7 +207,11 @@ class _ItineraryTile extends ConsumerWidget {
       }
       ref.invalidate(savedItinerariesProvider);
       messenger.showSnackBar(
-        SnackBar(content: Text(isSpanish ? 'Itinerario eliminado.' : 'Itinerary deleted.')),
+        SnackBar(
+          content: Text(
+            isSpanish ? 'Itinerario eliminado.' : 'Itinerary deleted.',
+          ),
+        ),
       );
     } catch (_) {
       messenger.showSnackBar(
@@ -218,12 +227,11 @@ class _ItineraryTile extends ConsumerWidget {
   }
 }
 
+/// Vuelve al planificador (pestaña /itinerary) en lugar de hacer pop: si
+/// "Mis itinerarios" se abrió desde el perfil, pop devolvería al perfil y no
+/// al planificador donde se genera o muestra la propuesta.
 void _backToPlanner(BuildContext context) {
-  if (context.canPop()) {
-    context.pop();
-  } else {
-    context.go('/itinerary');
-  }
+  context.go('/itinerary');
 }
 
 class _Message extends StatelessWidget {
@@ -253,7 +261,9 @@ class _Message extends StatelessWidget {
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryDark),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primaryDark,
+                ),
                 onPressed: onAction,
                 child: Text(actionLabel!),
               ),
