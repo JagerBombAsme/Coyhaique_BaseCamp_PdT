@@ -321,6 +321,7 @@ GoRouter _createRouter() {
                   return MapScreen(
                     routeFromAirport: query['ruta'] == 'aeropuerto',
                     routePlaceId: query['lugar'],
+                    requestId: query['t'],
                     routeMode: switch (query['modo']) {
                       'pie' => MapRouteMode.walking,
                       'auto' => MapRouteMode.driving,

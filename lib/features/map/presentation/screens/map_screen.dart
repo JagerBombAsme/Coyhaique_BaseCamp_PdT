@@ -12,7 +12,6 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../../categories/data/models/place_dto.dart';
 import '../../../categories/data/providers/places_provider.dart';
@@ -21,6 +20,7 @@ import '../../domain/route_step.dart';
 import '../../domain/route_tracking.dart';
 import '../map_places.dart';
 import '../widgets/destination_pin.dart';
+import '../widgets/place_marker_icon.dart';
 import '../widgets/map_place_preview_card.dart';
 import '../widgets/map_route_panel.dart';
 import '../widgets/route_maneuver.dart';
@@ -60,6 +60,7 @@ class MapScreen extends ConsumerStatefulWidget {
     this.routeFromAirport = false,
     this.routePlaceId,
     this.routeMode,
+    this.requestId,
     this.onOpenPlace,
   });
 
@@ -72,6 +73,11 @@ class MapScreen extends ConsumerStatefulWidget {
   /// desde la ubicación del usuario, igual que los botones de su tarjeta.
   final String? routePlaceId;
   final MapRouteMode? routeMode;
+
+  /// Identifica cada petición de «Cómo llegar». Cambia en cada toque, así que
+  /// pedir otra vez el mismo lugar (o uno nuevo con el mapa ya abierto) vuelve
+  /// a abrir su ficha en vez de quedarse en la anterior.
+  final String? requestId;
 
   /// Abre la ficha del lugar (botón «Ver ficha»). Lo conecta el router.
   /// Solo se ofrece para lugares que vienen de places_v2 (tienen id).
@@ -106,12 +112,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
   List<MapPlace> _places = MapPlaces.all;
 
   MapboxMap? _mapboxMap;
-  CircleAnnotationManager? _markerManager;
+  PointAnnotationManager? _markerManager;
+
+  /// Imagen del marcador por ícono de categoría: se dibuja una vez y se
+  /// reutiliza en cada redibujo.
+  final Map<int, Uint8List> _markerImages = {};
+
+  /// Tamaño de los marcadores con ícono (1,0 = el de la imagen, 96 px).
+  /// Súbelo o bájalo aquí si se ven chicos o grandes en el teléfono.
+  static const double _markerIconSize = 0.75;
 
   /// Pin del destino (modo ruta) y su imagen, que se dibuja una sola vez.
   PointAnnotationManager? _pinManager;
   Uint8List? _pinImage;
   final Map<String, MapPlace> _placeByAnnotationId = {};
+
+  /// Marcadores dibujados, por id de anotación, para poder destacar el del
+  /// lugar abierto sin redibujar todo el mapa.
+  final Map<String, PointAnnotation> _annotationsById = {};
 
   /// Evita dos redibujos de marcadores a la vez (estilo y datos pueden
   /// coincidir) y que queden administradores de marcadores sin quitar.
@@ -123,6 +141,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// Lugar de la tarjeta flotante (marcador tocado o resultado del
   /// buscador). Null = sin tarjeta.
   MapPlace? _previewPlace;
+
+  /// Mide la tarjeta del lugar para dejar el marcador a la vista, como en
+  /// Google Maps: el lugar queda centrado en el espacio libre sobre la tarjeta.
+  final GlobalKey _previewCardKey = GlobalKey();
+
+  /// Distancia entre el borde inferior de la pantalla y la tarjeta (deja
+  /// libre la barra de navegación).
+  static const double _bottomPanelOffset = 110;
+
+  /// Aire entre la tarjeta y el marcador, y bajo la barra de búsqueda.
+  static const double _previewGap = 24;
 
   /// Medio cuya ruta se está pidiendo desde la tarjeta (obtener la ubicación
   /// puede tardar hasta 10 s).
@@ -263,6 +292,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final mode = _pendingPlaceMode;
     _pendingPlaceId = null;
     _pendingPlaceMode = null;
+
+    // Una petición nueva reemplaza lo que hubiera: se cierra la ruta activa
+    // (si la hay) y la ficha abierta, para no quedarse en el lugar anterior.
+    if (_route != null) await _clearRoute();
+    if (!mounted) return;
     await _goToPlace(place);
     if (mode != null && mounted) await _routeToPlace(place, mode);
   }
@@ -387,7 +421,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final placeId = widget.routePlaceId;
     if (placeId != null &&
         (placeId != oldWidget.routePlaceId ||
-            widget.routeMode != oldWidget.routeMode)) {
+            widget.routeMode != oldWidget.routeMode ||
+            widget.requestId != oldWidget.requestId)) {
       _pendingPlaceId = placeId;
       _pendingPlaceMode = widget.routeMode;
       unawaited(_openRequestedPlace());
@@ -448,7 +483,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     await _applyMapLanguage(ref.read(languageProvider).languageCode);
 
-    await _redrawMarkers();
+    // Ocultar los comercios del mapa base no debe retrasar ni impedir que se
+    // dibujen los marcadores ni que se abra el lugar pedido: va aparte.
+    unawaited(_hideBaseMapPlaces());
+
+    try {
+      await _redrawMarkers();
+    } catch (e) {
+      debugPrint('ERROR DIBUJAR MARCADORES: $e');
+    }
 
     // Si había una ruta activa, se vuelve a dibujar con el nuevo estilo.
     final route = _route;
@@ -461,7 +504,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
       await _showAirportRoute();
     }
 
-    await _openRequestedPlace();
+    try {
+      await _openRequestedPlace();
+    } catch (e) {
+      debugPrint('ERROR ABRIR LUGAR PEDIDO: $e');
+    }
   }
 
   /// Error al cargar el mapa. Solo cuenta si el estilo aún no cargó (una
@@ -511,6 +558,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _markerManager = null;
     }
     _placeByAnnotationId.clear();
+    _annotationsById.clear();
 
     final oldPin = _pinManager;
     if (oldPin != null) {
@@ -543,7 +591,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       }
     }
 
-    final manager = await map.annotations.createCircleAnnotationManager();
+    final manager = await map.annotations.createPointAnnotationManager();
     _markerManager = manager;
 
     // Con una ruta activa solo se ve el destino (modo ruta).
@@ -552,21 +600,33 @@ class _MapScreenState extends ConsumerState<MapScreen>
         ? [destination]
         : _places.where((p) => p.verified).toList();
 
-    for (final place in visible) {
+    // Cada lugar se dibuja solo con el ícono de su categoría (sin nombre ni
+    // fotografía): el nombre aparece en la ficha al tocarlo. El lugar abierto
+    // se agranda y se dibuja al final para quedar por encima de los demás.
+    final highlighted = _previewPlace;
+    final ordered = [
+      ...visible.where((p) => !identical(p, highlighted)),
+      ...visible.where((p) => identical(p, highlighted)),
+    ];
+    for (final place in ordered) {
       final isDestination = destination != null;
+      final image = _markerImages[place.icon.codePoint] ??=
+          await buildPlaceMarkerPng(place.icon);
       final annotation = await manager.create(
-        CircleAnnotationOptions(
+        PointAnnotationOptions(
           geometry: Point(
             coordinates: Position(place.longitude, place.latitude),
           ),
-          circleRadius: isDestination ? 13 : 9,
-          circleColor: (isDestination ? BcColors.glacierDeep : AppTheme.primaryDark)
-              .toARGB32(),
-          circleStrokeColor: Colors.white.toARGB32(),
-          circleStrokeWidth: isDestination ? 4 : 3,
+          image: image,
+          iconSize: _markerSizeFor(
+            place,
+            highlighted: isDestination || identical(place, highlighted),
+          ),
+          iconAnchor: IconAnchor.CENTER,
         ),
       );
       _placeByAnnotationId[annotation.id] = place;
+      _annotationsById[annotation.id] = annotation;
     }
 
     // Tocar un marcador = ir a ese lugar y mostrar su tarjeta, que ofrece
@@ -579,6 +639,60 @@ class _MapScreenState extends ConsumerState<MapScreen>
         if (place != null) _goToPlace(place);
       },
     );
+  }
+
+  /// Tamaño del ícono: el del lugar abierto (o destino) es mayor.
+  double _markerSizeFor(MapPlace place, {required bool highlighted}) =>
+      highlighted ? _markerIconSize * 1.35 : _markerIconSize;
+
+  /// Agranda el marcador del lugar abierto y devuelve el anterior a su
+  /// tamaño normal. Actualiza solo esas anotaciones, sin redibujar el mapa.
+  Future<void> _syncMarkerHighlight() async {
+    final manager = _markerManager;
+    if (manager == null || !mounted) return;
+    final highlighted = _previewPlace;
+    try {
+      for (final entry in _placeByAnnotationId.entries.toList()) {
+        final annotation = _annotationsById[entry.key];
+        if (annotation == null) continue;
+        final size = _markerSizeFor(
+          entry.value,
+          highlighted: identical(entry.value, highlighted),
+        );
+        if (annotation.iconSize == size) continue;
+        annotation.iconSize = size;
+        await manager.update(annotation);
+      }
+    } catch (e) {
+      debugPrint('ERROR DESTACAR MARCADOR: $e');
+    }
+  }
+
+  /// Oculta los comercios y puntos de interés del mapa base: los lugares que
+  /// se muestran son los de la app, con su ícono de categoría y su nombre, sin
+  /// duplicados ni nombres de negocios que no están en el catálogo. Calles,
+  /// ciudades y barrios se mantienen. Un fallo aquí no impide usar el mapa.
+  Future<void> _hideBaseMapPlaces() async {
+    final style = _mapboxMap?.style;
+    if (style == null) return;
+    // Según el estilo (outdoors, streets, satellite-streets) las capas de
+    // comercios y transporte tienen ids distintos: se ocultan todas las
+    // capas de símbolos cuyo id las identifica, una a una.
+    final hidden = RegExp(r'poi|transit|airport|ferry');
+    try {
+      final layers = await style.getStyleLayers();
+      for (final layer in layers) {
+        if (layer == null || layer.type != 'symbol') continue;
+        if (!hidden.hasMatch(layer.id)) continue;
+        try {
+          await style.setStyleLayerProperty(layer.id, 'visibility', 'none');
+        } catch (e) {
+          debugPrint('ERROR OCULTAR CAPA ${layer.id}: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('ERROR OCULTAR COMERCIOS DEL MAPA: $e');
+    }
   }
 
   /// Traduce las etiquetas del propio mapa (calles, ciudades, países). Un
@@ -600,17 +714,52 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _selectedPlace = place;
       _previewPlace = showPreview ? place : null;
     });
+    unawaited(_syncMarkerHighlight());
 
     final map = _mapboxMap;
     if (map == null) return;
+
+    // Con tarjeta, la cámara se corre para que el marcador quede en el
+    // espacio libre sobre ella. Sin tarjeta se quita ese margen.
+    var padding = MbxEdgeInsets(top: 0, left: 0, bottom: 0, right: 0);
+    if (showPreview) {
+      // Espera a que la tarjeta exista para medirla.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      padding = _previewCameraPadding();
+    }
 
     await map.flyTo(
       CameraOptions(
         center: Point(coordinates: Position(place.longitude, place.latitude)),
         zoom: place.zoom,
+        padding: padding,
       ),
       MapAnimationOptions(duration: 1000),
     );
+  }
+
+  /// Margen de la cámara para que el lugar elegido quede visible sobre la
+  /// tarjeta (y bajo el buscador), y no escondido detrás de ella.
+  MbxEdgeInsets _previewCameraPadding() {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+
+    final cardBox = _previewCardKey.currentContext?.findRenderObject();
+    // Sin medida (aún no se dibuja), se usa un alto razonable de tarjeta.
+    final cardHeight = cardBox is RenderBox && cardBox.hasSize
+        ? cardBox.size.height
+        : 260.0;
+
+    // Buscador y lugares rápidos ocupan unos 130 px bajo la barra de estado.
+    final top = topInset + 130 + _previewGap;
+    var bottom = _bottomPanelOffset + cardHeight + _previewGap;
+
+    // Pantallas muy bajas: deja al menos un 30 % libre para el marcador.
+    final maxBottom = screenHeight - top - screenHeight * 0.3;
+    if (bottom > maxBottom) bottom = maxBottom < 0 ? 0 : maxBottom;
+
+    return MbxEdgeInsets(top: top, left: 0, bottom: bottom, right: 0);
   }
 
   Future<void> _zoomBy(double delta) async {
@@ -1155,6 +1304,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
             coordinates: Position(position.longitude, position.latitude),
           ),
           zoom: 15.0,
+          // Sin margen de tarjeta: el punto va al centro de la pantalla.
+          padding: MbxEdgeInsets(top: 0, left: 0, bottom: 0, right: 0),
         ),
         MapAnimationOptions(duration: 1200),
       );
@@ -1208,6 +1359,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
     ref.watch(languageProvider);
     ref.listen<Locale>(languageProvider, (_, next) {
       _applyMapLanguage(next.languageCode);
+      // Los nombres de los marcadores también cambian de idioma.
+      unawaited(_redrawMarkers());
     });
 
     // Con una ruta activa, «atrás» termina la ruta en vez de salir de la app.
@@ -1298,7 +1451,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         Positioned(
           left: 16,
           right: 16,
-          bottom: 110,
+          bottom: _bottomPanelOffset,
           child: BcSwitcher(
             alignment: Alignment.bottomCenter,
             animateSize: false,
@@ -1317,15 +1470,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
                       _buildRoutePanel(),
                     ],
                   )
-                : Row(
+                // Tarjeta flotante del lugar elegido (marcador o buscador), de
+                // lado a lado: sin botones de zoom, ubicación ni estilo.
+                : SizedBox(
                     key: const ValueKey('place-bottom'),
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Tarjeta flotante del lugar elegido (marcador o buscador).
-                      Expanded(child: _buildPreviewCard()),
-                      const SizedBox(width: 14),
-                      _buildControls(),
-                    ],
+                    width: double.infinity,
+                    child: _buildPreviewCard(),
                   ),
           ),
         ),
@@ -1538,44 +1688,44 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ),
         ),
         if (_route == null) ...[
-        const SizedBox(width: 8, height: 8),
-        _circleButton(
-          child: PopupMenuButton<MapStyleOption>(
-            tooltip: _isSpanish ? 'Estilo del mapa' : 'Map style',
-            icon: const Icon(
-              Icons.layers_outlined,
-              color: AppTheme.primaryDark,
-            ),
-            onSelected: _changeStyle,
-            itemBuilder: (_) => MapStyleOption.values
-                .map(
-                  (option) => PopupMenuItem<MapStyleOption>(
-                    value: option,
-                    child: Row(
-                      children: [
-                        Icon(
-                          option.icon,
-                          size: 20,
-                          color: option == _style
-                              ? AppTheme.primaryDark
-                              : Colors.black54,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          option.label(isSpanish: _isSpanish),
-                          style: TextStyle(
-                            fontWeight: option == _style
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+          const SizedBox(width: 8, height: 8),
+          _circleButton(
+            child: PopupMenuButton<MapStyleOption>(
+              tooltip: _isSpanish ? 'Estilo del mapa' : 'Map style',
+              icon: const Icon(
+                Icons.layers_outlined,
+                color: AppTheme.primaryDark,
+              ),
+              onSelected: _changeStyle,
+              itemBuilder: (_) => MapStyleOption.values
+                  .map(
+                    (option) => PopupMenuItem<MapStyleOption>(
+                      value: option,
+                      child: Row(
+                        children: [
+                          Icon(
+                            option.icon,
+                            size: 20,
+                            color: option == _style
+                                ? AppTheme.primaryDark
+                                : Colors.black54,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          Text(
+                            option.label(isSpanish: _isSpanish),
+                            style: TextStyle(
+                              fontWeight: option == _style
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                )
-                .toList(),
+                  )
+                  .toList(),
+            ),
           ),
-        ),
         ],
         const SizedBox(width: 8, height: 8),
         _circleButton(
@@ -1787,33 +1937,39 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final place = _previewPlace;
     final route = _route;
 
-    return MapPlacePreviewCard(
-      place: place,
-      isSpanish: _isSpanish,
-      online: _online,
-      // La plaza y el centro son el punto de partida: no tienen ruta.
-      canRoute:
-          place != null &&
-          !identical(place, _plaza) &&
-          !identical(place, _center),
-      routingMode: _routeMode,
-      onClose: () => setState(() => _previewPlace = null),
-      onOpenDetail: widget.onOpenPlace,
-      onRoute: (mode) {
-        if (place != null) _routeToPlace(place, mode);
-      },
-      routeSummary: route == null
-          ? null
-          : MapRouteSummary(
-              text:
-                  '${_routeFrom?.name(isSpanish: _isSpanish) ?? ''} → '
-                  '${_routeTo?.name(isSpanish: _isSpanish) ?? ''} · '
-                  '${route.distanceLabel} · ${route.durationLabel}',
-              mode: _routeProfile == RouteProfile.walking
-                  ? MapRouteMode.walking
-                  : MapRouteMode.driving,
-              onClear: _clearRoute,
-            ),
+    return KeyedSubtree(
+      key: _previewCardKey,
+      child: MapPlacePreviewCard(
+        place: place,
+        isSpanish: _isSpanish,
+        online: _online,
+        // La plaza y el centro son el punto de partida: no tienen ruta.
+        canRoute:
+            place != null &&
+            !identical(place, _plaza) &&
+            !identical(place, _center),
+        routingMode: _routeMode,
+        onClose: () {
+          setState(() => _previewPlace = null);
+          unawaited(_syncMarkerHighlight());
+        },
+        onOpenDetail: widget.onOpenPlace,
+        onRoute: (mode) {
+          if (place != null) _routeToPlace(place, mode);
+        },
+        routeSummary: route == null
+            ? null
+            : MapRouteSummary(
+                text:
+                    '${_routeFrom?.name(isSpanish: _isSpanish) ?? ''} → '
+                    '${_routeTo?.name(isSpanish: _isSpanish) ?? ''} · '
+                    '${route.distanceLabel} · ${route.durationLabel}',
+                mode: _routeProfile == RouteProfile.walking
+                    ? MapRouteMode.walking
+                    : MapRouteMode.driving,
+                onClear: _clearRoute,
+              ),
+      ),
     );
   }
 }
