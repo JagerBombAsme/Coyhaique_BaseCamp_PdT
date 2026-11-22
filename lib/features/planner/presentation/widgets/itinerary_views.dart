@@ -31,7 +31,8 @@ void openPlaceDetail(BuildContext context, PlannerPlace place) {
 void openPlaceRoute(BuildContext context, PlannerPlace place, String mode) {
   context.go(
     '/map?lugar=${Uri.encodeQueryComponent(place.id)}'
-    '&modo=${Uri.encodeQueryComponent(mode)}',
+    '&modo=${Uri.encodeQueryComponent(mode)}'
+    '&t=${DateTime.now().millisecondsSinceEpoch}',
   );
 }
 
