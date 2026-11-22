@@ -34,8 +34,12 @@ String authErrorMessage(Object error, {bool isSpanish = true}) {
     final message = error.message.toLowerCase();
     bool has(String value) => code == value || message.contains(value);
 
-    if (has('invalid_credentials') || message.contains('invalid login credentials')) {
-      return t('Correo o contraseña incorrectos.', 'Incorrect email or password.');
+    if (has('invalid_credentials') ||
+        message.contains('invalid login credentials')) {
+      return t(
+        'Correo o contraseña incorrectos.',
+        'Incorrect email or password.',
+      );
     }
     if (has('email_not_confirmed') || message.contains('email not confirmed')) {
       return t(
@@ -72,7 +76,10 @@ String authErrorMessage(Object error, {bool isSpanish = true}) {
       );
     }
     if (has('email_address_invalid') || message.contains('invalid format')) {
-      return t('El correo electrónico no es válido.', 'The email address is not valid.');
+      return t(
+        'El correo electrónico no es válido.',
+        'The email address is not valid.',
+      );
     }
     if (has('over_request_rate_limit') ||
         has('over_email_send_rate_limit') ||

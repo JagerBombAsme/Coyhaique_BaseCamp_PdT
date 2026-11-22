@@ -2,6 +2,11 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../theme/basecamp_tokens.dart';
+
+/// Tarjeta de las pantallas de cuenta: fondo tinta sobre la foto, sin borde
+/// ni sombra (sistema de diseño «afiche de montaña»). El desenfoque suaviza
+/// la foto detrás para que el texto blanco se lea (contraste mayor a 7:1).
 class GlassAuthCard extends StatelessWidget {
   const GlassAuthCard({
     super.key,
@@ -13,28 +18,14 @@ class GlassAuthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(34),
+      borderRadius: BorderRadius.circular(BcRadius.card),
       child: BackdropFilter(
         filter: ImageFilter.blur(
-          sigmaX: 22,
-          sigmaY: 22,
+          sigmaX: 18,
+          sigmaY: 18,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.28),
-            borderRadius: BorderRadius.circular(34),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.30),
-              width: 1.2,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color.fromARGB(80, 41, 41, 41),
-                blurRadius: 30,
-                offset: Offset(0, 18),
-              ),
-            ],
-          ),
+        child: ColoredBox(
+          color: BcColors.ink.withValues(alpha: 0.78),
           child: child,
         ),
       ),

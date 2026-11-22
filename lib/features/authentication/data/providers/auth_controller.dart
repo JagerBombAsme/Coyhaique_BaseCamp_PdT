@@ -36,7 +36,9 @@ class AuthController extends AsyncNotifier<void> {
 
   Future<bool> signIn({required String email, required String password}) async {
     final response = await _run(
-      () => ref.read(authRepositoryProvider).signIn(email: email, password: password),
+      () => ref
+          .read(authRepositoryProvider)
+          .signIn(email: email, password: password),
     );
     return response?.user != null;
   }
@@ -47,7 +49,9 @@ class AuthController extends AsyncNotifier<void> {
     required String password,
   }) async {
     final response = await _run(
-      () => ref.read(authRepositoryProvider).signUp(email: email, password: password),
+      () => ref
+          .read(authRepositoryProvider)
+          .signUp(email: email, password: password),
     );
     if (response == null) return null;
     return response.session != null
@@ -61,7 +65,9 @@ class AuthController extends AsyncNotifier<void> {
     required String code,
   }) async {
     final response = await _run(
-      () => ref.read(authRepositoryProvider).verifySignUpCode(email: email, code: code),
+      () => ref
+          .read(authRepositoryProvider)
+          .verifySignUpCode(email: email, code: code),
     );
     return response?.session != null;
   }
@@ -110,7 +116,9 @@ class AuthController extends AsyncNotifier<void> {
       state = const AsyncData(null);
     } catch (error, stackTrace) {
       if (repository.currentSession == null) {
-        debugPrint('signOut: sesión local cerrada; aviso al servidor falló: $error');
+        debugPrint(
+          'signOut: sesión local cerrada; aviso al servidor falló: $error',
+        );
         state = const AsyncData(null);
         return;
       }
