@@ -14,18 +14,23 @@ class AuthValidators {
       RegExp(r'\d').hasMatch(password);
 
   /// Código de recuperación de Supabase: 6 a 8 dígitos.
-  static bool isValidCode(String code) => RegExp(r'^\d{6,8}$').hasMatch(code.trim());
+  static bool isValidCode(String code) =>
+      RegExp(r'^\d{6,8}$').hasMatch(code.trim());
 
   static String? emailError(String email, bool es) {
-    if (email.trim().isEmpty) return es ? 'Ingresa tu correo.' : 'Enter your email.';
+    if (email.trim().isEmpty)
+      return es ? 'Ingresa tu correo.' : 'Enter your email.';
     if (!isValidEmail(email)) {
-      return es ? 'Ingresa un correo electrónico válido.' : 'Enter a valid email address.';
+      return es
+          ? 'Ingresa un correo electrónico válido.'
+          : 'Enter a valid email address.';
     }
     return null;
   }
 
   static String? passwordError(String password, bool es) {
-    if (password.isEmpty) return es ? 'Ingresa una contraseña.' : 'Enter a password.';
+    if (password.isEmpty)
+      return es ? 'Ingresa una contraseña.' : 'Enter a password.';
     if (!isValidPassword(password)) {
       return es
           ? 'Usa al menos 8 caracteres, con letras y números.'

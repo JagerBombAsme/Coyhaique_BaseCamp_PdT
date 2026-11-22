@@ -145,10 +145,10 @@ class AuthGatewayView extends ConsumerWidget {
                                 text: isSpanish ? 'Regístrate' : 'Sign up',
                                 style: BcText.title(color: BcColors.onPhoto)
                                     .copyWith(
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: BcColors.glacier,
-                                  decorationThickness: 2,
-                                ),
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: BcColors.glacier,
+                                      decorationThickness: 2,
+                                    ),
                               ),
                             ],
                           ),

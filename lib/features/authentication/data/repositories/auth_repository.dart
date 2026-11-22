@@ -47,7 +47,11 @@ class AuthRepository {
     required String code,
   }) {
     return _client.auth
-        .verifyOTP(email: email.trim(), token: code.trim(), type: OtpType.signup)
+        .verifyOTP(
+          email: email.trim(),
+          token: code.trim(),
+          type: OtpType.signup,
+        )
         .timeout(_timeout);
   }
 
@@ -75,7 +79,11 @@ class AuthRepository {
     required String code,
   }) {
     return _client.auth
-        .verifyOTP(email: email.trim(), token: code.trim(), type: OtpType.recovery)
+        .verifyOTP(
+          email: email.trim(),
+          token: code.trim(),
+          type: OtpType.recovery,
+        )
         .timeout(_timeout);
   }
 
