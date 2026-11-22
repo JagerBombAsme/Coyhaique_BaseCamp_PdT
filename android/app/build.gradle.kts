@@ -46,7 +46,15 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Con key.properties (solo en el equipo de Diego) se firma con la
+            // llave oficial. Sin ese archivo (QA y otros equipos) se usa la
+            // firma de depuración para poder probar en modo release; esa APK
+            // no es la de entrega.
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

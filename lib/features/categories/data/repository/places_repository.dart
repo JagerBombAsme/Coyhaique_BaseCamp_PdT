@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/local/catalog_local_db.dart';
@@ -41,7 +42,15 @@ class PlacesRepository {
       final result = await remote().timeout(_timeout);
       _report(false);
       return result;
-    } catch (_) {
+    } catch (error) {
+      // Un error de programa o de formato de los datos (TypeError,
+      // StateError, FormatException) no es falta de conexión: se propaga para
+      // no mostrarlo como «sin conexión» (C-08).
+      if (error is Error || error is FormatException) {
+        debugPrint('ERROR catálogo (no es de conexión): $error');
+        rethrow;
+      }
+      debugPrint('Catálogo remoto no disponible, se usa copia local: $error');
       if (!await _localDb.hasData()) {
         throw const CatalogUnavailableException();
       }

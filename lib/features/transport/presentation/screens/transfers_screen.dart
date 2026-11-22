@@ -15,7 +15,11 @@ import '../widgets/transfer_widgets.dart';
 /// Lista las empresas con ficha activa. La información es referencial y se
 /// confirma con el conductor.
 class TransfersScreen extends ConsumerWidget {
-  const TransfersScreen({super.key});
+  const TransfersScreen({super.key, this.toAirport = false});
+
+  /// true cuando el usuario viene de «¿Necesitas transfer para el
+  /// aeropuerto?»: se agrega un aviso sobre el sentido del viaje.
+  final bool toAirport;
 
   static const String _heroPhoto = 'assets/images/miradores_coyhaique.jpg';
 
@@ -140,6 +144,37 @@ class TransfersScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+
+              if (toAirport)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      BcSpace.gutter,
+                      BcSpace.section,
+                      BcSpace.gutter,
+                      0,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          size: 20,
+                          color: BcColors.ink,
+                        ),
+                        const SizedBox(width: BcSpace.s2),
+                        Expanded(
+                          child: Text(
+                            isSpanish
+                                ? 'El traslado al aeropuerto se coordina directamente con el prestador. Esta lista muestra las empresas que operan desde el aeropuerto.'
+                                : 'Rides to the airport are arranged directly with the provider. This list shows the companies that operate from the airport.',
+                            style: BcText.body(color: BcColors.ink),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
               SliverToBoxAdapter(
                 child: Padding(

@@ -10,20 +10,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/models/category_model.dart';
 import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../categories/data/providers/places_provider.dart' as places;
 import '../../../categories/presentation/widgets/place_search_delegate.dart';
-import '../../../routes/data/models/activity_dto.dart';
 import '../../../profile/presentation/screens/interests_screen.dart';
 import '../../../routes/data/providers/activity_provider.dart';
 import '../../../trip_info/presentation/widgets/trip_notice.dart';
+import '../../../transport/data/providers/airport_zone_provider.dart';
+import '../../../transport/presentation/widgets/transfer_widgets.dart';
 
 /// Pantalla de inicio de Coyhaique BaseCamp.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -59,7 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   /// Duración del vuelo de las tarjetas hacia el botón (y de vuelta).
   /// Súbela o bájala aquí para hacer la animación más lenta o más rápida.
-  static const _flyDuration = Duration(milliseconds: 4200);
+  static const _flyDuration = Duration(milliseconds: 400);
   final _captureKey = GlobalKey();
   final _saveKey = GlobalKey();
   late final AnimationController _flyCtrl = AnimationController(
@@ -487,6 +488,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(places.mainCategoriesProvider);
     ref.invalidate(places.placesProvider);
     ref.invalidate(places.activitiesProvider);
+    ref.invalidate(airportZoneProvider);
     try {
       await ref.read(activitiesProvider.future);
     } catch (error) {
@@ -498,7 +500,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final language = ref.watch(languageProvider).languageCode;
     final isSpanish = language == 'es';
-    final activitiesAsync = ref.watch(activitiesProvider);
     final categoriesAsync = ref.watch(places.mainCategoriesProvider);
     final activeCategories = categoriesAsync.maybeWhen(
       data: (value) => value,
@@ -509,7 +510,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         : homeCategories;
     final isLoggedIn =
         ref.watch(authUserProvider).valueOrNull != null ||
-        _currentSessionUser();
+        ref.read(supabaseClientProvider).auth.currentUser != null;
     // Intereses guardados (ids de categorías principales), en orden alfabético.
     final interestIds = ref.watch(places.validInterestsProvider);
     final interestCategories =
@@ -537,6 +538,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _HomeHero(isSpanish: isSpanish),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: BcSpace.gutter,
+                      ),
+                      child: LocationAwareTransferEntry(isSpanish: isSpanish),
+                    ),
+                    const SizedBox(height: BcSpace.section),
                     _ExploreBand(
                       isSpanish: isSpanish,
                       language: language,
@@ -560,18 +568,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                     const SizedBox(height: BcSpace.section),
                     if (isLoggedIn) ...[
-                      _buildTours(
-                        context,
-                        activitiesAsync,
-                        categoryList,
-                        isSpanish,
-                      ),
-                      for (final category in interestCategories)
+                      for (final category in interestCategories) ...[
                         _InterestSection(
                           category: category,
                           isSpanish: isSpanish,
                           language: language,
                         ),
+                        const SizedBox(height: BcSpace.section),
+                      ],
                       if (interestCategories.isEmpty)
                         _PersonalizeCta(
                           message: isSpanish
@@ -602,105 +606,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
       ),
     );
-  }
-
-  Widget _buildTours(
-    BuildContext context,
-    AsyncValue<List<ActivityDto>> activitiesAsync,
-    List<CategoryModel> categories,
-    bool isSpanish,
-  ) {
-    return activitiesAsync.when(
-      loading: () => const SizedBox(
-        height: 240,
-        child: Center(
-          child: CircularProgressIndicator(
-            color: BcColors.ink,
-            strokeWidth: 2.5,
-          ),
-        ),
-      ),
-      error: (error, _) {
-        if (kDebugMode) debugPrint('ERROR ACTIVIDADES HOME: $error');
-        return BcMessage(
-          icon: Icons.cloud_off_rounded,
-          text: isSpanish
-              ? 'No fue posible cargar las actividades.'
-              : 'Unable to load activities.',
-          actionLabel: isSpanish ? 'Reintentar' : 'Retry',
-          onAction: () => ref.invalidate(activitiesProvider),
-        );
-      },
-      data: (activities) {
-        if (activities.isEmpty) {
-          return BcMessage(
-            icon: Icons.explore_outlined,
-            text: isSpanish
-                ? 'No hay actividades disponibles actualmente.'
-                : 'There are currently no activities available.',
-          );
-        }
-        final categoryNames = {
-          for (final category in categories)
-            category.id: category.getNombre(isSpanish ? 'es' : 'en'),
-        };
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            BcSectionHeader(
-              title: 'Tours',
-              kicker: isSpanish
-                  ? '${activities.length} ${activities.length == 1 ? 'actividad disponible' : 'actividades disponibles'}'
-                  : '${activities.length} ${activities.length == 1 ? 'activity' : 'activities'} available',
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: BcTourCard.height,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: BcSpace.gutter),
-                itemCount: activities.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final activity = activities[index];
-                  return BcTourCard(
-                    key: ValueKey(activity.id),
-                    title: activity.getName(isSpanish),
-                    image: activity.imageUrl ?? '',
-                    tag: categoryNames[activity.categoryId],
-                    metrics: _metrics(activity, isSpanish),
-                    onTap: () => context.push('/attractions/${activity.id}'),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  List<BcMetric> _metrics(ActivityDto activity, bool isSpanish) {
-    final price = activity.referencePrice?.trim() ?? '';
-    final isAvailabilityText = price.toLowerCase().startsWith(
-      'ver disponibilidad con el operador',
-    );
-    final schedule = activity.schedule?.trim() ?? '';
-    final metrics = <BcMetric>[
-      if (schedule.isNotEmpty) BcMetric(Icons.schedule_rounded, schedule),
-      if (price.isNotEmpty && !isAvailabilityText)
-        BcMetric(Icons.sell_outlined, price),
-    ];
-    if (metrics.isEmpty) {
-      metrics.add(
-        BcMetric(
-          Icons.info_outline_rounded,
-          isSpanish ? 'Ver información' : 'View information',
-        ),
-      );
-    }
-    return metrics;
   }
 }
 
@@ -1198,6 +1103,38 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
+/// Encabezado de sección con la cantidad en la misma línea:
+/// «TOURS : 3 actividades disponibles».
+class _InlineSectionHeader extends StatelessWidget {
+  const _InlineSectionHeader({required this.title, required this.detail});
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: BcSpace.gutter),
+      child: Semantics(
+        header: true,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${title.toUpperCase()} : ',
+                style: BcText.display(30, color: BcColors.ink),
+              ),
+              TextSpan(
+                text: detail,
+                style: BcText.body(color: BcColors.glacierDeep),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Estado y descarga del catálogo sin conexión (tarjeta oscura).
 class _OfflineTile extends ConsumerWidget {
   const _OfflineTile({required this.isSpanish});
@@ -1291,15 +1228,6 @@ Future<void> downloadOfflineCatalog(BuildContext context, WidgetRef ref) async {
   );
 }
 
-/// true si hay una sesión de Supabase abierta (sin esperar al stream).
-bool _currentSessionUser() {
-  try {
-    return Supabase.instance.client.auth.currentUser != null;
-  } catch (_) {
-    return false;
-  }
-}
-
 /// Tours de una categoría de interés elegida por el usuario.
 class _InterestSection extends ConsumerWidget {
   const _InterestSection({
@@ -1332,9 +1260,9 @@ class _InterestSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BcSectionHeader(
+        _InlineSectionHeader(
           title: category.getNombre(language),
-          kicker: isSpanish
+          detail: isSpanish
               ? '${items.length} ${items.length == 1 ? 'lugar' : 'lugares'}'
               : '${items.length} ${items.length == 1 ? 'place' : 'places'}',
         ),
@@ -1425,7 +1353,7 @@ class _CoyhaiqueCarousel extends StatelessWidget {
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: BcSpace.gutter),
             itemCount: _photos.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) => ClipRRect(
               borderRadius: BorderRadius.circular(BcRadius.card),
               child: SizedBox(
@@ -1506,7 +1434,7 @@ class _ExploreBand extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 itemCount: categories.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return BcCategoryChip(
@@ -1532,15 +1460,6 @@ class _ExploreBand extends ConsumerWidget {
   }
 }
 
-/// Efecto genie sobre una malla con la imagen de las tarjetas, en dos fases
-/// que se solapan:
-///  1. Curvatura: los lados se doblan en un embudo en S hacia el botón; el
-///     borde lejano conserva su ancho y el cercano se estrecha.
-///  2. Succión: el contenido recorre el embudo, acelerando, y se comprime
-///     dentro del botón, donde se desvanece.
-/// Al restaurar, el controlador corre al revés y las tarjetas «brotan» del
-/// botón. Si la captura falla, dibuja una superficie de respaldo para que el
-/// botón nunca parezca no responder.
 class _GenieMeshPainter extends CustomPainter {
   _GenieMeshPainter({
     required this.image,

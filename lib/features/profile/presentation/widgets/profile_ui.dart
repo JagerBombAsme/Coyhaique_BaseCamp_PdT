@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../home/presentation/widgets/home_visual_tokens.dart';
-import '../../../home/presentation/widgets/pressable_scale.dart';
+import '../../../../core/theme/home_visual_tokens.dart';
+import '../../../../core/widgets/pressable_scale.dart';
 
 /// Piezas visuales compartidas por "Mi perfil" y "Configuración".
 ///

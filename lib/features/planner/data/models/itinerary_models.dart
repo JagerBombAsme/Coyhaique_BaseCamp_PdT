@@ -60,7 +60,7 @@ class SavedItineraryDetail {
     required this.id,
     required this.name,
     required this.ownerId,
-    required this.stops,
+    required this.days,
     required this.firstPlannedMinute,
     required this.missingPlaces,
   });
@@ -68,7 +68,14 @@ class SavedItineraryDetail {
   final String id;
   final String name;
   final String ownerId;
-  final List<PlannerPlace> stops;
+
+  /// Lugares por día, en orden. Siempre tiene al menos un día (puede estar
+  /// vacío). Un día sin lugares activos se conserva para no correr la
+  /// numeración.
+  final List<List<PlannerPlace>> days;
+
+  /// Todos los lugares, día por día.
+  List<PlannerPlace> get stops => [for (final day in days) ...day];
 
   /// Hora planificada del primer lugar, en minutos desde la medianoche.
   final int? firstPlannedMinute;
@@ -77,17 +84,23 @@ class SavedItineraryDetail {
   final int missingPlaces;
 }
 
-/// Lugar a guardar con su posición y hora estimada.
+/// Lugar a guardar con su día, posición y hora estimada.
 class ItineraryItemInput {
   const ItineraryItemInput({
     required this.placeId,
     required this.position,
     required this.plannedMinute,
+    this.dayIndex = 1,
   });
 
   final String placeId;
+
+  /// Orden correlativo en todo el itinerario (único por itinerario).
   final int position;
   final int plannedMinute;
+
+  /// Día del itinerario, desde 1 (columna day_index).
+  final int dayIndex;
 
   /// Formato de la columna planned_time (time) de Postgres.
   String get plannedTime => '${ItineraryPlanner.formatClock(plannedMinute)}:00';

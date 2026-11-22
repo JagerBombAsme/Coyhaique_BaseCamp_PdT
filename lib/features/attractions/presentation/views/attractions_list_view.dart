@@ -1,10 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../categories/data/providers/places_provider.dart';
+import '../../../categories/presentation/widgets/place_editorial_widgets.dart';
 
 /// Listado de atractivos (HU-01 / HU-03) según USER_FLOWS.md
 class AttractionsListView extends ConsumerWidget {
@@ -60,7 +63,10 @@ class AttractionsListView extends ConsumerWidget {
               final subtitle = place.getSubtitle(isSpanish);
               final description = place.getDescription(isSpanish);
 
-              return Card(
+              return BcEntrance(
+                key: ValueKey(place.id),
+                index: index,
+                child: Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -74,20 +80,25 @@ class AttractionsListView extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ClipRRect(
+                        Hero(
+                          tag: placePhotoHeroTag(place.id),
+                          child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
                             width: 80,
                             height: 80,
                             color: Colors.grey[200],
                             child: place.imageUrl != null && place.imageUrl!.isNotEmpty
-                                ? Image.network(
-                                    place.imageUrl!,
+                                // Miniatura de 80 px: se decodifica a ~240 px.
+                                ? CachedNetworkImage(
+                                    imageUrl: place.imageUrl!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const BcLogoPlaceholder(),
+                                    memCacheWidth: 240,
+                                    errorWidget: (_, _, _) => const BcLogoPlaceholder(),
                                   )
                                 : const BcLogoPlaceholder(),
                           ),
+                        ),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -128,6 +139,7 @@ class AttractionsListView extends ConsumerWidget {
                       ],
                     ),
                   ),
+                ),
                 ),
               );
             },

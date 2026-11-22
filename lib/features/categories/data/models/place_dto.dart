@@ -28,15 +28,21 @@ class PlaceMediaDto {
 
   factory PlaceMediaDto.fromJson(Map<String, dynamic> json) {
     final rawUrl = json['external_url']?.toString();
-    final cleanUrl = (rawUrl != null && rawUrl.isNotEmpty && rawUrl != 'null') ? rawUrl : null;
+    final cleanUrl = (rawUrl != null && rawUrl.isNotEmpty && rawUrl != 'null')
+        ? rawUrl
+        : null;
 
     return PlaceMediaDto(
       id: json['id']?.toString() ?? '',
       placeId: json['place_id']?.toString() ?? '',
       storagePath: json['storage_path']?.toString(),
       externalUrl: cleanUrl,
-      author: json['author']?.toString() != 'null' ? json['author']?.toString() : null,
-      license: json['license']?.toString() != 'null' ? json['license']?.toString() : null,
+      author: json['author']?.toString() != 'null'
+          ? json['author']?.toString()
+          : null,
+      license: json['license']?.toString() != 'null'
+          ? json['license']?.toString()
+          : null,
       altTextEs: json['alt_text_es']?.toString(),
       altTextEn: json['alt_text_en']?.toString(),
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
@@ -137,29 +143,43 @@ class PlaceDto {
 
     // 3. Resolver imagen principal
     String? resolvedImageUrl;
-    if (json['image_url'] != null && json['image_url'].toString().isNotEmpty && json['image_url'] != 'null') {
+    if (json['image_url'] != null &&
+        json['image_url'].toString().isNotEmpty &&
+        json['image_url'] != 'null') {
       resolvedImageUrl = json['image_url'].toString();
     } else if (mediaList.isNotEmpty) {
       final validMedia = mediaList.firstWhere(
-        (m) => m.externalUrl != null && m.externalUrl!.isNotEmpty && m.externalUrl != 'null',
+        (m) =>
+            m.externalUrl != null &&
+            m.externalUrl!.isNotEmpty &&
+            m.externalUrl != 'null',
         orElse: () => mediaList.first,
       );
       resolvedImageUrl = validMedia.externalUrl;
     }
 
-    final rawNameEs = json['name_es'] ?? json['title_es'] ?? json['title'] ?? '';
+    final rawNameEs =
+        json['name_es'] ?? json['title_es'] ?? json['title'] ?? '';
     final rawNameEn = json['name_en'] ?? json['title_en'];
     final rawDescEs = json['description_es'] ?? json['description'];
     final rawDescEn = json['description_en'];
-    final rawAddress = json['address']?.toString() != 'null' ? json['address']?.toString() : null;
-    final rawMeeting = json['meeting_point']?.toString() != 'null' ? json['meeting_point']?.toString() : null;
+    final rawAddress = json['address']?.toString() != 'null'
+        ? json['address']?.toString()
+        : null;
+    final rawMeeting = json['meeting_point']?.toString() != 'null'
+        ? json['meeting_point']?.toString()
+        : null;
 
     final subtitle = rawAddress ?? rawMeeting ?? json['subtitle_es'];
 
     return PlaceDto(
       id: json['id']?.toString() ?? '',
       categoryId: json['category_id']?.toString() ?? '',
-      categorySlug: categoryModel?.slug ?? json['category_slug'] ?? json['category'] ?? '',
+      categorySlug:
+          categoryModel?.slug ??
+          json['category_slug'] ??
+          json['category'] ??
+          '',
       kind: json['kind']?.toString() ?? 'place',
       titleEs: rawNameEs,
       titleEn: rawNameEn,
@@ -172,10 +192,18 @@ class PlaceDto {
       meetingPoint: rawMeeting,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      schedule: json['schedule']?.toString() != 'null' ? json['schedule']?.toString() : null,
-      referencePrice: json['reference_price']?.toString() != 'null' ? json['reference_price']?.toString() : null,
-      contactInfo: json['contact_info']?.toString() != 'null' ? json['contact_info']?.toString() : null,
-      websiteUrl: json['website_url']?.toString() != 'null' ? json['website_url']?.toString() : null,
+      schedule: json['schedule']?.toString() != 'null'
+          ? json['schedule']?.toString()
+          : null,
+      referencePrice: json['reference_price']?.toString() != 'null'
+          ? json['reference_price']?.toString()
+          : null,
+      contactInfo: json['contact_info']?.toString() != 'null'
+          ? json['contact_info']?.toString()
+          : null,
+      websiteUrl: json['website_url']?.toString() != 'null'
+          ? json['website_url']?.toString()
+          : null,
       lastVerifiedDate: json['last_verified_date'] != null
           ? DateTime.tryParse(json['last_verified_date'].toString())
           : null,
@@ -222,6 +250,9 @@ class PlaceDto {
   }
 
   String getSubtitle(bool isSpanish) {
+    // Resumen para todas las categorías; la dirección queda como respaldo.
+    final summary = getDescription(isSpanish);
+    if (summary.isNotEmpty) return summary;
     if (!isSpanish && subtitleEn != null && subtitleEn!.isNotEmpty) {
       return subtitleEn!;
     }

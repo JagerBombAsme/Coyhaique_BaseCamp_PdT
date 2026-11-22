@@ -7,10 +7,12 @@ import '../../../../core/models/category_model.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/utils/text_normalizer.dart';
+import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
 import '../../../transport/presentation/widgets/transfer_widgets.dart';
+import '../widgets/place_editorial_widgets.dart';
 
 /// Pantalla de una categoría principal (HU-01, HU-02).
 ///
@@ -393,13 +395,19 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final place = items[index];
-                  return _PlaceCard(
-                    place: place,
-                    isSpanish: isSpanish,
-                    subcategory: _selectedId == null
-                        ? subNames[place.categoryId]
-                        : null,
-                    onTap: () => widget.onPlaceClick(place.id),
+                  // La key propia de cada lugar hace que, al cambiar el
+                  // filtro, los lugares nuevos entren con animación.
+                  return BcEntrance(
+                    key: ValueKey(place.id),
+                    index: index,
+                    child: _PlaceCard(
+                      place: place,
+                      isSpanish: isSpanish,
+                      subcategory: _selectedId == null
+                          ? subNames[place.categoryId]
+                          : null,
+                      onTap: () => widget.onPlaceClick(place.id),
+                    ),
                   );
                 },
               ),
@@ -593,12 +601,14 @@ class _PlaceCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(BcRadius.control),
-              child: SizedBox(
-                width: 88,
-                height: 88,
-                child: BcPhotoImage(source: place.imageUrl ?? ''),
+            SizedBox(
+              width: 88,
+              height: 88,
+              // La foto viaja hasta la ficha del lugar al abrirla.
+              child: PlacePhotoHero(
+                placeId: place.id,
+                photoUrl: place.imageUrl,
+                radius: BcRadius.control,
               ),
             ),
             const SizedBox(width: 14),
