@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,12 +26,29 @@ class TransferRequestScreen extends ConsumerStatefulWidget {
 
 class _TransferRequestScreenState
     extends ConsumerState<TransferRequestScreen> {
-  TransferDestinationKind _kind = TransferDestinationKind.center;
+  /// null hasta que el pasajero elige: no se preselecciona ninguna recogida.
+  TransferPickupKind? _kind;
   PlaceDto? _lodging;
-  String? _locality;
+
+  /// Whether el pasajero eligió «Otro alojamiento» (o no hay catálogo) y
+  /// escribe la dirección.
+  bool _lodgingOther = false;
+  final TextEditingController _lodgingText = TextEditingController();
+  final TextEditingController _otherPickupText = TextEditingController();
+  final TextEditingController _flightText = TextEditingController();
+  DateTime? _date;
+  TimeOfDay? _time;
   int _passengers = 1;
   bool _bigLuggage = false;
   TransferPayment? _payment;
+
+  @override
+  void dispose() {
+    _lodgingText.dispose();
+    _otherPickupText.dispose();
+    _flightText.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,9 +97,76 @@ class _TransferRequestScreenState
     return service.acceptsCard ? TransferPayment.card : TransferPayment.cash;
   }
 
-  bool get _destinationComplete => switch (_kind) {
-        TransferDestinationKind.lodging => _lodging != null,
-        TransferDestinationKind.locality => _locality != null,
+  /// Fecha y hora elegidas, o null si falta alguna.
+  DateTime? get _pickupAt {
+    final date = _date;
+    final time = _time;
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  bool get _whenComplete {
+    final at = _pickupAt;
+    return at != null && at.isAfter(DateTime.now());
+  }
+
+  bool get _requestComplete => _pickupComplete && _whenComplete;
+
+  /// Lo primero que falta para poder preparar la solicitud, o null si está
+  /// completa. Se muestra junto al botón.
+  String? _missing(bool isSpanish) {
+    if (_kind == null) {
+      return isSpanish
+          ? 'Falta elegir dónde te recogen'
+          : 'Choose where you will be picked up';
+    }
+    if (!_pickupComplete) {
+      return isSpanish
+          ? 'Falta escribir la dirección de recogida'
+          : 'Enter the pickup address';
+    }
+    if (_date == null) {
+      return isSpanish ? 'Falta elegir la fecha' : 'Choose the date';
+    }
+    if (_time == null) {
+      return isSpanish ? 'Falta elegir la hora' : 'Choose the time';
+    }
+    if (!_whenComplete) {
+      return isSpanish
+          ? 'La fecha y hora elegidas ya pasaron'
+          : 'The chosen date and time have passed';
+    }
+    return null;
+  }
+
+  Future<void> _pickDate() async {
+    final today = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date ?? today,
+      firstDate: DateTime(today.year, today.month, today.day),
+      lastDate: DateTime(today.year + 1, today.month, today.day),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _date = picked);
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _time ?? const TimeOfDay(hour: 8, minute: 0),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _time = picked);
+  }
+
+  bool get _pickupComplete => switch (_kind) {
+        null => false,
+        TransferPickupKind.lodging => _lodgingOther
+            ? TransferPickupPoints.isTypedValid(_lodgingText.text)
+            : _lodging != null,
+        TransferPickupKind.other =>
+          TransferPickupPoints.isTypedValid(_otherPickupText.text),
         _ => true,
       };
 
@@ -93,15 +178,17 @@ class _TransferRequestScreenState
     final maxPassengers = service.maxPassengers;
     if (_passengers > maxPassengers) _passengers = maxPassengers;
     final payment = _effectivePayment(service);
-    final stand = service.standLocation(isSpanish);
     final fare = service.referenceFareClp;
 
-    return ListView(
+    final missing = _missing(isSpanish);
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+
+    final list = ListView(
       padding: const EdgeInsets.fromLTRB(
         BcSpace.gutter,
         BcSpace.gutter,
         BcSpace.gutter,
-        32,
+        BcSpace.gutter,
       ),
       children: [
         Align(
@@ -114,7 +201,7 @@ class _TransferRequestScreenState
         ),
         const SizedBox(height: 18),
         Text(
-          [service.name, ?stand].join(' · ').toUpperCase(),
+          service.name.toUpperCase(),
           style: BcText.label(color: BcColors.muted),
         ),
         const SizedBox(height: 10),
@@ -122,18 +209,20 @@ class _TransferRequestScreenState
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
           child: Text(
-            isSpanish ? 'TU TRASLADO' : 'YOUR RIDE',
+            isSpanish ? 'TU TRASLADO AL AEROPUERTO' : 'YOUR RIDE TO THE AIRPORT',
             style: BcText.displaySection,
           ),
         ),
         const SizedBox(height: BcSpace.section),
 
-        // ¿A dónde vas?
-        TransferSectionLabel(isSpanish ? '¿A dónde vas?' : 'Where to?'),
+        // ¿Dónde te recogen?
+        TransferSectionLabel(
+          isSpanish ? '¿Dónde te recogen?' : 'Where will you be picked up?',
+        ),
         const SizedBox(height: 10),
         TransferTwoColumns(
           children: [
-            for (final kind in TransferDestinationKind.values)
+            for (final kind in TransferPickupKind.values)
               TransferOption(
                 label: _kindLabel(kind, isSpanish),
                 selected: _kind == kind,
@@ -142,7 +231,51 @@ class _TransferRequestScreenState
           ],
         ),
         const SizedBox(height: BcSpace.s3),
-        _destinationDetail(isSpanish),
+        _pickupDetail(isSpanish),
+        const SizedBox(height: BcSpace.section),
+
+        // Fecha y hora de recogida, y vuelo (opcional).
+        TransferSectionLabel(
+          isSpanish ? '¿Cuándo te recogen?' : 'When will you be picked up?',
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _PickerField(
+                icon: Icons.calendar_today_rounded,
+                label: isSpanish ? 'Fecha' : 'Date',
+                value: _date == null ? null : formatDate(_date!),
+                placeholder: isSpanish ? 'Elegir fecha' : 'Choose date',
+                onTap: _pickDate,
+              ),
+            ),
+            const SizedBox(width: BcSpace.s3),
+            Expanded(
+              child: _PickerField(
+                icon: Icons.schedule_rounded,
+                label: isSpanish ? 'Hora' : 'Time',
+                value: _time == null
+                    ? null
+                    : formatTime(
+                        DateTime(2000, 1, 1, _time!.hour, _time!.minute),
+                      ),
+                placeholder: isSpanish ? 'Elegir hora' : 'Choose time',
+                onTap: _pickTime,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: BcSpace.s3),
+        _FlightField(
+          controller: _flightText,
+          label: isSpanish ? 'Número de vuelo (opcional)' : 'Flight number (optional)',
+          hint: isSpanish ? 'Aerolínea y número' : 'Airline and number',
+          helper: isSpanish
+              ? 'La empresa confirma la disponibilidad y la hora. Reserva con anticipación.'
+              : 'The company confirms availability and time. Book ahead.',
+        ),
         const SizedBox(height: BcSpace.section),
 
         // ¿Cuántos van?
@@ -216,8 +349,8 @@ class _TransferRequestScreenState
         const SizedBox(height: 6),
         Text(
           isSpanish
-              ? 'El pago lo recibe el conductor. La app no cobra.'
-              : 'You pay the driver. The app does not charge you.',
+              ? 'El pago se acuerda con la empresa. La app no cobra.'
+              : 'Payment is arranged with the company. The app does not charge you.',
           style: BcText.caption(),
         ),
         const SizedBox(height: BcSpace.section),
@@ -269,78 +402,119 @@ class _TransferRequestScreenState
         const SizedBox(height: BcSpace.s3),
         Text(
           isSpanish
-              ? 'Generar el código no reserva ni confirma el viaje: el conductor debe leerlo y aceptarlo.'
-              : 'Creating the code does not book or confirm the ride: the driver must read and accept it.',
+              ? 'Preparar la solicitud no reserva ni confirma el viaje: la empresa debe aceptarla. Contrata solo servicios autorizados.'
+              : 'Preparing the request does not book or confirm the ride: the company must accept it. Book only authorized services.',
           style: BcText.caption(),
         ),
-        const SizedBox(height: BcSpace.gutter),
-        BcButton(
-          label: isSpanish ? 'Generar código' : 'Create code',
-          icon: Icons.qr_code_2_rounded,
-          onPressed: _destinationComplete
-              ? () => _createCode(context, service, payment)
-              : null,
-        ),
-        if (!_destinationComplete) ...[
-          const SizedBox(height: BcSpace.s2),
-          Text(
-            isSpanish
-                ? 'Elige tu destino para continuar.'
-                : 'Choose your destination to continue.',
-            style: BcText.caption(),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        if (!keyboardOpen)
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+              BcSpace.gutter,
+              BcSpace.s3,
+              BcSpace.gutter,
+              BcSpace.s3,
+            ),
+            decoration: const BoxDecoration(
+              color: BcColors.fog,
+              border: Border(top: BorderSide(color: BcColors.line)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (missing != null) ...[
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      missing,
+                      textAlign: TextAlign.center,
+                      style: BcText.caption(),
+                    ),
+                  ),
+                  const SizedBox(height: BcSpace.s2),
+                ],
+                BcButton(
+                  label: isSpanish ? 'Preparar solicitud' : 'Prepare request',
+                  icon: Icons.send_rounded,
+                  onPressed: _requestComplete
+                      ? () => _createRequest(context, service, payment)
+                      : null,
+                ),
+              ],
+            ),
           ),
-        ],
       ],
     );
   }
 
-  String _kindLabel(TransferDestinationKind kind, bool isSpanish) =>
+  String _kindLabel(TransferPickupKind kind, bool isSpanish) =>
       switch (kind) {
-        TransferDestinationKind.lodging =>
+        TransferPickupKind.lodging =>
           isSpanish ? 'Mi alojamiento' : 'My lodging',
-        TransferDestinationKind.center =>
+        TransferPickupKind.center =>
           isSpanish ? 'Centro de Coyhaique' : 'Coyhaique centre',
-        TransferDestinationKind.terminal =>
+        TransferPickupKind.terminal =>
           isSpanish ? 'Terminal de buses' : 'Bus terminal',
-        TransferDestinationKind.locality =>
-          isSpanish ? 'Otra localidad' : 'Another town',
+        TransferPickupKind.other =>
+          isSpanish ? 'Otro lugar' : 'Another place',
       };
 
-  Widget _destinationDetail(bool isSpanish) {
+  Widget _pickupDetail(bool isSpanish) {
     switch (_kind) {
-      case TransferDestinationKind.center:
+      case null:
+        return const SizedBox.shrink();
+      case TransferPickupKind.center:
         return _FixedPoint(
           label: isSpanish ? 'Punto de referencia' : 'Reference point',
           value: isSpanish
-              ? TransferDestinations.centerEs
-              : TransferDestinations.centerEn,
+              ? TransferPickupPoints.centerEs
+              : TransferPickupPoints.centerEn,
         );
-      case TransferDestinationKind.terminal:
+      case TransferPickupKind.terminal:
         return _FixedPoint(
           label: isSpanish ? 'Terminal' : 'Terminal',
           value: isSpanish
-              ? TransferDestinations.terminalEs
-              : TransferDestinations.terminalEn,
+              ? TransferPickupPoints.terminalEs
+              : TransferPickupPoints.terminalEn,
         );
-      case TransferDestinationKind.locality:
-        return Wrap(
-          spacing: BcSpace.s2,
-          runSpacing: BcSpace.s2,
-          children: [
-            for (final locality in TransferDestinations.localities)
-              IntrinsicWidth(
-                child: TransferOption(
-                  label: locality,
-                  selected: _locality == locality,
-                  inkSelected: true,
-                  onTap: () => setState(() => _locality = locality),
-                ),
-              ),
-          ],
+      case TransferPickupKind.other:
+        return _TypedTextField(
+          controller: _otherPickupText,
+          label: isSpanish ? 'Dirección de recogida' : 'Pickup address',
+          hint: isSpanish
+              ? 'Dirección o lugar donde te recogen'
+              : 'Address or place where you are picked up',
+          helper: isSpanish
+              ? 'Escribe la dirección o el lugar de recogida y confírmalo con la empresa. No escribas tu nombre ni tu teléfono.'
+              : 'Write the pickup address or place and confirm it with the company. Do not write your name or phone number.',
+          onChanged: (_) => setState(() {}),
         );
-      case TransferDestinationKind.lodging:
+      case TransferPickupKind.lodging:
+        // Solo los alojamientos registrados en el catálogo, y la opción de
+        // escribir otro. Si el catálogo no carga o está vacío, queda solo el
+        // campo para escribir la dirección.
         final lodgingsAsync = ref.watch(
           placesByCategoryProvider('alojamiento'),
+        );
+        final typedField = _TypedTextField(
+          controller: _lodgingText,
+          label: isSpanish
+              ? 'Dirección de tu alojamiento'
+              : 'Your lodging address',
+          hint: isSpanish ? 'Calle y número, o nombre' : 'Street and number, or name',
+          helper: isSpanish
+              ? '¿Tienes reserva en tu alojamiento? Ingresa su dirección y verifica con el conductor. No escribas tu nombre ni tu teléfono.'
+              : 'Do you have a booking at your lodging? Enter its address and confirm it with the driver. Do not write your name or phone number.',
+          onChanged: (_) => setState(() {
+            _lodgingOther = true;
+            _lodging = null;
+          }),
         );
         return lodgingsAsync.when(
           loading: () => const Padding(
@@ -349,30 +523,36 @@ class _TransferRequestScreenState
               child: CircularProgressIndicator(color: BcColors.ink),
             ),
           ),
-          error: (_, _) => _hint(
-            isSpanish
-                ? 'No pudimos cargar los alojamientos. Elige el centro de Coyhaique y dile tu alojamiento al conductor.'
-                : 'We could not load lodgings. Choose Coyhaique centre and tell the driver where you are staying.',
-          ),
+          error: (_, _) => typedField,
           data: (lodgings) {
-            if (lodgings.isEmpty) {
-              return _hint(
-                isSpanish
-                    ? 'Aún no hay alojamientos en el catálogo. Elige el centro de Coyhaique y dile tu alojamiento al conductor.'
-                    : 'There are no lodgings in the catalogue yet. Choose Coyhaique centre and tell the driver where you are staying.',
-              );
-            }
+            if (lodgings.isEmpty) return typedField;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (final place in lodgings) ...[
                   TransferOption(
                     label: place.getTitle(isSpanish),
-                    selected: _lodging?.id == place.id,
+                    selected: !_lodgingOther && _lodging?.id == place.id,
                     inkSelected: true,
-                    onTap: () => setState(() => _lodging = place),
+                    onTap: () => setState(() {
+                      _lodging = place;
+                      _lodgingOther = false;
+                    }),
                   ),
                   const SizedBox(height: BcSpace.s2),
+                ],
+                TransferOption(
+                  label: isSpanish ? 'Otro alojamiento' : 'Another lodging',
+                  selected: _lodgingOther,
+                  inkSelected: true,
+                  onTap: () => setState(() {
+                    _lodgingOther = true;
+                    _lodging = null;
+                  }),
+                ),
+                if (_lodgingOther) ...[
+                  const SizedBox(height: BcSpace.s3),
+                  typedField,
                 ],
               ],
             );
@@ -381,42 +561,227 @@ class _TransferRequestScreenState
     }
   }
 
-  Widget _hint(String text) => Text(text, style: BcText.caption());
-
-  void _createCode(
+  void _createRequest(
     BuildContext context,
     TransferService service,
     TransferPayment payment,
   ) {
-    final (destinationEs, destinationEn) = switch (_kind) {
-      TransferDestinationKind.lodging => (
+    final kind = _kind;
+    final pickupAt = _pickupAt;
+    if (kind == null || pickupAt == null) return;
+    final lodgingTyped = kind == TransferPickupKind.lodging && _lodgingOther;
+    final typed = lodgingTyped || kind == TransferPickupKind.other;
+    final (pickupEs, pickupEn) = switch (kind) {
+      TransferPickupKind.lodging when lodgingTyped => (
+          TransferPickupPoints.cleanTyped(_lodgingText.text),
+          TransferPickupPoints.cleanTyped(_lodgingText.text),
+        ),
+      TransferPickupKind.lodging => (
           '${_lodging!.getTitle(true)}, Coyhaique',
           '${_lodging!.getTitle(false)}, Coyhaique',
         ),
-      TransferDestinationKind.center => (
-          TransferDestinations.centerEs,
-          TransferDestinations.centerEn,
+      TransferPickupKind.center => (
+          TransferPickupPoints.centerEs,
+          TransferPickupPoints.centerEn,
         ),
-      TransferDestinationKind.terminal => (
-          TransferDestinations.terminalEs,
-          TransferDestinations.terminalEn,
+      TransferPickupKind.terminal => (
+          TransferPickupPoints.terminalEs,
+          TransferPickupPoints.terminalEn,
         ),
-      TransferDestinationKind.locality => (_locality!, _locality!),
+      TransferPickupKind.other => (
+          TransferPickupPoints.cleanTyped(_otherPickupText.text),
+          TransferPickupPoints.cleanTyped(_otherPickupText.text),
+        ),
     };
 
     final request = TransferRequest(
       service: service,
       code: TransferRequest.newCode(),
-      destinationKind: _kind,
-      destinationEs: destinationEs,
-      destinationEn: destinationEn,
+      pickupKind: kind,
+      pickupEs: pickupEs,
+      pickupEn: pickupEn,
+      pickupAt: pickupAt,
+      flight: TransferPickupPoints.cleanFlight(_flightText.text),
       passengers: _passengers,
       bigLuggage: _bigLuggage,
       payment: payment,
       createdAt: DateTime.now(),
+      pickupIsTyped: typed,
     );
 
     context.push(transferCodeRoute, extra: request);
+  }
+}
+
+/// Campo para que el pasajero escriba un texto (dirección de recogida, fecha
+/// y vuelo). Una sola línea, sin caracteres de formato de
+/// WhatsApp, con el largo máximo de [TransferPickupPoints.maxTypedLength].
+class _TypedTextField extends StatelessWidget {
+  const _TypedTextField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.helper,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final String helper;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    OutlineInputBorder border(Color color, [double width = 1]) =>
+        OutlineInputBorder(
+          borderRadius: BorderRadius.circular(BcRadius.field),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      maxLength: TransferPickupPoints.maxTypedLength,
+      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+      textCapitalization: TextCapitalization.sentences,
+      textInputAction: TextInputAction.done,
+      keyboardType: TextInputType.streetAddress,
+      inputFormatters: [
+        FilteringTextInputFormatter.deny(RegExp(r'[\n\r*_~`]')),
+      ],
+      style: BcText.title(),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        helperText: helper,
+        helperMaxLines: 4,
+        helperStyle: BcText.caption(),
+        counterText: '',
+        filled: true,
+        fillColor: BcColors.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: border(BcColors.line),
+        enabledBorder: border(BcColors.line),
+        focusedBorder: border(BcColors.glacierDeep, 2),
+      ),
+    );
+  }
+}
+
+/// Botón con forma de campo que abre un selector (fecha u hora). Muestra el
+/// valor elegido o, mientras no hay, un texto que invita a elegir.
+class _PickerField extends StatelessWidget {
+  const _PickerField({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.placeholder,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? value;
+  final String placeholder;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final chosen = value != null;
+    return BcPressable(
+      onTap: onTap,
+      semanticLabel: '$label: ${value ?? placeholder}',
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: BcColors.surface,
+          borderRadius: BorderRadius.circular(BcRadius.field),
+          border: Border.all(
+            color: chosen ? BcColors.glacierDeep : BcColors.line,
+            width: chosen ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: BcColors.glacierDeep),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: BcText.caption()),
+                  Text(
+                    value ?? placeholder,
+                    style: chosen
+                        ? BcText.title()
+                        : BcText.title(color: BcColors.muted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Campo del número de vuelo: opcional, en mayúsculas, solo letras, números,
+/// espacio y guion.
+class _FlightField extends StatelessWidget {
+  const _FlightField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.helper,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final String helper;
+
+  @override
+  Widget build(BuildContext context) {
+    OutlineInputBorder border(Color color, [double width = 1]) =>
+        OutlineInputBorder(
+          borderRadius: BorderRadius.circular(BcRadius.field),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return TextField(
+      controller: controller,
+      maxLength: TransferPickupPoints.maxFlightLength,
+      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+      textCapitalization: TextCapitalization.characters,
+      textInputAction: TextInputAction.done,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9 -]')),
+      ],
+      style: BcText.title(),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        helperText: helper,
+        helperMaxLines: 3,
+        helperStyle: BcText.caption(),
+        counterText: '',
+        filled: true,
+        fillColor: BcColors.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: border(BcColors.line),
+        enabledBorder: border(BcColors.line),
+        focusedBorder: border(BcColors.glacierDeep, 2),
+      ),
+    );
   }
 }
 

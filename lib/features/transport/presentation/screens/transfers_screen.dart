@@ -10,21 +10,32 @@ import '../../data/models/transfer_service.dart';
 import '../../data/providers/transfer_providers.dart';
 import '../widgets/transfer_widgets.dart';
 
-/// Transfers desde el aeropuerto de Balmaceda (HU-18, pantalla 1).
+/// Transfers hacia y desde el aeropuerto de Balmaceda (HU-18, pantalla 1).
 ///
-/// Lista las empresas con ficha activa. La información es referencial y se
-/// confirma con el conductor.
-class TransfersScreen extends ConsumerWidget {
-  const TransfersScreen({super.key, this.toAirport = false});
+/// «Hacia el aeropuerto» va primero: se reserva con anticipación por
+/// WhatsApp con una empresa autorizada. «Desde el aeropuerto» es una guía:
+/// se contrata y se paga en el counter antes de viajar. En ambos casos la
+/// información es referencial y se recuerda contratar solo servicios
+/// autorizados.
+class TransfersScreen extends ConsumerStatefulWidget {
+  const TransfersScreen({super.key, this.fromAirport = false});
 
-  /// true cuando el usuario viene de «¿Necesitas transfer para el
-  /// aeropuerto?»: se agrega un aviso sobre el sentido del viaje.
-  final bool toAirport;
-
-  static const String _heroPhoto = 'assets/images/miradores_coyhaique.jpg';
+  /// true para abrir directamente la guía «desde el aeropuerto» (por ejemplo,
+  /// cuando el usuario está en el aeropuerto). Por defecto se abre «hacia».
+  final bool fromAirport;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransfersScreen> createState() => _TransfersScreenState();
+}
+
+class _TransfersScreenState extends ConsumerState<TransfersScreen> {
+  static const String _heroPhoto = 'assets/images/miradores_coyhaique.jpg';
+
+  late bool _toAirport = !widget.fromAirport;
+
+  @override
+  Widget build(BuildContext context) {
+    final toAirport = _toAirport;
     final isSpanish = ref.watch(languageProvider).languageCode == 'es';
     final transfersAsync = ref.watch(airportTransfersProvider);
     final topPadding = MediaQuery.paddingOf(context).top;
@@ -97,6 +108,35 @@ class TransfersScreen extends ConsumerWidget {
                     BcSpace.gutter,
                     0,
                   ),
+                  child: TransferTwoColumns(
+                    children: [
+                      TransferOption(
+                        label: isSpanish
+                            ? 'Hacia el aeropuerto'
+                            : 'To the airport',
+                        selected: toAirport,
+                        onTap: () => setState(() => _toAirport = true),
+                      ),
+                      TransferOption(
+                        label: isSpanish
+                            ? 'Desde el aeropuerto'
+                            : 'From the airport',
+                        selected: !toAirport,
+                        onTap: () => setState(() => _toAirport = false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    BcSpace.gutter,
+                    BcSpace.gutter,
+                    0,
+                  ),
                   child: IntrinsicHeight(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -114,8 +154,8 @@ class TransfersScreen extends ConsumerWidget {
                               const SizedBox(height: BcSpace.s2),
                               Text(
                                 isSpanish
-                                    ? 'DEL AEROPUERTO AL CENTRO DE COYHAIQUE'
-                                    : 'FROM THE AIRPORT TO COYHAIQUE',
+                                    ? 'ENTRE EL AEROPUERTO Y EL CENTRO DE COYHAIQUE'
+                                    : 'BETWEEN THE AIRPORT AND COYHAIQUE',
                                 style: BcText.label(color: BcColors.onPhoto),
                               ),
                             ],
@@ -131,9 +171,13 @@ class TransfersScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: BcSpace.s2),
                               Text(
-                                isSpanish
-                                    ? 'Eliges destino, pasajeros y pago. Le muestras el código al conductor.'
-                                    : 'Choose destination, passengers and payment. Show the code to the driver.',
+                                toAirport
+                                    ? (isSpanish
+                                          ? 'Reservas con anticipación por WhatsApp y la empresa confirma hora y tarifa.'
+                                          : 'You book ahead by WhatsApp and the company confirms time and fare.')
+                                    : (isSpanish
+                                          ? 'Contratas en el counter del aeropuerto y pagas ahí, antes de viajar.'
+                                          : 'You book at the airport counter and pay there, before you travel.'),
                                 style: BcText.body(color: BcColors.ink),
                               ),
                             ],
@@ -145,37 +189,49 @@ class TransfersScreen extends ConsumerWidget {
                 ),
               ),
 
-              if (toAirport)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      BcSpace.gutter,
-                      BcSpace.section,
-                      BcSpace.gutter,
-                      0,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.info_outline_rounded,
-                          size: 20,
-                          color: BcColors.ink,
-                        ),
-                        const SizedBox(width: BcSpace.s2),
-                        Expanded(
-                          child: Text(
-                            isSpanish
-                                ? 'El traslado al aeropuerto se coordina directamente con el prestador. Esta lista muestra las empresas que operan desde el aeropuerto.'
-                                : 'Rides to the airport are arranged directly with the provider. This list shows the companies that operate from the airport.',
-                            style: BcText.body(color: BcColors.ink),
-                          ),
-                        ),
-                      ],
-                    ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    BcSpace.section,
+                    BcSpace.gutter,
+                    0,
+                  ),
+                  child: _InfoCard(
+                    icon: Icons.verified_user_rounded,
+                    title: isSpanish
+                        ? 'Solo servicios autorizados'
+                        : 'Authorized services only',
+                    text: isSpanish
+                        ? 'Contrata solo empresas con vehículos habilitados y no aceptes ofertas de quienes te abordan en el terminal. Usar un servicio ilegal a sabiendas puede tener multa de 1 a 3 UTM (Ley 21.787).'
+                        : 'Book only companies with licensed vehicles and do not accept offers from people who approach you at the terminal. Knowingly using an illegal service can carry a fine of 1 to 3 UTM (Law 21,787).',
                   ),
                 ),
+              ),
 
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    BcSpace.s3,
+                    BcSpace.gutter,
+                    0,
+                  ),
+                  child: _InfoCard(
+                    icon: Icons.hotel_rounded,
+                    title: isSpanish ? 'Antes de viajar' : 'Before you travel',
+                    text: isSpanish
+                        ? 'Encuentra tu alojamiento antes de viajar y contrata tu transfer con anticipación.'
+                        : 'Find your lodging before you travel and book your transfer ahead of time.',
+                    actionLabel: isSpanish
+                        ? 'Ver alojamientos'
+                        : 'See lodgings',
+                    onAction: () => context.push('/categories/alojamiento'),
+                  ),
+                ),
+              ),
+
+              if (toAirport) ...[
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -198,8 +254,8 @@ class TransfersScreen extends ConsumerWidget {
                       const SizedBox(height: 6),
                       Text(
                         isSpanish
-                            ? 'Puestos en el hall de llegada'
-                            : 'Stands in the arrivals hall',
+                            ? 'Reserva con anticipación; la empresa confirma la hora'
+                            : 'Book ahead; the company confirms the time',
                         style: BcText.caption(),
                       ),
                     ],
@@ -283,6 +339,19 @@ class TransfersScreen extends ConsumerWidget {
                     ),
                 ],
               ),
+              ] else ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    BcSpace.section,
+                    BcSpace.gutter,
+                    0,
+                  ),
+                  child: _CounterGuide(isSpanish: isSpanish),
+                ),
+              ),
+              ],
 
               SliverToBoxAdapter(
                 child: Padding(
@@ -293,9 +362,13 @@ class TransfersScreen extends ConsumerWidget {
                     40,
                   ),
                   child: Text(
-                    isSpanish
-                        ? 'Información referencial. Confirma la tarifa con el conductor antes de subir.'
-                        : 'Reference information. Confirm the fare with the driver before getting in.',
+                    toAirport
+                        ? (isSpanish
+                              ? 'Información referencial. Confirma la tarifa y la hora con la empresa antes del viaje.'
+                              : 'Reference information. Confirm the fare and time with the company before the trip.')
+                        : (isSpanish
+                              ? 'Información referencial. La tarifa final la informa el counter antes de pagar; cómo opera cada counter en el terminal se confirma en el lugar.'
+                              : 'Reference information. The counter gives the final fare before you pay; how each counter works in the terminal is confirmed on site.'),
                     style: BcText.caption(),
                   ),
                 ),
@@ -344,7 +417,6 @@ class _TransferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stand = service.standLocation(isSpanish);
     final schedule = service.schedule(isSpanish);
     final fare = service.referenceFareClp;
 
@@ -380,10 +452,6 @@ class _TransferCard extends StatelessWidget {
           BcTag(tagText, lead: tagLead, style: BcTagStyle.ink),
           const SizedBox(height: BcSpace.s2),
           Text(service.name.toUpperCase(), style: BcText.display(27)),
-          if (stand != null) ...[
-            const SizedBox(height: BcSpace.s2),
-            Text(stand, style: BcText.caption()),
-          ],
           const SizedBox(height: BcSpace.s4),
           TransferInfoRow(
             label: isSpanish ? 'Tarifa al centro' : 'Fare to the centre',
@@ -419,10 +487,148 @@ class _TransferCard extends StatelessWidget {
           ],
           const SizedBox(height: BcSpace.s4),
           BcButton(
-            label: isSpanish ? 'Preparar mi traslado' : 'Set up my ride',
+            label: isSpanish ? 'Preparar solicitud' : 'Prepare request',
             icon: Icons.chevron_right_rounded,
             onPressed: onPrepare,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta informativa con ícono, título, texto y, si se pide, un botón.
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({
+    required this.icon,
+    required this.title,
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(BcSpace.s4),
+      decoration: BoxDecoration(
+        color: BcColors.surface,
+        borderRadius: BorderRadius.circular(BcRadius.tile),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: BcColors.glacierDeep),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text(title.toUpperCase(), style: BcText.label()),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: BcSpace.s2),
+          Text(text, style: BcText.body(color: BcColors.ink)),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: BcSpace.s3),
+            BcButton(label: actionLabel!, onPressed: onAction),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Guía para contratar en el counter del aeropuerto. Los counters solo
+/// pueden vender viajes ya pagados (Ley 21.787, art. 9 bis).
+class _CounterGuide extends StatelessWidget {
+  const _CounterGuide({required this.isSpanish});
+
+  final bool isSpanish;
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = isSpanish
+        ? const [
+            'Ve al counter del servicio de transporte dentro del terminal.',
+            'Indica tu destino y cuántas personas viajan, y confirma la tarifa.',
+            'Paga en el counter (la recepción del servicio) antes de viajar y guarda el comprobante.',
+            'Sube solo al vehículo de la empresa que te atendió. No aceptes ofertas fuera del counter.',
+          ]
+        : const [
+            'Go to the transport service counter inside the terminal.',
+            'Say where you are going and how many people travel, and confirm the fare.',
+            'Pay at the counter (the service desk) before you travel and keep the receipt.',
+            'Get in only the vehicle of the company that served you. Do not accept offers away from the counter.',
+          ];
+
+    return Container(
+      padding: const EdgeInsets.all(BcSpace.gutter),
+      decoration: BoxDecoration(
+        color: BcColors.surface,
+        borderRadius: BorderRadius.circular(BcRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              (isSpanish
+                      ? 'Cómo contratar en el aeropuerto'
+                      : 'How to book at the airport')
+                  .toUpperCase(),
+              style: BcText.label(),
+            ),
+          ),
+          const SizedBox(height: BcSpace.s2),
+          Text(
+            isSpanish
+                ? 'Los counters del aeropuerto solo pueden vender viajes ya pagados: el pago se hace ahí, antes de viajar.'
+                : 'Airport counters can only sell rides that are already paid: you pay there, before you travel.',
+            style: BcText.body(color: BcColors.ink),
+          ),
+          const SizedBox(height: BcSpace.s4),
+          for (var i = 0; i < steps.length; i++) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: BcColors.ink,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${i + 1}',
+                    style: BcText.label(color: BcColors.onPhoto),
+                  ),
+                ),
+                const SizedBox(width: BcSpace.s3),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      steps[i],
+                      style: BcText.body(color: BcColors.ink),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (i < steps.length - 1) const SizedBox(height: BcSpace.s3),
+          ],
         ],
       ),
     );
