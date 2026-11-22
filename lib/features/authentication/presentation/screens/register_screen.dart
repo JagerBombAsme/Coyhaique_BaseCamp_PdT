@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/legal_links.dart';
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/auth_text_field.dart';
 import '../../data/auth_error_messages.dart';
 import '../../data/auth_validators.dart';
@@ -106,6 +108,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     switch (outcome) {
       case SignUpOutcome.signedIn:
+        // El gestor de contraseñas puede ofrecer guardar la cuenta nueva.
+        TextInput.finishAutofillContext();
         widget.onSignedIn?.call();
       case SignUpOutcome.confirmationRequired:
         setState(() => _confirmationSentTo = email);
@@ -159,6 +163,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             obscureText: _obscure,
             prefixIcon: Icons.lock_outline_rounded,
             suffixIcon: _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            suffixTooltip: _obscure
+                ? (es ? 'Mostrar contraseña' : 'Show password')
+                : (es ? 'Ocultar contraseña' : 'Hide password'),
             onSuffixPressed: () => setState(() => _obscure = !_obscure),
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.newPassword],
@@ -174,6 +181,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             obscureText: _obscure,
             prefixIcon: Icons.lock_reset_rounded,
             textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.newPassword],
             enabled: !isLoading,
             maxLength: 72,
             errorText: _submitted ? AuthValidators.confirmError(password, confirm, es) : null,
@@ -185,7 +193,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             es
                 ? 'Al menos 8 caracteres, con letras y números.'
                 : 'At least 8 characters, with letters and numbers.',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 12.5),
+            style: BcText.caption(color: BcColors.onPhoto.withValues(alpha: 0.82)),
           ),
           const SizedBox(height: 16),
           _ConsentRow(
@@ -214,13 +222,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               Text(
                 es ? '¿Ya tienes cuenta? ' : 'Already have an account? ',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.72), fontSize: 14),
+                style: BcText.body(color: BcColors.onPhoto.withValues(alpha: 0.86)),
               ),
               TextButton(
                 onPressed: isLoading ? null : widget.onGoToLogin,
+                style: TextButton.styleFrom(
+                  foregroundColor: BcColors.glacier,
+                  minimumSize: const Size(48, 48),
+                ),
                 child: Text(
                   es ? 'Inicia sesión' : 'Sign in',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: BcText.title(color: BcColors.glacier),
                 ),
               ),
             ],
@@ -330,7 +342,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           es
               ? 'Si no lo ves en unos minutos, revisa la carpeta de spam. Si ya tenías una cuenta con este correo, inicia sesión o recupera tu contraseña.'
               : 'If you do not see it in a few minutes, check your spam folder. If you already had an account with this email, sign in or reset your password.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 12.5, height: 1.35),
+          style: BcText.caption(color: BcColors.onPhoto.withValues(alpha: 0.82)).copyWith(height: 1.35),
         ),
         if (_codeMessage != null) ...[
           const SizedBox(height: 14),
@@ -349,19 +361,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             _cooldown > 0
                 ? (es ? 'Reenviar código en $_cooldown s' : 'Resend code in $_cooldown s')
                 : (es ? 'Reenviar código' : 'Resend code'),
-            style: const TextStyle(color: Colors.white70),
+            style: BcText.title(color: BcColors.glacier),
           ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        Wrap(
+          alignment: WrapAlignment.center,
           children: [
             TextButton(
               onPressed: isLoading ? null : widget.onGoToLogin,
-              child: Text(es ? 'Iniciar sesión' : 'Sign in'),
+              style: TextButton.styleFrom(
+                foregroundColor: BcColors.glacier,
+                minimumSize: const Size(48, 48),
+              ),
+              child: Text(
+                es ? 'Iniciar sesión' : 'Sign in',
+                style: BcText.title(color: BcColors.glacier),
+              ),
             ),
             TextButton(
               onPressed: isLoading ? null : widget.onForgotPassword,
-              child: Text(es ? 'Recuperar contraseña' : 'Reset password'),
+              style: TextButton.styleFrom(
+                foregroundColor: BcColors.glacier,
+                minimumSize: const Size(48, 48),
+              ),
+              child: Text(
+                es ? 'Recuperar contraseña' : 'Reset password',
+                style: BcText.title(color: BcColors.glacier),
+              ),
             ),
           ],
         ),
@@ -386,11 +412,9 @@ class _ConsentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final es = isSpanish;
-    final textStyle = TextStyle(
-      color: Colors.white.withValues(alpha: 0.85),
-      fontSize: 13,
-      height: 1.4,
-    );
+    final textStyle = BcText.caption(
+      color: BcColors.onPhoto.withValues(alpha: 0.88),
+    ).copyWith(fontSize: 13, height: 1.4);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,8 +425,9 @@ class _ConsentRow extends StatelessWidget {
           child: Checkbox(
             value: value,
             onChanged: enabled ? (v) => onChanged(v ?? false) : null,
-            activeColor: AuthPageLayout.green,
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+            activeColor: BcColors.glacier,
+            checkColor: BcColors.ink,
+            side: BorderSide(color: BcColors.onPhoto.withValues(alpha: 0.7), width: 1.5),
           ),
         ),
         const SizedBox(width: 8),
@@ -424,8 +449,10 @@ class _ConsentRow extends StatelessWidget {
                       text: es ? 'Política de privacidad' : 'Privacy policy',
                       style: const TextStyle(
                         decoration: TextDecoration.underline,
+                        decorationColor: BcColors.glacier,
+                        decorationThickness: 2,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: BcColors.onPhoto,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () => launchUrl(

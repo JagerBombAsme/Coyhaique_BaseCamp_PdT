@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/auth_text_field.dart';
 import '../../data/auth_error_messages.dart';
 import '../../data/auth_validators.dart';
@@ -123,6 +125,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     if (!mounted) return;
 
     if (ok) {
+      // El gestor de contraseñas puede ofrecer actualizar la guardada.
+      TextInput.finishAutofillContext();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
@@ -205,7 +209,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final password = _passwordController.text;
     final confirm = _confirmController.text;
 
-    return AuthPageLayout(
+    return AutofillGroup(
+      child: AuthPageLayout(
       onBack: isLoading
           ? null
           : () => setState(() {
@@ -237,6 +242,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           obscureText: _obscure,
           prefixIcon: Icons.lock_outline_rounded,
           suffixIcon: _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          suffixTooltip: _obscure
+              ? (es ? 'Mostrar contraseña' : 'Show password')
+              : (es ? 'Ocultar contraseña' : 'Hide password'),
           onSuffixPressed: () => setState(() => _obscure = !_obscure),
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.newPassword],
@@ -252,6 +260,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           obscureText: _obscure,
           prefixIcon: Icons.lock_reset_rounded,
           textInputAction: TextInputAction.done,
+          autofillHints: const [AutofillHints.newPassword],
           enabled: !isLoading,
           maxLength: 72,
           errorText: _submitted ? AuthValidators.confirmError(password, confirm, es) : null,
@@ -275,10 +284,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             _cooldown > 0
                 ? (es ? 'Reenviar código en $_cooldown s' : 'Resend code in $_cooldown s')
                 : (es ? 'Reenviar código' : 'Resend code'),
-            style: const TextStyle(color: Colors.white70),
+            style: BcText.title(color: BcColors.glacier),
           ),
         ),
       ],
+    ),
     );
   }
 }
