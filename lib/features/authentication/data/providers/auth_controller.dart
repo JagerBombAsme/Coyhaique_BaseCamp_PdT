@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth_provider.dart';
@@ -97,12 +98,22 @@ class AuthController extends AsyncNotifier<void> {
     return ok == true;
   }
 
+  /// Cierra la sesión. Supabase borra primero la sesión del teléfono y
+  /// después avisa al servidor. Sin conexión, ese aviso falla, pero la
+  /// sesión local ya está cerrada: no se trata como error (H-08). Solo se
+  /// relanza si la sesión sigue abierta en el teléfono.
   Future<void> signOut() async {
     state = const AsyncLoading();
+    final repository = ref.read(authRepositoryProvider);
     try {
-      await ref.read(authRepositoryProvider).signOut();
+      await repository.signOut();
       state = const AsyncData(null);
     } catch (error, stackTrace) {
+      if (repository.currentSession == null) {
+        debugPrint('signOut: sesión local cerrada; aviso al servidor falló: $error');
+        state = const AsyncData(null);
+        return;
+      }
       state = AsyncError(error, stackTrace);
       rethrow;
     }

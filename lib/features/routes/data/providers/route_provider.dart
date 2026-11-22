@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/providers/supabase_provider.dart';
 import '../models/route_dto.dart';
 import '../repository/route_repository.dart';
 
 final routeRepositoryProvider = Provider<RouteRepository>((ref) {
-  return RouteRepository();
+  return RouteRepository(client: ref.watch(supabaseClientProvider));
 });
 
 final routesProvider = FutureProvider<List<RouteDto>>((ref) async {
