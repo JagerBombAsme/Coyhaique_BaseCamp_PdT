@@ -82,6 +82,13 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
       return const Scaffold(backgroundColor: BcColors.fog);
     }
 
+    // «Todo» del inicio: cuadrícula con todas las categorías principales.
+    if (normalized == 'todos' || normalized == 'todo' || normalized == 'all') {
+      return _AllCategoriesView(
+        onCategoryTap: (route) => context.push('/categories/$route'),
+      );
+    }
+
     final language = ref.watch(languageProvider).languageCode;
     final isSpanish = language == 'es';
     final categoriesAsync = ref.watch(categoriesProvider);
@@ -698,6 +705,151 @@ class _ErrorBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// =================================================================
+// TODAS LAS CATEGORÍAS («Todo» en el inicio)
+// =================================================================
+
+class _AllCategoriesView extends ConsumerWidget {
+  const _AllCategoriesView({required this.onCategoryTap});
+
+  final ValueChanged<String> onCategoryTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final language = ref.watch(languageProvider).languageCode;
+    final isSpanish = language == 'es';
+    final categoriesAsync = ref.watch(mainCategoriesProvider);
+    final top = MediaQuery.paddingOf(context).top;
+
+    Future<void> retry() async {
+      ref.invalidate(categoriesProvider);
+      ref.invalidate(mainCategoriesProvider);
+    }
+
+    return Scaffold(
+      backgroundColor: BcColors.fog,
+      body: categoriesAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: BcColors.ink),
+        ),
+        error: (_, _) => _ErrorBody(
+          isSpanish: isSpanish,
+          text: isSpanish
+              ? 'No hay conexión ni información descargada. Conéctate a Internet y vuelve a intentarlo.'
+              : 'There is no connection and no downloaded information. Connect to the Internet and try again.',
+          onRetry: retry,
+        ),
+        data: (categories) {
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    top + 14,
+                    BcSpace.gutter,
+                    0,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: BcCornerButton(
+                      icon: Icons.arrow_back_rounded,
+                      semanticLabel: isSpanish ? 'Volver' : 'Back',
+                      onTap: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/home');
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    20,
+                    BcSpace.gutter,
+                    16,
+                  ),
+                  child: Semantics(
+                    header: true,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        isSpanish ? 'TODAS LAS CATEGORÍAS' : 'ALL CATEGORIES',
+                        style: BcText.display(44, color: BcColors.ink),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  BcSpace.gutter,
+                  0,
+                  BcSpace.gutter,
+                  32,
+                ),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.15,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final category = categories[index];
+                    final name = category.getNombre(language);
+
+                    return Semantics(
+                      button: true,
+                      label: name,
+                      child: ExcludeSemantics(
+                        child: Material(
+                          color: BcColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => onCategoryTap(category.route),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Icon(
+                                    category.icon,
+                                    size: 32,
+                                    color: BcColors.glacierDeep,
+                                  ),
+                                  Text(
+                                    name,
+                                    maxLines: 2,
+                                    style: BcText.title(color: BcColors.ink),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }, childCount: categories.length),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

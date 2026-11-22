@@ -27,6 +27,10 @@ class RouteScreen extends ConsumerWidget {
       ),
       body: routesAsync.when(
         data: (routes) {
+          if (routes.isEmpty) {
+            return _ComingSoon(isSpanish: isSpanish);
+          }
+
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(routesProvider);
@@ -149,6 +153,58 @@ class RouteScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Aviso mientras no hay rutas publicadas (HU-20 queda como trabajo futuro).
+class _ComingSoon extends StatelessWidget {
+  const _ComingSoon({required this.isSpanish});
+
+  final bool isSpanish;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.hiking_rounded,
+              size: 64,
+              color: AppTheme.primaryDark,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isSpanish ? 'Próximamente' : 'Coming soon',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isSpanish
+                  ? 'Estamos preparando las rutas de aventura. Mientras tanto, explora las actividades y tours desde Explorar.'
+                  : 'We are preparing the adventure routes. Meanwhile, explore activities and tours from Explore.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.4,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: Text(isSpanish ? 'Volver' : 'Back'),
+            ),
+          ],
         ),
       ),
     );
