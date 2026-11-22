@@ -402,12 +402,12 @@ GoRouter _createRouter() {
       ),
 
       // =============================================================
-      // TRANSFER DESDE EL AEROPUERTO (HU-18)
+      // TRANSFER HACIA Y DESDE EL AEROPUERTO (HU-18)
       // =============================================================
       GoRoute(
         path: transfersRoute,
         builder: (context, state) => TransfersScreen(
-          toAirport: state.uri.queryParameters['sentido'] == 'aeropuerto',
+          fromAirport: state.uri.queryParameters['sentido'] == 'desde',
         ),
       ),
 
