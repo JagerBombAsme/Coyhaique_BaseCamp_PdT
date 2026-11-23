@@ -60,8 +60,10 @@ class TransferService {
 
   int get maxPassengers => capacity ?? defaultCapacity;
 
+  /// Solo las empresas con ficha validada pueden recibir solicitudes por
+  /// WhatsApp o QR: una ficha «pendiente de validación» no escribe a nadie.
   bool get canGenerateQr =>
-      qrEnabled && (whatsappNumber?.isNotEmpty ?? false);
+      qrEnabled && !isPending && (whatsappNumber?.isNotEmpty ?? false);
 
   bool get isVerifiedByCompany => verificationLevel == 'establecimiento';
 

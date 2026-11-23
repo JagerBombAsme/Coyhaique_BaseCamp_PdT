@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
@@ -10,11 +11,11 @@ import '../../data/models/transfer_service.dart';
 import '../../domain/transfer_request.dart';
 import '../widgets/transfer_widgets.dart';
 
-/// Código para el conductor (HU-18, pantalla 3).
+/// Solicitud de traslado al aeropuerto lista para enviar (HU-18, pantalla 3).
 ///
-/// El QR abre WhatsApp en el teléfono del conductor con el viaje ya escrito,
-/// dirigido al número de la empresa. Se genera en el teléfono, funciona sin
-/// conexión y no se guarda en ningún servidor.
+/// El botón y el QR abren WhatsApp con la solicitud ya escrita, dirigida al
+/// número de la empresa. Se arma en el teléfono y no se guarda en ningún
+/// servidor. Una empresa pendiente de validación no recibe solicitudes.
 class TransferCodeScreen extends ConsumerWidget {
   const TransferCodeScreen({super.key, required this.request});
 
@@ -45,7 +46,6 @@ class TransferCodeScreen extends ConsumerWidget {
 
     final service = request.service;
     final uri = request.whatsappUri();
-    final stand = service.standLocation(isSpanish);
 
     return Scaffold(
       backgroundColor: BcColors.fog,
@@ -78,8 +78,8 @@ class TransferCodeScreen extends ConsumerWidget {
             const SizedBox(height: BcSpace.gutter),
             Text(
               isSpanish
-                  ? 'MUESTRA ESTE CÓDIGO AL CONDUCTOR'
-                  : 'SHOW THIS CODE TO THE DRIVER',
+                  ? 'ENVÍA ESTA SOLICITUD A LA EMPRESA'
+                  : 'SEND THIS REQUEST TO THE COMPANY',
               style: BcText.label(color: BcColors.muted),
             ),
             const SizedBox(height: 10),
@@ -89,6 +89,14 @@ class TransferCodeScreen extends ConsumerWidget {
               child: Text(request.code, style: BcText.display(64)),
             ),
             const SizedBox(height: BcSpace.gutter),
+            if (uri != null) ...[
+              BcButton(
+                label: isSpanish ? 'Enviar por WhatsApp' : 'Send by WhatsApp',
+                icon: Icons.send_rounded,
+                onPressed: () => _sendByWhatsApp(context, uri, isSpanish),
+              ),
+              const SizedBox(height: BcSpace.gutter),
+            ],
 
             Container(
               padding: const EdgeInsets.all(24),
@@ -119,8 +127,8 @@ class TransferCodeScreen extends ConsumerWidget {
                     const SizedBox(height: BcSpace.s3),
                     Text(
                       isSpanish
-                          ? 'Conductor: escanea para registrar el viaje en WhatsApp'
-                          : 'Driver: scan to log the ride in WhatsApp',
+                          ? 'La empresa puede escanearlo para abrir la solicitud en WhatsApp'
+                          : 'The company can scan it to open the request in WhatsApp',
                       textAlign: TextAlign.center,
                       style: BcText.title(),
                     ),
@@ -132,15 +140,15 @@ class TransferCodeScreen extends ConsumerWidget {
                     const SizedBox(height: BcSpace.s2),
                     Text(
                       isSpanish
-                          ? 'Esta empresa aún no recibe viajes por código. Muéstrale estos datos al conductor.'
-                          : 'This company does not take rides by code yet. Show these details to the driver.',
+                          ? 'Esta empresa aún no recibe solicitudes desde la app. Contáctala directamente y entrégale estos datos.'
+                          : 'This company does not receive requests from the app yet. Contact it directly and give it these details.',
                       textAlign: TextAlign.center,
                       style: BcText.body(color: BcColors.ink),
                     ),
                   ],
                   const SizedBox(height: BcSpace.s2),
                   Text(
-                    [service.name, ?stand].join(' · '),
+                    service.name,
                     textAlign: TextAlign.center,
                     style: BcText.caption(),
                   ),
@@ -163,10 +171,24 @@ class TransferCodeScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   TransferInfoRow(
-                    label: isSpanish ? 'Destino' : 'Destination',
-                    value: request.destination(isSpanish),
+                    label: isSpanish ? 'Recogida' : 'Pickup',
+                    value: request.pickup(isSpanish),
                     divider: false,
                   ),
+                  TransferInfoRow(
+                    label: isSpanish ? 'Destino' : 'Destination',
+                    value: service.origin(isSpanish),
+                  ),
+                  TransferInfoRow(
+                    label: isSpanish ? 'Fecha y hora' : 'Date and time',
+                    value:
+                        '${formatDate(request.pickupAt)} · ${formatTime(request.pickupAt)}',
+                  ),
+                  if (request.flight != null && request.flight!.isNotEmpty)
+                    TransferInfoRow(
+                      label: isSpanish ? 'Vuelo' : 'Flight',
+                      value: request.flight!,
+                    ),
                   TransferInfoRow(
                     label: isSpanish ? 'Pasajeros' : 'Passengers',
                     value: '${request.passengers}',
@@ -189,10 +211,19 @@ class TransferCodeScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: BcSpace.gutter),
+            if (request.pickupIsTyped) ...[
+              Text(
+                isSpanish
+                    ? 'Escribiste esta recogida tú mismo: confírmala con la empresa.'
+                    : 'You typed this pickup yourself: confirm it with the company.',
+                style: BcText.caption(color: BcColors.glacierDeep),
+              ),
+              const SizedBox(height: BcSpace.s2),
+            ],
             Text(
               isSpanish
-                  ? 'Creado en tu teléfono el ${formatDate(request.createdAt)} a las ${formatTime(request.createdAt)}. No contiene tu nombre ni tus datos y no se guarda en ningún servidor.'
-                  : 'Created on your phone on ${formatDate(request.createdAt)} at ${formatTime(request.createdAt)}. It has no name or personal details and is not stored on any server.',
+                  ? 'Creado en tu teléfono el ${formatDate(request.createdAt)} a las ${formatTime(request.createdAt)}. No contiene tu nombre ni tus datos de contacto y la app no la guarda en ningún servidor. Si la envías por WhatsApp, la empresa verá tu número, como en cualquier chat.'
+                  : 'Created on your phone on ${formatDate(request.createdAt)} at ${formatTime(request.createdAt)}. It has no name or contact details and the app does not store it on any server. If you send it by WhatsApp, the company will see your number, as in any chat.',
               style: BcText.caption(),
             ),
             const SizedBox(height: BcSpace.gutter),
@@ -225,4 +256,30 @@ class TransferCodeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Abre WhatsApp con la solicitud ya escrita. Si no se puede abrir, avisa y
+/// deja el QR y los datos en pantalla.
+Future<void> _sendByWhatsApp(
+  BuildContext context,
+  Uri uri,
+  bool isSpanish,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  var opened = false;
+  try {
+    opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    opened = false;
+  }
+  if (opened) return;
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        isSpanish
+            ? 'No se pudo abrir WhatsApp. Escanea el QR o contacta a la empresa.'
+            : 'Could not open WhatsApp. Scan the QR or contact the company.',
+      ),
+    ),
+  );
 }

@@ -11,9 +11,13 @@ import '../../domain/airport_zone.dart';
 const String transfersRoute = '/transport/transfers';
 const String transferCodeRoute = '/transport/transfer-code';
 
-/// Misma lista de transfers, con el aviso de que el viaje es hacia el
-/// aeropuerto.
+/// Misma pantalla abierta en «hacia el aeropuerto» (el sentido por defecto:
+/// reserva por WhatsApp con una empresa autorizada).
 const String transfersToAirportRoute = '$transfersRoute?sentido=aeropuerto';
+
+/// Misma pantalla abierta en «desde el aeropuerto»: guía para contratar en el
+/// counter y pagar antes de viajar.
+const String transfersFromAirportRoute = '$transfersRoute?sentido=desde';
 String transferRequestRoute(String serviceId) =>
     '$transfersRoute/$serviceId';
 
@@ -47,11 +51,11 @@ class TransferEntryCard extends StatelessWidget {
           : (isSpanish ? 'Transfer desde el aeropuerto' : 'Airport transfer'),
       subtitle: toAirport
           ? (isSpanish
-                ? 'Coordina tu traslado con un prestador'
-                : 'Arrange your ride with a provider')
+                ? 'Reserva con anticipación por WhatsApp con una empresa autorizada'
+                : 'Book ahead by WhatsApp with an authorized company')
           : (isSpanish
-                ? 'Prepara tu traslado y muéstrale un código al conductor'
-                : 'Set up your ride and show the driver a code'),
+                ? 'Cómo contratar en el counter y pagar antes de viajar'
+                : 'How to book at the counter and pay before you travel'),
       onTap: onTap,
     );
   }
@@ -115,7 +119,7 @@ class _LocationAwareTransferEntryState
               onTap: () => context.push(
                 direction == TransferDirection.toAirport
                     ? transfersToAirportRoute
-                    : transfersRoute,
+                    : transfersFromAirportRoute,
               ),
             ),
     );
