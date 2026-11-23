@@ -2,40 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../data/models/transfer_service.dart';
 import '../../data/providers/transfer_providers.dart';
+import '../../data/repository/transfer_repository.dart';
 import '../widgets/transfer_widgets.dart';
 
 /// Transfers hacia y desde el aeropuerto de Balmaceda (HU-18, pantalla 1).
 ///
-/// «Hacia el aeropuerto» va primero: se reserva con anticipación por
-/// WhatsApp con una empresa autorizada. «Desde el aeropuerto» es una guía:
-/// se contrata y se paga en el counter antes de viajar. En ambos casos la
-/// información es referencial y se recuerda contratar solo servicios
-/// autorizados.
-class TransfersScreen extends ConsumerStatefulWidget {
+/// El sentido lo fija la entrada y no se cambia dentro de la pantalla, para
+/// que cada sentido muestre solo lo suyo. «Hacia el aeropuerto»: se reserva
+/// con anticipación por WhatsApp con una empresa autorizada. «Desde el
+/// aeropuerto»: guía para contratar y pagar en el counter antes de viajar.
+/// La información es referencial.
+class TransfersScreen extends ConsumerWidget {
   const TransfersScreen({super.key, this.fromAirport = false});
 
-  /// true para abrir directamente la guía «desde el aeropuerto» (por ejemplo,
-  /// cuando el usuario está en el aeropuerto). Por defecto se abre «hacia».
+  /// true abre la guía «desde el aeropuerto»; por defecto se abre «hacia».
   final bool fromAirport;
 
-  @override
-  ConsumerState<TransfersScreen> createState() => _TransfersScreenState();
-}
-
-class _TransfersScreenState extends ConsumerState<TransfersScreen> {
   static const String _heroPhoto = 'assets/images/miradores_coyhaique.jpg';
 
-  late bool _toAirport = !widget.fromAirport;
-
   @override
-  Widget build(BuildContext context) {
-    final toAirport = _toAirport;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final toAirport = !fromAirport;
     final isSpanish = ref.watch(languageProvider).languageCode == 'es';
     final transfersAsync = ref.watch(airportTransfersProvider);
     final topPadding = MediaQuery.paddingOf(context).top;
@@ -79,9 +73,13 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             BcTag(
-                              isSpanish
-                                  ? 'Aeropuerto Balmaceda · Coyhaique'
-                                  : 'Balmaceda Airport · Coyhaique',
+                              toAirport
+                                  ? (isSpanish
+                                        ? 'Hacia el aeropuerto · Balmaceda'
+                                        : 'To the airport · Balmaceda')
+                                  : (isSpanish
+                                        ? 'Desde el aeropuerto · Balmaceda'
+                                        : 'From the airport · Balmaceda'),
                             ),
                             const SizedBox(height: BcSpace.s3),
                             FittedBox(
@@ -94,35 +92,6 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    BcSpace.gutter,
-                    BcSpace.gutter,
-                    BcSpace.gutter,
-                    0,
-                  ),
-                  child: TransferTwoColumns(
-                    children: [
-                      TransferOption(
-                        label: isSpanish
-                            ? 'Hacia el aeropuerto'
-                            : 'To the airport',
-                        selected: toAirport,
-                        onTap: () => setState(() => _toAirport = true),
-                      ),
-                      TransferOption(
-                        label: isSpanish
-                            ? 'Desde el aeropuerto'
-                            : 'From the airport',
-                        selected: !toAirport,
-                        onTap: () => setState(() => _toAirport = false),
                       ),
                     ],
                   ),
@@ -202,13 +171,18 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                     title: isSpanish
                         ? 'Solo servicios autorizados'
                         : 'Authorized services only',
-                    text: isSpanish
-                        ? 'Contrata solo empresas con vehículos habilitados y no aceptes ofertas de quienes te abordan en el terminal. Usar un servicio ilegal a sabiendas puede tener multa de 1 a 3 UTM (Ley 21.787).'
-                        : 'Book only companies with licensed vehicles and do not accept offers from people who approach you at the terminal. Knowingly using an illegal service can carry a fine of 1 to 3 UTM (Law 21,787).',
+                    text: toAirport
+                        ? (isSpanish
+                              ? 'Reserva solo con empresas que tengan vehículos habilitados. Usar un servicio ilegal a sabiendas puede tener multa de 1 a 3 UTM (Ley 21.787).'
+                              : 'Book only with companies that have licensed vehicles. Knowingly using an illegal service can carry a fine of 1 to 3 UTM (Law 21,787).')
+                        : (isSpanish
+                              ? 'Contrata solo en el counter del aeropuerto y no aceptes ofertas de quienes te abordan en el terminal. Usar un servicio ilegal a sabiendas puede tener multa de 1 a 3 UTM (Ley 21.787).'
+                              : 'Book only at the airport counter and do not accept offers from people who approach you in the terminal. Knowingly using an illegal service can carry a fine of 1 to 3 UTM (Law 21,787).'),
                   ),
                 ),
               ),
 
+              if (!toAirport)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -231,7 +205,60 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                 ),
               ),
 
-              if (toAirport) ...[
+              if (toAirport)
+                ..._companySlivers(context, ref, isSpanish, toAirport, transfersAsync)
+              else ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    BcSpace.section,
+                    BcSpace.gutter,
+                    0,
+                  ),
+                  child: _CounterGuide(isSpanish: isSpanish),
+                ),
+              ),
+                ..._companySlivers(context, ref, isSpanish, toAirport, transfersAsync),
+              ],
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BcSpace.gutter,
+                    BcSpace.s4,
+                    BcSpace.gutter,
+                    40,
+                  ),
+                  child: Text(
+                    toAirport
+                        ? (isSpanish
+                              ? 'Información referencial. Confirma la tarifa y la hora con la empresa antes del viaje.'
+                              : 'Reference information. Confirm the fare and time with the company before the trip.')
+                        : (isSpanish
+                              ? 'Información referencial. La tarifa final la informa el counter antes de pagar; cómo opera cada counter en el terminal se confirma en el lugar.'
+                              : 'Reference information. The counter gives the final fare before you pay; how each counter works in the terminal is confirmed on site.'),
+                    style: BcText.caption(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Encabezado y lista de empresas verificadas y habilitadas del sentido
+  /// elegido, con su tarifa referencial y sus enlaces de contacto.
+  List<Widget> _companySlivers(
+    BuildContext context,
+    WidgetRef ref,
+    bool isSpanish,
+    bool toAirport,
+    AsyncValue<TransferListResult> transfersAsync,
+  ) {
+    return [
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -247,15 +274,21 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          isSpanish ? 'EMPRESAS' : 'COMPANIES',
+                          isSpanish
+                              ? 'EMPRESAS VERIFICADAS'
+                              : 'VERIFIED COMPANIES',
                           style: BcText.displaySection,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        isSpanish
-                            ? 'Reserva con anticipación; la empresa confirma la hora'
-                            : 'Book ahead; the company confirms the time',
+                        toAirport
+                            ? (isSpanish
+                                  ? 'Habilitadas para transporte de pasajeros. Reserva con anticipación; la empresa confirma la hora.'
+                                  : 'Licensed for passenger transport. Book ahead; the company confirms the time.')
+                            : (isSpanish
+                                  ? 'Habilitadas para transporte de pasajeros. Contáctalas antes de viajar o contrata en el counter.'
+                                  : 'Licensed for passenger transport. Contact them before you travel or book at the counter.'),
                         style: BcText.caption(),
                       ),
                     ],
@@ -286,7 +319,11 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                     ),
                   ),
                 ],
-                data: (result) => [
+                data: (result) {
+                  final services = result.services
+                      .where((service) => service.serves(toAirport: toAirport))
+                      .toList();
+                  return [
                   if (result.fromCache)
                     SliverToBoxAdapter(
                       child: Padding(
@@ -308,22 +345,22 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                         ),
                       ),
                     ),
-                  if (result.services.isEmpty)
+                  if (services.isEmpty)
                     SliverToBoxAdapter(
                       child: BcMessage(
                         icon: Icons.airport_shuttle_rounded,
                         text: isSpanish
-                            ? 'Todavía no hay empresas de transfer publicadas.'
-                            : 'No transfer companies are listed yet.',
+                            ? 'Todavía no hay empresas verificadas y habilitadas para este sentido.'
+                            : 'There are no verified, licensed companies for this direction yet.',
                       ),
                     )
                   else
                     SliverList.separated(
-                      itemCount: result.services.length,
+                      itemCount: services.length,
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: BcSpace.s3),
                       itemBuilder: (context, index) {
-                        final service = result.services[index];
+                        final service = services[index];
                         return Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: BcSpace.gutter,
@@ -331,53 +368,19 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                           child: _TransferCard(
                             service: service,
                             isSpanish: isSpanish,
-                            onPrepare: () =>
-                                context.push(transferRequestRoute(service.id)),
+                            onPrepare: toAirport && service.canGenerateQr
+                                ? () => context.push(
+                                      transferRequestRoute(service.id),
+                                    )
+                                : null,
                           ),
                         );
                       },
                     ),
-                ],
+                ];
+                },
               ),
-              ] else ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    BcSpace.gutter,
-                    BcSpace.section,
-                    BcSpace.gutter,
-                    0,
-                  ),
-                  child: _CounterGuide(isSpanish: isSpanish),
-                ),
-              ),
-              ],
-
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    BcSpace.gutter,
-                    BcSpace.s4,
-                    BcSpace.gutter,
-                    40,
-                  ),
-                  child: Text(
-                    toAirport
-                        ? (isSpanish
-                              ? 'Información referencial. Confirma la tarifa y la hora con la empresa antes del viaje.'
-                              : 'Reference information. Confirm the fare and time with the company before the trip.')
-                        : (isSpanish
-                              ? 'Información referencial. La tarifa final la informa el counter antes de pagar; cómo opera cada counter en el terminal se confirma en el lugar.'
-                              : 'Reference information. The counter gives the final fare before you pay; how each counter works in the terminal is confirmed on site.'),
-                    style: BcText.caption(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    ];
   }
 }
 
@@ -413,32 +416,55 @@ class _TransferCard extends StatelessWidget {
 
   final TransferService service;
   final bool isSpanish;
-  final VoidCallback onPrepare;
+
+  /// null cuando la empresa no recibe solicitudes por la app (sentido
+  /// «desde» o sin WhatsApp habilitado): solo se muestran sus contactos.
+  final VoidCallback? onPrepare;
 
   @override
   Widget build(BuildContext context) {
     final schedule = service.schedule(isSpanish);
     final fare = service.referenceFareClp;
+    final verifiedOn = service.authorizationVerifiedDate;
+    final source = service.authorizationSource;
 
     final payments = [
       if (service.acceptsCash) isSpanish ? 'Efectivo' : 'Cash',
       if (service.acceptsCard) isSpanish ? 'Tarjeta' : 'Card',
     ].join(' · ');
 
-    final (tagLead, tagText) = switch (service.verificationLevel) {
-      'establecimiento' => (
-        isSpanish ? 'Verificado' : 'Verified',
-        isSpanish ? 'por la empresa' : 'by the company',
-      ),
-      'fuente_publica' => (
-        isSpanish ? 'Fuente' : 'Source',
-        isSpanish ? 'pública' : 'public',
-      ),
-      _ => (
-        isSpanish ? 'Pendiente' : 'Pending',
-        isSpanish ? 'de validación' : 'validation',
-      ),
-    };
+    final contacts = <Widget>[
+      if (service.whatsappLink case final link?)
+        _ContactButton(
+          icon: Icons.chat_rounded,
+          label: 'WhatsApp',
+          semanticLabel: isSpanish
+              ? 'Escribir por WhatsApp a ${service.name}'
+              : 'Message ${service.name} on WhatsApp',
+          uri: link,
+          isSpanish: isSpanish,
+        ),
+      if (service.phoneLink case final link?)
+        _ContactButton(
+          icon: Icons.call_rounded,
+          label: isSpanish ? 'Llamar' : 'Call',
+          semanticLabel: isSpanish
+              ? 'Llamar a ${service.name}'
+              : 'Call ${service.name}',
+          uri: link,
+          isSpanish: isSpanish,
+        ),
+      if (service.websiteLink case final link?)
+        _ContactButton(
+          icon: Icons.language_rounded,
+          label: isSpanish ? 'Sitio web' : 'Website',
+          semanticLabel: isSpanish
+              ? 'Abrir el sitio web de ${service.name}'
+              : 'Open the website of ${service.name}',
+          uri: link,
+          isSpanish: isSpanish,
+        ),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(BcSpace.gutter),
@@ -449,19 +475,25 @@ class _TransferCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BcTag(tagText, lead: tagLead, style: BcTagStyle.ink),
+          BcTag(
+            isSpanish ? 'y habilitada' : 'and licensed',
+            lead: isSpanish ? 'Verificada' : 'Verified',
+            style: BcTagStyle.ink,
+          ),
           const SizedBox(height: BcSpace.s2),
           Text(service.name.toUpperCase(), style: BcText.display(27)),
           const SizedBox(height: BcSpace.s4),
           TransferInfoRow(
-            label: isSpanish ? 'Tarifa al centro' : 'Fare to the centre',
+            label: isSpanish ? 'Tarifa referencial' : 'Reference fare',
             value: fare == null
                 ? (isSpanish ? 'Por confirmar' : 'To be confirmed')
                 : formatClp(fare),
           ),
           TransferInfoRow(
             label: isSpanish ? 'Pago' : 'Payment',
-            value: payments,
+            value: payments.isEmpty
+                ? (isSpanish ? 'Por confirmar' : 'To be confirmed')
+                : payments,
           ),
           TransferInfoRow(
             label: isSpanish ? 'Capacidad' : 'Capacity',
@@ -476,25 +508,109 @@ class _TransferCard extends StatelessWidget {
               label: isSpanish ? 'Atiende' : 'Service',
               value: schedule,
             ),
-          if (service.lastVerifiedDate != null) ...[
+          const SizedBox(height: BcSpace.s1),
+          Text(
+            isSpanish
+                ? 'La tarifa es referencial, no un precio definitivo: confírmala con la empresa.'
+                : 'The fare is a reference, not a final price: confirm it with the company.',
+            style: BcText.caption(),
+          ),
+          if (verifiedOn != null) ...[
             const SizedBox(height: BcSpace.s1),
             Text(
-              isSpanish
-                  ? 'Verificada el ${formatDate(service.lastVerifiedDate!)}'
-                  : 'Verified on ${formatDate(service.lastVerifiedDate!)}',
+              source == null
+                  ? (isSpanish
+                        ? 'Habilitación verificada el ${formatDate(verifiedOn)}.'
+                        : 'Licence verified on ${formatDate(verifiedOn)}.')
+                  : (isSpanish
+                        ? 'Habilitación verificada el ${formatDate(verifiedOn)}. Fuente: $source.'
+                        : 'Licence verified on ${formatDate(verifiedOn)}. Source: $source.'),
               style: BcText.caption(),
             ),
           ],
-          const SizedBox(height: BcSpace.s4),
-          BcButton(
-            label: isSpanish ? 'Preparar solicitud' : 'Prepare request',
-            icon: Icons.chevron_right_rounded,
-            onPressed: onPrepare,
-          ),
+          if (contacts.isNotEmpty) ...[
+            const SizedBox(height: BcSpace.s4),
+            Wrap(
+              spacing: BcSpace.s2,
+              runSpacing: BcSpace.s2,
+              children: contacts,
+            ),
+          ],
+          if (onPrepare != null) ...[
+            const SizedBox(height: BcSpace.s4),
+            BcButton(
+              label: isSpanish ? 'Preparar solicitud' : 'Prepare request',
+              icon: Icons.chevron_right_rounded,
+              onPressed: onPrepare,
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+/// Botón de contacto que abre un enlace (WhatsApp, teléfono o sitio web) en
+/// la aplicación correspondiente.
+class _ContactButton extends StatelessWidget {
+  const _ContactButton({
+    required this.icon,
+    required this.label,
+    required this.semanticLabel,
+    required this.uri,
+    required this.isSpanish,
+  });
+
+  final IconData icon;
+  final String label;
+  final String semanticLabel;
+  final Uri uri;
+  final bool isSpanish;
+
+  @override
+  Widget build(BuildContext context) {
+    return BcPressable(
+      onTap: () => _openContact(context, uri, isSpanish),
+      semanticLabel: semanticLabel,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: BcColors.fog,
+          borderRadius: BorderRadius.circular(BcRadius.control),
+          border: Border.all(color: BcColors.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: BcColors.ink),
+            const SizedBox(width: 8),
+            Text(label, style: BcText.title()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openContact(BuildContext context, Uri uri, bool isSpanish) async {
+  final messenger = ScaffoldMessenger.of(context);
+  var opened = false;
+  try {
+    opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    opened = false;
+  }
+  if (opened) return;
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        isSpanish
+            ? 'No se pudo abrir el enlace de contacto.'
+            : 'Could not open the contact link.',
+      ),
+    ),
+  );
 }
 
 /// Tarjeta informativa con ícono, título, texto y, si se pide, un botón.

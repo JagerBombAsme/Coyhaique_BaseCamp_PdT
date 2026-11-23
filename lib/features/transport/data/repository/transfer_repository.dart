@@ -29,7 +29,8 @@ class TransfersUnavailableException implements Exception {
 
 /// Fichas de transfer (`transport_services_v2`, HU-18).
 ///
-/// Solo lectura: RLS entrega las fichas activas. Cada consulta exitosa se
+/// Solo lectura: RLS entrega las fichas activas y la app pide solo las
+/// empresas verificadas y habilitadas (`is_authorized_verified`). Cada consulta exitosa se
 /// guarda en el teléfono, para que la lista y el QR funcionen al bajar del
 /// avión aunque no haya señal. No se envía ni se guarda ningún dato del
 /// pasajero.
@@ -47,7 +48,10 @@ class TransferRepository {
       'stand_location_es, stand_location_en, whatsapp_number, '
       'reference_fare_clp, fare_notes_es, fare_notes_en, capacity, '
       'accepts_cash, accepts_card, schedule_es, schedule_en, image_url, '
-      'verification_level, qr_enabled, last_verified_date';
+      'verification_level, qr_enabled, last_verified_date, '
+      'is_authorized_verified, authorization_verified_date, '
+      'authorization_source, serves_to_airport, serves_from_airport, '
+      'phone, website_url';
 
   /// Transfers del aeropuerto. Con conexión consulta Supabase y actualiza la
   /// copia local; sin conexión devuelve la copia guardada.
@@ -56,7 +60,7 @@ class TransferRepository {
       final rows = await _fetchRemote();
       await _saveCache(rows);
       return TransferListResult(
-        services: rows.map(TransferService.fromJson).toList(),
+        services: _toServices(rows),
         fromCache: false,
       );
     } catch (_) {
@@ -79,6 +83,7 @@ class TransferRepository {
         .select(_columns)
         .eq('service_type', 'airport_transfer')
         .eq('is_active', true)
+        .eq('is_authorized_verified', true)
         .isFilter('retired_at', null)
         .order('sort_order')
         .order('name')
@@ -88,6 +93,13 @@ class TransferRepository {
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
   }
+
+  /// Convierte las filas y descarta cualquier empresa no verificada (también
+  /// en una copia guardada antes de existir este campo).
+  List<TransferService> _toServices(List<Map<String, dynamic>> rows) => rows
+      .map(TransferService.fromJson)
+      .where((service) => service.isAuthorizedVerified)
+      .toList();
 
   Future<void> _saveCache(List<Map<String, dynamic>> rows) async {
     final prefs = await SharedPreferences.getInstance();
@@ -111,7 +123,7 @@ class TransferRepository {
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
       return TransferListResult(
-        services: rows.map(TransferService.fromJson).toList(),
+        services: _toServices(rows),
         fromCache: true,
         savedAt: DateTime.tryParse(decoded['saved_at']?.toString() ?? ''),
       );
