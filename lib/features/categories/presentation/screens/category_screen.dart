@@ -12,7 +12,6 @@ import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
 import '../../../transport/presentation/widgets/transfer_widgets.dart';
-import '../widgets/place_editorial_widgets.dart';
 
 /// Pantalla de una categoría principal (HU-01, HU-02).
 ///
@@ -312,7 +311,8 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                 ),
                 child: TransferEntryCard(
                   isSpanish: isSpanish,
-                  onTap: () => context.push(transfersRoute),
+                  direction: TransferDirection.toAirport,
+                  onTap: () => context.push(transfersToAirportRoute),
                 ),
               ),
             ),
@@ -608,14 +608,12 @@ class _PlaceCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            SizedBox(
-              width: 88,
-              height: 88,
-              // La foto viaja hasta la ficha del lugar al abrirla.
-              child: PlacePhotoHero(
-                placeId: place.id,
-                photoUrl: place.imageUrl,
-                radius: BcRadius.control,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(BcRadius.control),
+              child: SizedBox(
+                width: 88,
+                height: 88,
+                child: BcPhotoImage(source: place.imageUrl ?? ''),
               ),
             ),
             const SizedBox(width: 14),
