@@ -1,7 +1,8 @@
-/// Ficha de un transfer desde el aeropuerto de Balmaceda (HU-18).
+/// Ficha de una empresa de transfer del aeropuerto de Balmaceda (HU-18).
 ///
-/// Viene de `transport_services_v2`. Es información referencial: la app no
-/// reserva, no cobra y no guarda datos de pasajeros.
+/// Viene de `transport_services_v2`. La app solo muestra empresas verificadas
+/// y habilitadas ([isAuthorizedVerified]). Es información referencial: la app
+/// no reserva, no cobra y no guarda datos de pasajeros.
 class TransferService {
   const TransferService({
     required this.id,
@@ -25,6 +26,13 @@ class TransferService {
     this.verificationLevel = 'pendiente',
     this.qrEnabled = false,
     this.lastVerifiedDate,
+    this.isAuthorizedVerified = false,
+    this.authorizationVerifiedDate,
+    this.authorizationSource,
+    this.servesToAirport = true,
+    this.servesFromAirport = true,
+    this.phone,
+    this.websiteUrl,
   });
 
   final String id;
@@ -55,6 +63,24 @@ class TransferService {
   final bool qrEnabled;
   final DateTime? lastVerifiedDate;
 
+  /// El equipo verificó que la empresa está habilitada para transporte de
+  /// pasajeros. Solo estas empresas se muestran en la app.
+  final bool isAuthorizedVerified;
+
+  /// Fecha de esa verificación y su fuente (documento o registro consultado).
+  final DateTime? authorizationVerifiedDate;
+  final String? authorizationSource;
+
+  /// Sentidos que atiende: hacia el aeropuerto y desde el aeropuerto.
+  final bool servesToAirport;
+  final bool servesFromAirport;
+
+  /// Teléfono de la empresa: solo dígitos, con código de país.
+  final String? phone;
+
+  /// Sitio web de la empresa (https).
+  final String? websiteUrl;
+
   /// Pasajeros máximos del contador cuando la empresa no declaró capacidad.
   static const int defaultCapacity = 8;
 
@@ -63,7 +89,46 @@ class TransferService {
   /// Solo las empresas con ficha validada pueden recibir solicitudes por
   /// WhatsApp o QR: una ficha «pendiente de validación» no escribe a nadie.
   bool get canGenerateQr =>
-      qrEnabled && !isPending && (whatsappNumber?.isNotEmpty ?? false);
+      qrEnabled &&
+      isAuthorizedVerified &&
+      !isPending &&
+      (whatsappNumber?.isNotEmpty ?? false);
+
+  /// Enlace para abrir un chat de WhatsApp con la empresa, sin texto.
+  Uri? get whatsappLink {
+    final number = whatsappNumber;
+    if (number == null || !RegExp(r'^[0-9]{8,15}$').hasMatch(number)) {
+      return null;
+    }
+    return Uri.parse('https://wa.me/$number');
+  }
+
+  /// Enlace para llamar a la empresa.
+  Uri? get phoneLink {
+    final number = phone;
+    if (number == null || !RegExp(r'^[0-9]{8,15}$').hasMatch(number)) {
+      return null;
+    }
+    return Uri(scheme: 'tel', path: '+$number');
+  }
+
+  /// Sitio web de la empresa. Solo se acepta https.
+  Uri? get websiteLink {
+    final raw = websiteUrl;
+    if (raw == null) return null;
+    final uri = Uri.tryParse(raw.trim());
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
+    return uri;
+  }
+
+  /// Whether la empresa tiene al menos un medio de contacto utilizable.
+  bool get hasContact =>
+      whatsappLink != null || phoneLink != null || websiteLink != null;
+
+  /// Whether atiende el sentido pedido ([toAirport] true = hacia el
+  /// aeropuerto, false = desde el aeropuerto).
+  bool serves({required bool toAirport}) =>
+      toAirport ? servesToAirport : servesFromAirport;
 
   bool get isVerifiedByCompany => verificationLevel == 'establecimiento';
 
@@ -127,6 +192,15 @@ class TransferService {
       lastVerifiedDate: DateTime.tryParse(
         asText(json['last_verified_date']) ?? '',
       ),
+      isAuthorizedVerified: json['is_authorized_verified'] == true,
+      authorizationVerifiedDate: DateTime.tryParse(
+        asText(json['authorization_verified_date']) ?? '',
+      ),
+      authorizationSource: asText(json['authorization_source']),
+      servesToAirport: json['serves_to_airport'] != false,
+      servesFromAirport: json['serves_from_airport'] != false,
+      phone: asText(json['phone']),
+      websiteUrl: asText(json['website_url']),
     );
   }
 }

@@ -15,6 +15,7 @@ void main() {
     acceptsCard: true,
     qrEnabled: true,
     verificationLevel: 'establecimiento',
+    isAuthorizedVerified: true,
   );
 
   TransferRequest request({TransferService s = service}) => TransferRequest(
@@ -77,6 +78,20 @@ void main() {
     expect(request(s: pending).whatsappUri(), isNull);
   });
 
+  test('una empresa sin habilitación verificada no recibe solicitudes', () {
+    const unverified = TransferService(
+      id: 'u',
+      name: 'Sin verificar',
+      whatsappNumber: '56900000000',
+      acceptsCash: true,
+      qrEnabled: true,
+      verificationLevel: 'establecimiento',
+    );
+    expect(unverified.isAuthorizedVerified, isFalse);
+    expect(unverified.canGenerateQr, isFalse);
+    expect(request(s: unverified).whatsappUri(), isNull);
+  });
+
   test('sin QR habilitado no hay enlace', () {
     const noQr = TransferService(
       id: 'x',
@@ -84,6 +99,7 @@ void main() {
       whatsappNumber: '56900000000',
       acceptsCash: true,
       verificationLevel: 'establecimiento',
+      isAuthorizedVerified: true,
     );
     expect(request(s: noQr).whatsappUri(), isNull);
   });
