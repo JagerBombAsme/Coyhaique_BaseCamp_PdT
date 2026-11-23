@@ -77,7 +77,9 @@ class MapPlacePreviewCard extends StatelessWidget {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return AnimatedSwitcher(
-      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 280),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 280),
       reverseDuration: reduceMotion
           ? Duration.zero
           : const Duration(milliseconds: 200),
@@ -98,7 +100,10 @@ class MapPlacePreviewCard extends StatelessWidget {
       layoutBuilder: (currentChild, previousChildren) {
         return Stack(
           alignment: Alignment.bottomCenter,
-          children: [...previousChildren, if (currentChild != null) currentChild],
+          children: [
+            ...previousChildren,
+            if (currentChild != null) currentChild,
+          ],
         );
       },
       child: current == null
@@ -151,7 +156,7 @@ class _PreviewBody extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     // Pantallas bajas: galería más chica para que la tarjeta no tape el
     // buscador.
-    final galleryHeight = size.height < 700 ? 72.0 : 96.0;
+    final galleryHeight = size.height < 700 ? 64.0 : 80.0;
 
     final category = place.categoryLabel(isSpanish: isSpanish);
     final location = place.locationLabel(isSpanish: isSpanish);
@@ -175,13 +180,13 @@ class _PreviewBody extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(BcRadius.tile),
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: size.height * 0.52),
+          constraints: BoxConstraints(maxHeight: size.height * 0.46),
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(
               BcSpace.s4,
-              BcSpace.s3,
               BcSpace.s2,
-              BcSpace.s4,
+              BcSpace.s2,
+              BcSpace.s3,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -192,7 +197,7 @@ class _PreviewBody extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: BcSpace.s2),
+                        padding: const EdgeInsets.only(top: BcSpace.s1),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -205,7 +210,7 @@ class _PreviewBody extends StatelessWidget {
                                 place.name(isSpanish: isSpanish),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: BcText.title().copyWith(fontSize: 18),
+                                style: BcText.title().copyWith(fontSize: 17),
                               ),
                             ),
                             const SizedBox(height: BcSpace.s1),
@@ -242,12 +247,15 @@ class _PreviewBody extends StatelessWidget {
                         minHeight: 44,
                       ),
                       onPressed: onClose,
-                      icon: const Icon(Icons.close_rounded, color: BcColors.ink),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: BcColors.ink,
+                      ),
                     ),
                   ],
                 ),
                 if (photos.isNotEmpty) ...[
-                  const SizedBox(height: BcSpace.s3),
+                  const SizedBox(height: BcSpace.s2),
                   Padding(
                     padding: const EdgeInsets.only(right: BcSpace.s2),
                     child: SizedBox(
@@ -301,11 +309,14 @@ class _PreviewBody extends StatelessWidget {
                   ),
                 ],
                 if (routeSummary != null) ...[
-                  const SizedBox(height: BcSpace.s3),
-                  _RouteSummaryRow(summary: routeSummary!, isSpanish: isSpanish),
+                  const SizedBox(height: BcSpace.s2),
+                  _RouteSummaryRow(
+                    summary: routeSummary!,
+                    isSpanish: isSpanish,
+                  ),
                 ],
                 if (showDetail || canRoute) ...[
-                  const SizedBox(height: BcSpace.s3),
+                  const SizedBox(height: BcSpace.s2),
                   Padding(
                     padding: const EdgeInsets.only(right: BcSpace.s2),
                     child: Column(
@@ -313,14 +324,16 @@ class _PreviewBody extends StatelessWidget {
                         if (showDetail)
                           SizedBox(
                             width: double.infinity,
-                            height: 46,
+                            height: 42,
                             child: FilledButton.icon(
                               onPressed: () => openDetail?.call(place),
                               icon: const Icon(
                                 Icons.arrow_forward_rounded,
                                 size: 20,
                               ),
-                              label: Text(isSpanish ? 'Ver ficha' : 'View details'),
+                              label: Text(
+                                isSpanish ? 'Ver ficha' : 'View details',
+                              ),
                               style: FilledButton.styleFrom(
                                 backgroundColor: BcColors.glacier,
                                 foregroundColor: BcColors.ink,
@@ -336,6 +349,19 @@ class _PreviewBody extends StatelessWidget {
                           ),
                         if (showDetail && canRoute)
                           const SizedBox(height: BcSpace.s2),
+                        if (canRoute) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                isSpanish ? 'CÓMO LLEGAR' : 'HOW TO GET THERE',
+                                style: BcText.label(color: BcColors.muted),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: BcSpace.s1),
+                        ],
                         if (canRoute)
                           Opacity(
                             opacity: online ? 1 : 0.45,
@@ -433,7 +459,7 @@ class _RouteButton extends StatelessWidget {
     final loading = routingMode == mode;
 
     return SizedBox(
-      height: 46,
+      height: 42,
       child: OutlinedButton.icon(
         onPressed: busy ? null : () => onRoute(mode),
         icon: loading

@@ -100,7 +100,17 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
   /// Cómo llegar: abre el mapa sobre este lugar, donde ya existen las rutas
   /// a pie y en auto.
   void _openDirections(PlaceDto place) {
-    context.go(Uri(path: '/map', queryParameters: {'lugar': place.id}).toString());
+    // `t` distingue cada toque: el mapa conserva su estado y sin él no
+    // notaría una petición repetida del mismo lugar.
+    context.go(
+      Uri(
+        path: '/map',
+        queryParameters: {
+          'lugar': place.id,
+          't': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+      ).toString(),
+    );
   }
 
   Future<void> _openWebsite(String raw, bool isSpanish) async {
