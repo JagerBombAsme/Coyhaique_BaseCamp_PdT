@@ -5,9 +5,12 @@ import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../domain/itinerary_planner.dart';
 
-/// Forma de ver el itinerario: un día con tarjetas grandes o todos los días
-/// en orden cronológico.
+/// Forma de ver el itinerario: la línea de tiempo de un día o todos los días
+/// como bloques en orden cronológico.
 enum ItineraryViewMode { day, calendar }
+
+/// Ícono de un lugar según su categoría principal (viene de la base).
+typedef PlaceIconResolver = IconData Function(PlannerPlace place);
 
 /// Duración de las transiciones del itinerario. Sin animación si el usuario
 /// pidió reducir el movimiento.
@@ -36,129 +39,12 @@ void openPlaceRoute(BuildContext context, PlannerPlace place, String mode) {
   );
 }
 
-/// Texto de duración y traslado de una parada. La duración de la visita es
-/// una estimación por tipo de lugar mientras places_v2 no traiga
-/// estimated_visit_minutes (P-01), y así se rotula.
-String itineraryStopMeta(ScheduledStop stop, bool isSpanish) {
-  final visit = ItineraryPlanner.formatDuration(stop.place.visitMinutes);
-  final travel = ItineraryPlanner.formatDuration(stop.travelMinutes);
-  return [
-    isSpanish ? 'Visita estimada $visit' : 'Estimated visit $visit',
-    if (stop.travelMinutes > 0)
-      isSpanish ? 'traslado $travel' : 'travel $travel',
-    if (!stop.place.hasLocation) isSpanish ? 'sin ubicación' : 'no location',
-  ].join(' · ');
-}
-
 // =================================================================
-// CONTROLES: selector de vista y de día
+// CONTROLES: selector de día
 // =================================================================
 
-/// Selector «Día | Calendario».
-class ItineraryModeSelector extends StatelessWidget {
-  const ItineraryModeSelector({
-    super.key,
-    required this.mode,
-    required this.isSpanish,
-    required this.onChanged,
-  });
-
-  final ItineraryViewMode mode;
-  final bool isSpanish;
-  final ValueChanged<ItineraryViewMode> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _ModePill(
-          label: isSpanish ? 'Día' : 'Day',
-          selected: mode == ItineraryViewMode.day,
-          onTap: () => onChanged(ItineraryViewMode.day),
-        ),
-        const SizedBox(width: BcSpace.s2),
-        _ModePill(
-          label: isSpanish ? 'Calendario' : 'Calendar',
-          selected: mode == ItineraryViewMode.calendar,
-          onTap: () => onChanged(ItineraryViewMode.calendar),
-        ),
-      ],
-    );
-  }
-}
-
-class _ModePill extends StatelessWidget {
-  const _ModePill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      selected: selected,
-      button: true,
-      excludeSemantics: true,
-      label: label,
-      onTap: onTap,
-      child: BcPressable(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: itineraryMotion(context, 200),
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 22),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? BcColors.ink : BcColors.surface,
-            borderRadius: BorderRadius.circular(BcRadius.pill),
-          ),
-          child: Text(
-            label,
-            style: BcText.button(
-              color: selected ? BcColors.onPhoto : BcColors.ink,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Botón redondo «+» para agregar un lugar.
-class ItineraryAddButton extends StatelessWidget {
-  const ItineraryAddButton({
-    super.key,
-    required this.semanticLabel,
-    required this.onTap,
-  });
-
-  final String semanticLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return BcPressable(
-      onTap: onTap,
-      semanticLabel: semanticLabel,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: BcColors.glacier,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.add_rounded, color: BcColors.ink, size: 26),
-      ),
-    );
-  }
-}
-
-/// Fila de días («Día 1», «Día 2»…) con el botón para agregar otro.
+/// Fila horizontal de días («Día 1», «Día 2»…) con el botón para agregar
+/// otro. Mide 44 dp de alto.
 class ItineraryDayChips extends StatelessWidget {
   const ItineraryDayChips({
     super.key,
@@ -194,7 +80,8 @@ class ItineraryDayChips extends StatelessWidget {
           ],
           if (canAddDay)
             _DayChip(
-              label: isSpanish ? '+ Día' : '+ Day',
+              label: isSpanish ? 'Agregar día' : 'Add day',
+              icon: Icons.add_rounded,
               selected: false,
               outlined: true,
               onTap: onAddDay,
@@ -210,16 +97,20 @@ class _DayChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
     this.outlined = false,
   });
 
   final String label;
+  final IconData? icon;
   final bool selected;
   final bool outlined;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    const fg = BcColors.ink;
+    final glyph = icon;
     return Semantics(
       selected: selected,
       button: true,
@@ -235,154 +126,21 @@ class _DayChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? BcColors.glacier : BcColors.surface,
+            color: selected
+                ? BcColors.glacier
+                : (outlined ? Colors.transparent : BcColors.surface),
             borderRadius: BorderRadius.circular(BcRadius.pill),
-            border: outlined ? Border.all(color: BcColors.line) : null,
+            border: outlined ? Border.all(color: BcColors.muted) : null,
           ),
-          child: Text(label, style: BcText.button(color: BcColors.ink)),
-        ),
-      ),
-    );
-  }
-}
-
-// =================================================================
-// VISTA DÍA: tarjetas grandes y verticales
-// =================================================================
-
-/// Tarjeta de una actividad del día. Muestra hora, nombre, categoría,
-/// duración y traslado, y las acciones: ficha, ruta a pie, ruta en auto y
-/// quitar. [index] es la posición en la lista reordenable.
-class ItineraryStopCard extends StatelessWidget {
-  const ItineraryStopCard({
-    super.key,
-    required this.stop,
-    required this.index,
-    required this.isSpanish,
-    required this.onRemove,
-  });
-
-  final ScheduledStop stop;
-  final int index;
-  final bool isSpanish;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final place = stop.place;
-    final category = place.categoryName(isSpanish);
-    final es = isSpanish;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: BcSpace.s3),
-      child: Material(
-        color: BcColors.ink,
-        borderRadius: BorderRadius.circular(BcRadius.card),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => openPlaceDetail(context, place),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 4, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        ItineraryPlanner.formatClock(stop.arrivalMinute),
-                        style: BcText.display(28, color: BcColors.glacier),
-                      ),
-                    ),
-                    const SizedBox(width: BcSpace.s3),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            place.name(es),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: BcText.title(
-                              color: BcColors.onPhoto,
-                            ).copyWith(fontSize: 18),
-                          ),
-                          if (category != null && category.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              category,
-                              style: BcText.caption(
-                                color: BcColors.onPhoto.withValues(alpha: 0.72),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    ReorderableDragStartListener(
-                      index: index,
-                      child: Semantics(
-                        label: es ? 'Mover' : 'Move',
-                        child: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Icon(
-                            Icons.drag_indicator_rounded,
-                            color: BcColors.onPhoto.withValues(alpha: 0.72),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: BcSpace.s2),
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 12),
-                  child: Text(
-                    itineraryStopMeta(stop, es),
-                    style: BcText.caption(
-                      color: BcColors.onPhoto.withValues(alpha: 0.72),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: BcSpace.s3),
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 12),
-                  child: Wrap(
-                    spacing: BcSpace.s2,
-                    runSpacing: BcSpace.s2,
-                    children: [
-                      _CardAction(
-                        label: es ? 'Ver ficha' : 'View details',
-                        icon: Icons.chevron_right_rounded,
-                        filled: true,
-                        onTap: () => openPlaceDetail(context, place),
-                      ),
-                      if (place.hasLocation) ...[
-                        _CardAction(
-                          label: es ? 'A pie' : 'On foot',
-                          icon: Icons.directions_walk_rounded,
-                          onTap: () => openPlaceRoute(context, place, 'pie'),
-                        ),
-                        _CardAction(
-                          label: es ? 'En auto' : 'By car',
-                          icon: Icons.directions_car_rounded,
-                          onTap: () => openPlaceRoute(context, place, 'auto'),
-                        ),
-                      ],
-                      _CardAction(
-                        label: es ? 'Quitar' : 'Remove',
-                        icon: Icons.remove_circle_outline_rounded,
-                        iconOnly: true,
-                        onTap: onRemove,
-                      ),
-                    ],
-                  ),
-                ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (glyph != null) ...[
+                Icon(glyph, size: 18, color: fg),
+                const SizedBox(width: 4),
               ],
-            ),
+              Text(label, style: BcText.button(color: fg).copyWith(fontSize: 14)),
+            ],
           ),
         ),
       ),
@@ -390,73 +148,20 @@ class ItineraryStopCard extends StatelessWidget {
   }
 }
 
-class _CardAction extends StatelessWidget {
-  const _CardAction({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.filled = false,
-    this.iconOnly = false,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool filled;
-  final bool iconOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = filled ? BcColors.ink : BcColors.onPhoto;
-
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: Material(
-        color: filled ? BcColors.glacier : Colors.transparent,
-        shape: StadiumBorder(
-          side: filled
-              ? BorderSide.none
-              : BorderSide(color: BcColors.onPhoto.withValues(alpha: 0.28)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: iconOnly ? 10 : 14),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 20, color: fg),
-                  if (!iconOnly) ...[
-                    const SizedBox(width: 6),
-                    Text(label, style: BcText.button(color: fg).copyWith(fontSize: 14)),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Mensaje del día sin actividades.
+/// Día sin actividades: explica la situación y ofrece agregar un lugar.
 class ItineraryEmptyDay extends StatelessWidget {
   const ItineraryEmptyDay({
     super.key,
     required this.isSpanish,
     required this.onAdd,
+    this.message,
   });
 
   final bool isSpanish;
   final VoidCallback onAdd;
+
+  /// Texto propio (por ejemplo, cuando ningún lugar cupo en el tiempo).
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -471,15 +176,22 @@ class ItineraryEmptyDay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Icon(
+            Icons.travel_explore_rounded,
+            size: 32,
+            color: BcColors.glacierDeep,
+          ),
+          const SizedBox(height: BcSpace.s3),
           Text(
-            es ? 'Este día no tiene actividades' : 'This day has no activities',
-            style: BcText.title(),
+            es ? 'Este día aún no tiene lugares' : 'This day has no places yet',
+            style: BcText.title().copyWith(fontSize: 17),
           ),
           const SizedBox(height: BcSpace.s2),
           Text(
-            es
-                ? 'Agrega lugares del catálogo para armar el día.'
-                : 'Add places from the catalog to build the day.',
+            message ??
+                (es
+                    ? 'Agrega lugares del catálogo para armar el día.'
+                    : 'Add places from the catalog to build the day.'),
             style: BcText.body(),
           ),
           const SizedBox(height: BcSpace.s4),
@@ -496,18 +208,19 @@ class ItineraryEmptyDay extends StatelessWidget {
 }
 
 // =================================================================
-// VISTA CALENDARIO: días y actividades en orden cronológico
+// VISTA CALENDARIO: bloques por día en orden cronológico
 // =================================================================
 
-/// Todos los días del itinerario, uno bajo otro, con sus actividades en
-/// orden de hora. Es una vista de lectura: tocar un día lo abre en la vista
-/// Día para editarlo.
+/// Todos los días del itinerario como bloques de tiempo. La altura de cada
+/// bloque crece con la duración estimada de la visita. Es una vista de
+/// lectura: tocar un día lo abre en la línea de tiempo para editarlo.
 class ItineraryCalendarView extends StatelessWidget {
   const ItineraryCalendarView({
     super.key,
     required this.schedules,
     required this.activeDay,
     required this.isSpanish,
+    required this.iconFor,
     required this.onOpenDay,
   });
 
@@ -515,187 +228,234 @@ class ItineraryCalendarView extends StatelessWidget {
   final List<ItinerarySchedule> schedules;
   final int activeDay;
   final bool isSpanish;
+  final PlaceIconResolver iconFor;
   final ValueChanged<int> onOpenDay;
 
   @override
   Widget build(BuildContext context) {
     final es = isSpanish;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-      decoration: BoxDecoration(
-        color: BcColors.ink,
-        borderRadius: BorderRadius.circular(BcRadius.card + 4),
-      ),
-      child: Column(
-        children: [
-          for (var day = 0; day < schedules.length; day++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: BcSpace.s4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DayMarker(
-                    number: day + 1,
-                    selected: day == activeDay,
-                    isSpanish: es,
-                    onTap: () => onOpenDay(day),
-                  ),
-                  const SizedBox(width: BcSpace.s2),
-                  Expanded(
-                    child: schedules[day].stops.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 14),
-                            child: Text(
-                              es ? 'Sin actividades' : 'No activities',
-                              style: BcText.body(
-                                color: BcColors.onPhoto.withValues(alpha: 0.72),
-                              ),
-                            ),
-                          )
-                        : Column(
-                            children: [
-                              for (final stop in schedules[day].stops)
-                                _CalendarStopTile(stop: stop, isSpanish: es),
-                            ],
-                          ),
-                  ),
-                ],
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var day = 0; day < schedules.length; day++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: BcSpace.s4),
+            child: _CalendarDay(
+              day: day,
+              schedule: schedules[day],
+              selected: day == activeDay,
+              isSpanish: es,
+              iconFor: iconFor,
+              onOpen: () => onOpenDay(day),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
 
-class _DayMarker extends StatelessWidget {
-  const _DayMarker({
-    required this.number,
+class _CalendarDay extends StatelessWidget {
+  const _CalendarDay({
+    required this.day,
+    required this.schedule,
     required this.selected,
     required this.isSpanish,
-    required this.onTap,
+    required this.iconFor,
+    required this.onOpen,
   });
 
-  final int number;
+  final int day;
+  final ItinerarySchedule schedule;
   final bool selected;
   final bool isSpanish;
-  final VoidCallback onTap;
+  final PlaceIconResolver iconFor;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final label = itineraryDayLabel(number - 1, isSpanish);
-    final fg = selected ? BcColors.ink : BcColors.onPhoto;
+    final es = isSpanish;
+    final stops = schedule.stops;
+    final range = stops.isEmpty
+        ? (es ? 'Sin lugares' : 'No places')
+        : '${ItineraryPlanner.formatClock(schedule.startMinute)} – '
+              '${ItineraryPlanner.formatClock(schedule.endMinute)}';
 
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: BcPressable(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: itineraryMotion(context, 200),
-          width: 60,
-          constraints: const BoxConstraints(minHeight: 72),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? BcColors.surface : Colors.transparent,
-            borderRadius: BorderRadius.circular(BcRadius.tile),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                (isSpanish ? 'Día' : 'Day').toUpperCase(),
-                style: BcText.label(
-                  color: selected
-                      ? BcColors.muted
-                      : BcColors.onPhoto.withValues(alpha: 0.72),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text('$number', style: BcText.display(34, color: fg)),
-            ],
-          ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
+      decoration: BoxDecoration(
+        color: BcColors.surface,
+        borderRadius: BorderRadius.circular(BcRadius.card),
+        border: Border.all(
+          color: selected ? BcColors.glacier : BcColors.surface,
+          width: 2,
         ),
       ),
-    );
-  }
-}
-
-class _CalendarStopTile extends StatelessWidget {
-  const _CalendarStopTile({required this.stop, required this.isSpanish});
-
-  final ScheduledStop stop;
-  final bool isSpanish;
-
-  @override
-  Widget build(BuildContext context) {
-    final place = stop.place;
-    final es = isSpanish;
-    final category = place.categoryName(es);
-    final time = ItineraryPlanner.formatClock(stop.arrivalMinute);
-    final visit = ItineraryPlanner.formatDuration(place.visitMinutes);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: BcSpace.s2),
-      child: Semantics(
-        button: true,
-        excludeSemantics: true,
-        label:
-            '$time, ${place.name(es)}. '
-            '${es ? 'Visita estimada' : 'Estimated visit'} $visit',
-        onTap: () => openPlaceDetail(context, place),
-        child: Material(
-          color: BcColors.surface,
-          borderRadius: BorderRadius.circular(BcRadius.tile),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => openPlaceDetail(context, place),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 64),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 6, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            label: es
+                ? 'Abrir ${itineraryDayLabel(day, true)}, $range'
+                : 'Open ${itineraryDayLabel(day, false)}, $range',
+            excludeSemantics: true,
+            onTap: onOpen,
+            child: InkWell(
+              onTap: onOpen,
+              borderRadius: BorderRadius.circular(BcRadius.control),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            place.name(es),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: BcText.title(),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            [
-                              if (category != null && category.isNotEmpty)
-                                category,
-                              'est. $visit',
-                            ].join(' · '),
-                            style: BcText.caption(),
-                          ),
-                        ],
-                      ),
+                    Text(
+                      itineraryDayLabel(day, es).toUpperCase(),
+                      style: BcText.display(22),
                     ),
-                    const SizedBox(width: BcSpace.s2),
-                    Text(time, style: BcText.display(20)),
+                    const SizedBox(width: BcSpace.s3),
+                    Expanded(child: Text(range, style: BcText.caption())),
+                    Text(
+                      es ? 'Editar' : 'Edit',
+                      style: BcText.button(color: BcColors.glacierDeep)
+                          .copyWith(fontSize: 14),
+                    ),
                     const Icon(
                       Icons.chevron_right_rounded,
-                      color: BcColors.muted,
+                      color: BcColors.glacierDeep,
                     ),
                   ],
                 ),
               ),
             ),
           ),
+          if (stops.isNotEmpty) const SizedBox(height: BcSpace.s2),
+          for (var i = 0; i < stops.length; i++) ...[
+            if (i > 0 && stops[i].travelMinutes > 0)
+              _CalendarGap(minutes: stops[i].travelMinutes),
+            if (i > 0 && stops[i].travelMinutes == 0)
+              const SizedBox(height: BcSpace.s2),
+            _CalendarBlock(
+              stop: stops[i],
+              isSpanish: es,
+              icon: iconFor(stops[i].place),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bloque de una actividad. Lugar: franja glaciar; actividad: franja tinta.
+/// El tipo también se distingue por el ícono.
+class _CalendarBlock extends StatelessWidget {
+  const _CalendarBlock({
+    required this.stop,
+    required this.isSpanish,
+    required this.icon,
+  });
+
+  final ScheduledStop stop;
+  final bool isSpanish;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final place = stop.place;
+    final es = isSpanish;
+    final start = ItineraryPlanner.formatClock(stop.arrivalMinute);
+    final end = ItineraryPlanner.formatClock(stop.departureMinute);
+    final visit = ItineraryPlanner.formatDuration(place.visitMinutes);
+    // 60 min ≈ 64 dp; nunca menos de 56 ni más de 128.
+    final height = (place.visitMinutes * 64 / 60).clamp(56.0, 128.0);
+
+    return Semantics(
+      button: true,
+      excludeSemantics: true,
+      label:
+          '$start ${es ? 'a' : 'to'} $end, ${place.name(es)}. '
+          '${es ? 'Visita estimada' : 'Estimated visit'} $visit',
+      onTap: () => openPlaceDetail(context, place),
+      child: Material(
+        color: BcColors.fog,
+        borderRadius: BorderRadius.circular(BcRadius.control),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => openPlaceDetail(context, place),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: height),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ColoredBox(
+                    color: place.kind == 'activity'
+                        ? BcColors.ink
+                        : BcColors.glacier,
+                    child: const SizedBox(width: 5),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(icon, size: 20, color: BcColors.ink),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  place.name(es),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: BcText.title(),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$start – $end · est. $visit',
+                                  style: BcText.caption(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _CalendarGap extends StatelessWidget {
+  const _CalendarGap({required this.minutes});
+
+  final int minutes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 16, top: 4, bottom: 4),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.more_vert_rounded,
+            size: 16,
+            color: BcColors.muted,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '≈ ${ItineraryPlanner.formatDuration(minutes)}',
+            style: BcText.caption(),
+          ),
+        ],
       ),
     );
   }

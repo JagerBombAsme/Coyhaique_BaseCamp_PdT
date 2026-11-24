@@ -1,24 +1,43 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/providers/auth/auth_user_provider.dart';
 import '../../../../core/providers/interests_provider.dart';
 import '../../../../core/providers/language_provider.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/utils/text_normalizer.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../data/providers/planner_provider.dart';
 import '../../domain/itinerary_planner.dart';
+import '../widgets/itinerary_timeline.dart';
 import '../widgets/itinerary_views.dart';
+import '../widgets/planner_form_widgets.dart';
 
 /// Ruta de «Mis itinerarios».
 const String savedItinerariesRoute = '/itinerary/saved';
+
+/// Íconos de las categorías principales por id. Vienen de la base: no hay
+/// categorías escritas en el código.
+final _categoryIconsProvider = Provider.autoDispose<Map<String, IconData>>((
+  ref,
+) {
+  final categories = ref.watch(mainCategoriesProvider).valueOrNull ?? const [];
+  return {for (final c in categories) c.id: c.icon};
+});
+
+/// Ícono de un lugar: el de su categoría o uno genérico según el tipo.
+IconData _iconFor(Map<String, IconData> icons, PlannerPlace place) =>
+    icons[place.categoryId] ??
+    (place.kind == 'activity'
+        ? Icons.directions_run_rounded
+        : Icons.place_rounded);
 
 /// Planificación de la visita (HU-07).
 ///
@@ -35,10 +54,19 @@ class PlanificacionScreen extends ConsumerStatefulWidget {
       _PlanificacionScreenState();
 }
 
+enum _ProposalAction { toggleView, addDay, removeDay, discard }
+
 class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
+  /// Vista del itinerario. El calendario y los días extra quedan en el menú
+  /// «⋮» para que la pantalla principal sea solo el recorrido.
+  ItineraryViewMode _mode = ItineraryViewMode.day;
+
+  void _setMode(ItineraryViewMode mode) => setState(() => _mode = mode);
+
   @override
   Widget build(BuildContext context) {
     final isSpanish = ref.watch(languageProvider).languageCode == 'es';
+    final es = isSpanish;
     final state = ref.watch(plannerProvider);
 
     // Al volver de iniciar sesión, se retoma el guardado pendiente.
@@ -56,27 +84,89 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
     return Scaffold(
       backgroundColor: BcColors.fog,
       appBar: AppBar(
-        title: Text(
-          state.savedName ??
-              (isSpanish ? 'Planifica tu visita' : 'Plan your visit'),
-        ),
+        backgroundColor: BcColors.fog,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        elevation: 0,
         actions: [
-          IconButton(
-            tooltip: isSpanish ? 'Mis itinerarios' : 'My itineraries',
-            icon: const Icon(Icons.bookmarks_outlined),
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: BcColors.ink,
+              minimumSize: const Size(48, 44),
+            ),
             onPressed: () => context.push(savedItinerariesRoute),
+            icon: const Icon(Icons.bookmarks_outlined, size: 20),
+            label: Text(es ? 'Mis itinerarios' : 'My itineraries'),
           ),
+          if (state.hasProposal)
+            PopupMenuButton<_ProposalAction>(
+              tooltip: es ? 'Más opciones' : 'More options',
+              icon: const Icon(Icons.more_vert_rounded, color: BcColors.ink),
+              onSelected: (action) {
+                switch (action) {
+                  case _ProposalAction.toggleView:
+                    _setMode(
+                      _mode == ItineraryViewMode.day
+                          ? ItineraryViewMode.calendar
+                          : ItineraryViewMode.day,
+                    );
+                  case _ProposalAction.addDay:
+                    ref.read(plannerProvider.notifier).addDay();
+                    _setMode(ItineraryViewMode.day);
+                  case _ProposalAction.removeDay:
+                    unawaited(_confirmRemoveDay(es));
+                  case _ProposalAction.discard:
+                    unawaited(_confirmDiscard(es));
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _ProposalAction.toggleView,
+                  child: Text(
+                    _mode == ItineraryViewMode.day
+                        ? (es ? 'Ver todos los días' : 'See all days')
+                        : (es ? 'Ver el recorrido' : 'See the route'),
+                  ),
+                ),
+                if (state.dayCount < PlannerNotifier.maxDays)
+                  PopupMenuItem(
+                    value: _ProposalAction.addDay,
+                    child: Text(es ? 'Agregar otro día' : 'Add another day'),
+                  ),
+                if (state.dayCount > 1)
+                  PopupMenuItem(
+                    value: _ProposalAction.removeDay,
+                    child: Text(
+                      es
+                          ? 'Quitar ${itineraryDayLabel(state.activeDay, true).toLowerCase()}'
+                          : 'Remove ${itineraryDayLabel(state.activeDay, false).toLowerCase()}',
+                    ),
+                  ),
+                PopupMenuItem(
+                  value: _ProposalAction.discard,
+                  child: Text(
+                    es ? 'Descartar y volver a empezar' : 'Discard and start over',
+                    style: BcText.body(color: BcColors.danger),
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(width: BcSpace.s1),
         ],
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
+        duration: itineraryMotion(context, 250),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
         child: state.hasProposal
             ? _ProposalView(
                 key: const ValueKey('proposal'),
-                isSpanish: isSpanish,
-                onSave: () => _onSave(isSpanish),
+                isSpanish: es,
+                mode: _mode,
+                onModeChanged: _setMode,
+                onSave: () => _onSave(es),
               )
-            : _PlannerForm(key: const ValueKey('form'), isSpanish: isSpanish),
+            : _PlannerForm(key: const ValueKey('form'), isSpanish: es),
       ),
     );
   }
@@ -90,17 +180,84 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
     _openSaveDialog(isSpanish);
   }
 
+  /// Vuelve al formulario. Si hay lugares, pide confirmación: lo que no se
+  /// guardó se pierde.
+  Future<void> _confirmDiscard(bool es) async {
+    final notifier = ref.read(plannerProvider.notifier);
+    if (ref.read(plannerProvider).allPlaces.isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.restart_alt_rounded),
+          title: Text(es ? '¿Descartar la propuesta?' : 'Discard the proposal?'),
+          content: Text(
+            es
+                ? 'Volverás al formulario. Los cambios que no guardaste se pierden; tu tiempo, intereses y punto de partida se mantienen.'
+                : 'You will go back to the form. Unsaved changes are lost; your time, interests and starting point are kept.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(es ? 'Cancelar' : 'Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: BcColors.danger),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(es ? 'Descartar' : 'Discard'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    notifier.reset();
+  }
+
+  /// Quita el día activo; si tiene lugares pide confirmación.
+  Future<void> _confirmRemoveDay(bool es) async {
+    final state = ref.read(plannerProvider);
+    final notifier = ref.read(plannerProvider.notifier);
+    final day = state.activeDay;
+
+    if (state.schedule.stops.isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(es ? 'Quitar día' : 'Remove day'),
+          content: Text(
+            es
+                ? 'Se quitarán ${itineraryDayLabel(day, true)} y sus lugares del itinerario.'
+                : '${itineraryDayLabel(day, false)} and its places will be removed from the itinerary.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(es ? 'Cancelar' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(es ? 'Quitar' : 'Remove'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    notifier.removeDay(day);
+  }
+
   Future<void> _askToLogin(bool isSpanish) async {
     final goToLogin = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        icon: const Icon(Icons.bookmark_add_outlined),
         title: Text(
           isSpanish ? 'Inicia sesión para guardar' : 'Sign in to save',
         ),
         content: Text(
           isSpanish
-              ? 'Puedes generar y revisar la propuesta sin cuenta. Para guardarla y verla después, inicia sesión. Tu propuesta se mantiene mientras tanto.'
-              : 'You can create and review the proposal without an account. To save it and see it later, sign in. Your proposal is kept meanwhile.',
+              ? 'Puedes crear y revisar el itinerario sin cuenta. Para guardarlo y verlo después, inicia sesión. Tu itinerario se mantiene mientras tanto.'
+              : 'You can create and review the itinerary without an account. To save it and see it later, sign in. Your itinerary is kept meanwhile.',
         ),
         actions: [
           TextButton(
@@ -143,6 +300,7 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
       await ref.read(plannerProvider.notifier).save(name);
       messenger.showSnackBar(
         SnackBar(
+          behavior: SnackBarBehavior.floating,
           content: Text(
             isSpanish ? 'Itinerario guardado.' : 'Itinerary saved.',
           ),
@@ -155,10 +313,11 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
     } catch (_) {
       messenger.showSnackBar(
         SnackBar(
+          behavior: SnackBarBehavior.floating,
           content: Text(
             isSpanish
-                ? 'No se pudo guardar. Revisa tu conexión e intenta de nuevo; la propuesta se mantiene.'
-                : 'It could not be saved. Check your connection and try again; the proposal is kept.',
+                ? 'No se pudo guardar. Revisa tu conexión e intenta de nuevo; el itinerario se mantiene.'
+                : 'It could not be saved. Check your connection and try again; the itinerary is kept.',
           ),
         ),
       );
@@ -170,110 +329,101 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
 // FORMULARIO
 // =================================================================
 
+/// Tres preguntas con chips y un botón. Nada más.
 class _PlannerForm extends ConsumerWidget {
   const _PlannerForm({super.key, required this.isSpanish});
 
   final bool isSpanish;
 
+  static const List<int> _presetHours = [3, 6, 9];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final es = isSpanish;
     final state = ref.watch(plannerProvider);
     final notifier = ref.read(plannerProvider.notifier);
     final interests = ref.watch(interestsProvider);
     final categoriesAsync = ref.watch(mainCategoriesProvider);
     final hours = state.availableMinutes ~/ 60;
+    final isPreset = _presetHours.contains(hours);
+    final start = ItineraryPlanner.formatClock(state.startMinute);
+    final end = ItineraryPlanner.formatClock(
+      state.startMinute + state.availableMinutes,
+    );
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+    return Stack(
       children: [
-        Text(
-          isSpanish
-              ? 'Indica tu tiempo disponible y, si quieres, tus intereses. Te proponemos lugares según tus intereses, la duración estimada de cada visita y la distancia desde el punto de partida.'
-              : 'Tell us how much time you have and, if you like, your interests. We suggest places based on your interests, the estimated length of each visit and the distance from your starting point.',
-          style: const TextStyle(color: AppTheme.textSecondary, height: 1.35),
-        ),
-        const SizedBox(height: 16),
-
-        // Tiempo disponible
-        _FormCard(
-          icon: Icons.schedule_rounded,
-          title: isSpanish ? 'Tiempo disponible' : 'Available time',
+        ListView(
+          padding: EdgeInsets.fromLTRB(
+            BcSpace.gutter,
+            BcSpace.s1,
+            BcSpace.gutter,
+            bottomInset + 110,
+          ),
           children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(isSpanish ? 'Hora de inicio' : 'Start time'),
-              trailing: OutlinedButton(
-                onPressed: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay(
-                      hour: state.startMinute ~/ 60,
-                      minute: state.startMinute % 60,
-                    ),
-                  );
-                  if (picked != null) {
-                    notifier.setStartMinute(picked.hour * 60 + picked.minute);
-                  }
-                },
-                child: Text(ItineraryPlanner.formatClock(state.startMinute)),
+            Semantics(
+              header: true,
+              child: Text(
+                (es ? 'Arma tu día' : 'Plan your day').toUpperCase(),
+                style: BcText.display(40),
               ),
             ),
+            const SizedBox(height: BcSpace.s2),
+            Text(
+              es
+                  ? 'Responde tres preguntas y te proponemos un recorrido.'
+                  : 'Answer three questions and we suggest a route.',
+              style: BcText.body(),
+            ),
+            const SizedBox(height: BcSpace.section),
+
+            // 1. Tiempo
+            _Question(es ? '¿Cuánto tiempo tienes?' : 'How much time do you have?'),
+            Wrap(
+              spacing: BcSpace.s2,
+              runSpacing: BcSpace.s2,
+              children: [
+                for (final h in _presetHours)
+                  PlannerFilterChip(
+                    label: '$h h',
+                    selected: hours == h,
+                    onTap: () => notifier.setAvailableMinutes(h * 60),
+                  ),
+                PlannerFilterChip(
+                  label: isPreset ? (es ? 'Otro' : 'Other') : '$hours h',
+                  icon: Icons.tune_rounded,
+                  selected: !isPreset,
+                  onTap: () => _pickHours(context, ref, hours),
+                ),
+              ],
+            ),
+            const SizedBox(height: BcSpace.s2),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    isSpanish ? 'Duración del día' : 'Length of the day',
+                    es ? 'De $start a $end' : 'From $start to $end',
+                    style: BcText.body(color: BcColors.ink),
                   ),
                 ),
-                Text(
-                  '$hours h',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: BcColors.glacierDeep,
+                    minimumSize: const Size(48, 44),
+                  ),
+                  onPressed: () => _pickStart(context, ref),
+                  child: Text(es ? 'Cambiar hora' : 'Change time'),
                 ),
               ],
             ),
-            Slider(
-              value: hours.toDouble(),
-              min: 2,
-              max: 12,
-              divisions: 10,
-              label: '$hours h',
-              onChanged: (value) =>
-                  notifier.setAvailableMinutes(value.round() * 60),
-            ),
-            Text(
-              isSpanish
-                  ? 'Termina cerca de las ${ItineraryPlanner.formatClock(state.startMinute + state.availableMinutes)}, incluido el regreso.'
-                  : 'Ends around ${ItineraryPlanner.formatClock(state.startMinute + state.availableMinutes)}, including the way back.',
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+            const SizedBox(height: BcSpace.section),
 
-        // Intereses
-        _FormCard(
-          icon: Icons.interests_rounded,
-          title: isSpanish ? 'Intereses (opcional)' : 'Interests (optional)',
-          children: [
-            Text(
-              interests.isEmpty
-                  ? (isSpanish
-                        ? 'Sin intereses seleccionados se consideran todas las categorías.'
-                        : 'With no interests selected, all categories are considered.')
-                  : (isSpanish
-                        ? 'Se guardan solo en tu teléfono.'
-                        : 'They are stored only on your phone.'),
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
+            // 2. Intereses
+            _Question(es ? '¿Qué te interesa?' : 'What are you into?'),
             categoriesAsync.when(
               data: (categories) {
+                final lang = es ? 'es' : 'en';
                 final visible =
                     categories
                         .where(
@@ -281,21 +431,23 @@ class _PlannerForm extends ConsumerWidget {
                         )
                         .toList()
                       ..sort(
-                        (a, b) => a
-                            .getNombre(isSpanish ? 'es' : 'en')
-                            .compareTo(b.getNombre(isSpanish ? 'es' : 'en')),
+                        (a, b) => a.getNombre(lang).compareTo(b.getNombre(lang)),
                       );
                 return Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+                  spacing: BcSpace.s2,
+                  runSpacing: BcSpace.s2,
                   children: [
+                    PlannerFilterChip(
+                      label: es ? 'Todo' : 'Everything',
+                      selected: interests.isEmpty,
+                      onTap: () => ref.read(interestsProvider.notifier).clear(),
+                    ),
                     for (final category in visible)
-                      FilterChip(
-                        label: Text(
-                          category.getNombre(isSpanish ? 'es' : 'en'),
-                        ),
+                      PlannerFilterChip(
+                        label: category.getNombre(lang),
+                        icon: category.icon,
                         selected: interests.contains(category.id),
-                        onSelected: (_) => ref
+                        onTap: () => ref
                             .read(interestsProvider.notifier)
                             .toggle(category.id),
                       ),
@@ -303,521 +455,458 @@ class _PlannerForm extends ConsumerWidget {
                 );
               },
               loading: () => const Padding(
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.symmetric(vertical: BcSpace.s3),
                 child: LinearProgressIndicator(),
               ),
               error: (_, _) => Text(
-                isSpanish
-                    ? 'No se pudieron cargar las categorías. Puedes generar la propuesta sin intereses.'
-                    : 'Categories could not be loaded. You can create the proposal without interests.',
+                es
+                    ? 'No se cargaron los intereses. Se usarán todos los lugares.'
+                    : 'Interests did not load. All places will be used.',
+                style: BcText.caption(),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
+            const SizedBox(height: BcSpace.section),
 
-        // Punto de partida
-        _FormCard(
-          icon: Icons.place_rounded,
-          title: isSpanish ? 'Punto de partida' : 'Starting point',
-          children: [
-            SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(
-                  value: false,
-                  icon: const Icon(Icons.location_city_rounded),
-                  label: Text(isSpanish ? 'Coyhaique' : 'Coyhaique'),
+            // 3. Partida
+            _Question(es ? '¿Desde dónde sales?' : 'Where do you start?'),
+            Wrap(
+              spacing: BcSpace.s2,
+              runSpacing: BcSpace.s2,
+              children: [
+                PlannerFilterChip(
+                  label: 'Plaza de Armas',
+                  icon: Icons.location_city_rounded,
+                  selected: !state.useMyLocation,
+                  onTap: () => notifier.setUseMyLocation(false),
                 ),
-                ButtonSegment(
-                  value: true,
-                  icon: const Icon(Icons.my_location_rounded),
-                  label: Text(isSpanish ? 'Mi ubicación' : 'My location'),
+                PlannerFilterChip(
+                  label: es ? 'Mi ubicación' : 'My location',
+                  icon: Icons.my_location_rounded,
+                  selected: state.useMyLocation,
+                  onTap: () => notifier.setUseMyLocation(true),
                 ),
               ],
-              selected: {state.useMyLocation},
-              onSelectionChanged: (value) =>
-                  notifier.setUseMyLocation(value.first),
             ),
-            const SizedBox(height: 6),
-            Text(
-              state.useMyLocation
-                  ? (isSpanish
-                        ? 'Se usa tu ubicación solo para calcular distancias; no se guarda.'
-                        : 'Your location is used only to calculate distances; it is not stored.')
-                  : (isSpanish
-                        ? 'Desde la Plaza de Armas de Coyhaique.'
-                        : 'From the Plaza de Armas in Coyhaique.'),
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppTheme.textSecondary,
+
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: BcSpace.s4),
+              PlannerNotice(
+                tone: PlannerNoticeTone.danger,
+                icon: Icons.cloud_off_rounded,
+                text: es
+                    ? 'Sin conexión y sin información descargada. Conéctate e intenta de nuevo.'
+                    : 'No connection and no downloaded information. Connect and try again.',
               ),
-            ),
+            ],
           ],
         ),
-        const SizedBox(height: 20),
 
-        if (state.errorMessage != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              isSpanish
-                  ? 'No hay conexión ni información descargada. Conéctate a Internet y vuelve a intentarlo.'
-                  : 'There is no connection and no downloaded information. Connect to the Internet and try again.',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+        // Un solo botón, siempre a la vista.
+        _BottomActions(
+          bottomInset: bottomInset,
+          child: BcButton(
+            label: es ? 'Crear mi itinerario' : 'Create my itinerary',
+            icon: Icons.auto_awesome_rounded,
+            isLoading: state.isGenerating,
+            onPressed: notifier.generate,
           ),
-
-        FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppTheme.primaryDark,
-            minimumSize: const Size.fromHeight(52),
-          ),
-          onPressed: state.isGenerating ? null : notifier.generate,
-          icon: state.isGenerating
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Icon(Icons.auto_awesome_motion_rounded),
-          label: Text(isSpanish ? 'Generar propuesta' : 'Create proposal'),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          isSpanish
-              ? 'No necesitas cuenta para generar la propuesta. Solo para guardarla.'
-              : 'You do not need an account to create the proposal, only to save it.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
         ),
       ],
     );
   }
-}
 
-class _FormCard extends StatelessWidget {
-  const _FormCard({
-    required this.icon,
-    required this.title,
-    required this.children,
-  });
+  Future<void> _pickStart(BuildContext context, WidgetRef ref) async {
+    final state = ref.read(plannerProvider);
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: state.startMinute ~/ 60,
+        minute: state.startMinute % 60,
+      ),
+    );
+    if (picked == null) return;
+    ref
+        .read(plannerProvider.notifier)
+        .setStartMinute(picked.hour * 60 + picked.minute);
+  }
 
-  final IconData icon;
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+  /// Otra duración (2 a 12 h) en un diálogo pequeño.
+  Future<void> _pickHours(BuildContext context, WidgetRef ref, int current) async {
+    final es = isSpanish;
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        var value = current.clamp(2, 12);
+        return StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: Text(es ? '¿Cuántas horas?' : 'How many hours?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: AppTheme.primaryDark),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppTheme.textPrimary,
-                  ),
+                Text('$value h', style: BcText.display(40)),
+                Slider(
+                  value: value.toDouble(),
+                  min: 2,
+                  max: 12,
+                  divisions: 10,
+                  label: '$value h',
+                  semanticFormatterCallback: (v) =>
+                      es ? '${v.round()} horas' : '${v.round()} hours',
+                  onChanged: (v) => setLocal(() => value = v.round()),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            ...children,
-          ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(es ? 'Cancelar' : 'Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, value),
+                child: Text(es ? 'Listo' : 'Done'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      ref.read(plannerProvider.notifier).setAvailableMinutes(picked * 60);
+    }
+  }
+}
+
+/// Zona fija de acciones sobre la navegación inferior. Un fondo que se
+/// difumina hacia arriba evita que el contenido se vea entre los botones y
+/// por detrás de ellos al desplazar.
+class _BottomActions extends StatelessWidget {
+  const _BottomActions({required this.bottomInset, required this.child});
+
+  final double bottomInset;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0, 0.3],
+            colors: [BcColors.fog.withValues(alpha: 0), BcColors.fog],
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            BcSpace.gutter,
+            BcSpace.section,
+            BcSpace.gutter,
+            bottomInset + BcSpace.s3,
+          ),
+          child: child,
         ),
       ),
     );
   }
 }
 
+/// Pregunta del formulario.
+class _Question extends StatelessWidget {
+  const _Question(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: BcSpace.s3),
+      child: Semantics(
+        header: true,
+        child: Text(text, style: BcText.title().copyWith(fontSize: 17)),
+      ),
+    );
+  }
+}
+
 // =================================================================
-// PROPUESTA
+// ITINERARIO GENERADO
 // =================================================================
 
-class _ProposalView extends ConsumerStatefulWidget {
+class _ProposalView extends ConsumerWidget {
   const _ProposalView({
     super.key,
     required this.isSpanish,
+    required this.mode,
+    required this.onModeChanged,
     required this.onSave,
   });
 
   final bool isSpanish;
+  final ItineraryViewMode mode;
+  final ValueChanged<ItineraryViewMode> onModeChanged;
   final VoidCallback onSave;
 
   @override
-  ConsumerState<_ProposalView> createState() => _ProposalViewState();
-}
-
-class _ProposalViewState extends ConsumerState<_ProposalView> {
-  ItineraryViewMode _mode = ItineraryViewMode.day;
-
-  bool get _es => widget.isSpanish;
-
-  @override
-  Widget build(BuildContext context) {
-    final es = _es;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final es = isSpanish;
     final state = ref.watch(plannerProvider);
     final notifier = ref.read(plannerProvider.notifier);
+    final icons = ref.watch(_categoryIconsProvider);
+    IconData iconFor(PlannerPlace place) => _iconFor(icons, place);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        BcSpace.gutter,
-        BcSpace.s3,
-        BcSpace.gutter,
-        120,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            (es ? 'Revisa tu itinerario' : 'Check your itinerary')
-                .toUpperCase(),
-            style: BcText.display(34),
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final schedule = state.schedule;
+    final count = schedule.stops.length;
+    final originName = state.origin.isUserLocation
+        ? (es ? 'Tu ubicación' : 'Your location')
+        : 'Plaza de Armas';
+
+    final line = [
+      es
+          ? '$count ${count == 1 ? 'lugar' : 'lugares'}'
+          : '$count ${count == 1 ? 'place' : 'places'}',
+      if (count > 0)
+        '${ItineraryPlanner.formatClock(schedule.startMinute)} – '
+            '${ItineraryPlanner.formatClock(schedule.endMinute)}',
+    ].join(' · ');
+
+    void openAdd() => _openAddSheet(context, ref, iconFor);
+
+    return Stack(
+      children: [
+        ListView(
+          padding: EdgeInsets.fromLTRB(
+            BcSpace.gutter,
+            BcSpace.s1,
+            BcSpace.gutter,
+            bottomInset + 110,
           ),
-          const SizedBox(height: BcSpace.s4),
-          Row(
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                (state.savedName ?? (es ? 'Tu recorrido' : 'Your route'))
+                    .toUpperCase(),
+                style: BcText.display(38),
+              ),
+            ),
+            const SizedBox(height: BcSpace.s2),
+            Text(line, style: BcText.body(color: BcColors.ink)),
+
+            if (state.locationFallback) ...[
+              const SizedBox(height: BcSpace.s3),
+              PlannerNotice(
+                icon: Icons.location_off_rounded,
+                text: es
+                    ? 'No pudimos usar tu ubicación; partimos desde la Plaza de Armas.'
+                    : 'We could not use your location; we start from Plaza de Armas.',
+                actionLabel: es ? 'Ajustes' : 'Settings',
+                onAction: () => unawaited(Geolocator.openAppSettings()),
+              ),
+            ],
+
+            // Los días solo aparecen si hay más de uno.
+            if (state.dayCount > 1 && mode == ItineraryViewMode.day) ...[
+              const SizedBox(height: BcSpace.s4),
+              ItineraryDayChips(
+                dayCount: state.dayCount,
+                activeDay: state.activeDay,
+                canAddDay: false,
+                isSpanish: es,
+                onSelect: notifier.setActiveDay,
+                onAddDay: notifier.addDay,
+              ),
+            ],
+            const SizedBox(height: BcSpace.s4),
+
+            AnimatedSwitcher(
+              duration: itineraryMotion(context, 220),
+              child: mode == ItineraryViewMode.day
+                  ? _DayContent(
+                      key: ValueKey('day-${state.activeDay}'),
+                      isSpanish: es,
+                      originLabel: originName,
+                      iconFor: iconFor,
+                      onAdd: openAdd,
+                    )
+                  : ItineraryCalendarView(
+                      key: const ValueKey('calendar'),
+                      schedules: [
+                        for (var d = 0; d < state.dayCount; d++)
+                          state.scheduleOf(d),
+                      ],
+                      activeDay: state.activeDay,
+                      isSpanish: es,
+                      iconFor: iconFor,
+                      onOpenDay: (day) {
+                        notifier.setActiveDay(day);
+                        onModeChanged(ItineraryViewMode.day);
+                      },
+                    ),
+            ),
+            const SizedBox(height: BcSpace.s4),
+            Text(
+              es
+                  ? 'Horarios y traslados son estimados. Confirma con cada lugar.'
+                  : 'Times and travel are estimates. Confirm with each place.',
+              style: BcText.caption(),
+            ),
+          ],
+        ),
+
+        // Dos acciones: agregar y guardar.
+        _BottomActions(
+          bottomInset: bottomInset,
+          child: Row(
             children: [
               Expanded(
-                child: ItineraryModeSelector(
-                  mode: _mode,
-                  isSpanish: es,
-                  onChanged: (mode) => setState(() => _mode = mode),
+                child: BcButton(
+                  label: es ? 'Agregar' : 'Add',
+                  icon: Icons.add_rounded,
+                  style: BcButtonStyle.surface,
+                  onPressed: openAdd,
                 ),
               ),
-              ItineraryAddButton(
-                semanticLabel: es ? 'Agregar lugar' : 'Add place',
-                onTap: () => _openAddSheet(context),
+              const SizedBox(width: BcSpace.s2),
+              Expanded(
+                child: BcButton(
+                  label: state.savedItineraryId != null
+                      ? (es ? 'Guardar cambios' : 'Save changes')
+                      : (es ? 'Guardar' : 'Save'),
+                  icon: Icons.bookmark_add_rounded,
+                  isLoading: state.isSaving,
+                  onPressed: state.allPlaces.isEmpty ? null : onSave,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: BcSpace.s3),
-          ItineraryDayChips(
-            dayCount: state.dayCount,
-            activeDay: state.activeDay,
-            canAddDay: state.dayCount < PlannerNotifier.maxDays,
-            isSpanish: es,
-            onSelect: (day) {
-              notifier.setActiveDay(day);
-              setState(() => _mode = ItineraryViewMode.day);
-            },
-            onAddDay: () {
-              notifier.addDay();
-              setState(() => _mode = ItineraryViewMode.day);
-            },
-          ),
-          const SizedBox(height: BcSpace.s4),
-          _Summary(isSpanish: es),
-          const SizedBox(height: BcSpace.s4),
-          AnimatedSwitcher(
-            duration: itineraryMotion(context),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.03),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
-              ),
-            ),
-            layoutBuilder: (current, previous) => Stack(
-              alignment: Alignment.topCenter,
-              children: [...previous, if (current != null) current],
-            ),
-            child: _mode == ItineraryViewMode.day
-                ? _DayContent(
-                    key: ValueKey('day-${state.activeDay}'),
-                    isSpanish: es,
-                    onAdd: () => _openAddSheet(context),
-                  )
-                : ItineraryCalendarView(
-                    key: const ValueKey('calendar'),
-                    schedules: [
-                      for (var d = 0; d < state.dayCount; d++)
-                        state.scheduleOf(d),
-                    ],
-                    activeDay: state.activeDay,
-                    isSpanish: es,
-                    onOpenDay: (day) {
-                      notifier.setActiveDay(day);
-                      setState(() => _mode = ItineraryViewMode.day);
-                    },
-                  ),
-          ),
-          const SizedBox(height: BcSpace.s4),
-          _Footer(isSpanish: es, onSave: widget.onSave),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openAddSheet(BuildContext context) async {
-    final notifier = ref.read(plannerProvider.notifier);
-    unawaited(notifier.ensureCandidates());
-
-    final selected = await showModalBottomSheet<PlannerPlace>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => _AddPlaceSheet(isSpanish: _es),
-    );
-    if (selected != null) {
-      notifier.add(selected);
-      if (mounted) setState(() => _mode = ItineraryViewMode.day);
-    }
-  }
-}
-
-/// Resumen del día activo: horario, tiempo usado y avisos.
-class _Summary extends ConsumerWidget {
-  const _Summary({required this.isSpanish});
-
-  final bool isSpanish;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final es = isSpanish;
-    final state = ref.watch(plannerProvider);
-    final schedule = state.schedule;
-    final exceeds = schedule.totalMinutes > state.availableMinutes;
-    final isEmpty = schedule.stops.isEmpty;
-    final count = schedule.stops.length;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: BcColors.surface,
-        borderRadius: BorderRadius.circular(BcRadius.tile),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            isEmpty
-                ? (es ? 'Sin lugares en este día' : 'No places on this day')
-                : '${ItineraryPlanner.formatClock(schedule.startMinute)} – '
-                      '${ItineraryPlanner.formatClock(schedule.endMinute)}',
-            style: BcText.title().copyWith(fontSize: 20),
-          ),
-          const SizedBox(height: 4),
-          if (!isEmpty)
-            Text(
-              es
-                  ? '$count ${count == 1 ? 'lugar' : 'lugares'} · ${ItineraryPlanner.formatDuration(schedule.totalMinutes)} de ${ItineraryPlanner.formatDuration(state.availableMinutes)} disponibles'
-                  : '$count ${count == 1 ? 'place' : 'places'} · ${ItineraryPlanner.formatDuration(schedule.totalMinutes)} of ${ItineraryPlanner.formatDuration(state.availableMinutes)} available',
-              style: BcText.caption(),
-            ),
-          Text(
-            state.origin.isUserLocation
-                ? (es ? 'Desde tu ubicación' : 'From your location')
-                : (es
-                      ? 'Desde la Plaza de Armas de Coyhaique'
-                      : 'From the Plaza de Armas in Coyhaique'),
-            style: BcText.caption(),
-          ),
-          if (state.locationFallback)
-            _Note(
-              icon: Icons.location_off_rounded,
-              text: es
-                  ? 'No se pudo obtener tu ubicación; se calculó desde Coyhaique.'
-                  : 'Your location could not be obtained; Coyhaique was used.',
-            ),
-          if (isEmpty && state.dayCount == 1)
-            _Note(
-              icon: Icons.info_outline_rounded,
-              text: es
-                  ? 'Ningún lugar cabe en el tiempo indicado con esos intereses. Aumenta el tiempo, cambia los intereses o agrega lugares a mano.'
-                  : 'No place fits the time given with those interests. Increase the time, change the interests or add places by hand.',
-            ),
-          if (exceeds)
-            _Note(
-              icon: Icons.warning_amber_rounded,
-              color: BcColors.danger,
-              text: es
-                  ? 'Este día supera tu tiempo disponible. Quita algún lugar o revisa el orden.'
-                  : 'This day exceeds your available time. Remove a place or check the order.',
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Tarjetas del día activo, reordenables.
-class _DayContent extends ConsumerWidget {
-  const _DayContent({super.key, required this.isSpanish, required this.onAdd});
-
-  final bool isSpanish;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(plannerProvider);
-    final notifier = ref.read(plannerProvider.notifier);
-    final stops = state.schedule.stops;
-
-    if (stops.isEmpty) {
-      return ItineraryEmptyDay(isSpanish: isSpanish, onAdd: onAdd);
-    }
-
-    return ReorderableListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      buildDefaultDragHandles: false,
-      itemCount: stops.length,
-      onReorder: notifier.reorder,
-      proxyDecorator: (child, index, animation) =>
-          Material(type: MaterialType.transparency, child: child),
-      itemBuilder: (context, index) {
-        final stop = stops[index];
-        return ItineraryStopCard(
-          key: ValueKey(stop.place.id),
-          stop: stop,
-          index: index,
-          isSpanish: isSpanish,
-          onRemove: () => notifier.removeAt(index),
-        );
-      },
-    );
-  }
-}
-
-class _Footer extends ConsumerWidget {
-  const _Footer({required this.isSpanish, required this.onSave});
-
-  final bool isSpanish;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final es = isSpanish;
-    final state = ref.watch(plannerProvider);
-    final notifier = ref.read(plannerProvider.notifier);
-    final schedule = state.schedule;
-    final nothingToSave = state.allPlaces.isEmpty;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (schedule.stops.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: BcSpace.s3),
-            child: Text(
-              es
-                  ? 'Regreso estimado: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}'
-                  : 'Estimated way back: ${ItineraryPlanner.formatDuration(schedule.returnTravelMinutes)}',
-              style: BcText.caption(),
-            ),
-          ),
-        BcButton(
-          label: state.savedItineraryId != null
-              ? (es ? 'Guardar cambios' : 'Save changes')
-              : (es ? 'Guardar itinerario' : 'Save itinerary'),
-          icon: Icons.bookmark_add_rounded,
-          isLoading: state.isSaving,
-          onPressed: nothingToSave ? null : onSave,
-        ),
-        const SizedBox(height: BcSpace.s2),
-        if (state.dayCount > 1)
-          TextButton.icon(
-            onPressed: () => _confirmRemoveDay(context, ref),
-            icon: const Icon(Icons.event_busy_rounded),
-            label: Text(
-              es
-                  ? 'Quitar ${itineraryDayLabel(state.activeDay, true).toLowerCase()}'
-                  : 'Remove ${itineraryDayLabel(state.activeDay, false).toLowerCase()}',
-            ),
-          ),
-        TextButton.icon(
-          onPressed: notifier.reset,
-          icon: const Icon(Icons.restart_alt_rounded),
-          label: Text(es ? 'Nueva propuesta' : 'New proposal'),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          es
-              ? 'Propuesta referencial: no es una reserva ni una ruta de navegación. Los traslados se estiman en línea recta a ${ItineraryPlanner.averageSpeedKmh.round()} km/h y no consideran el estado del camino ni el clima. La duración de cada visita es una estimación. Confirma horarios con cada lugar.'
-              : 'Reference proposal: it is not a booking or a navigation route. Travel times are estimated in a straight line at ${ItineraryPlanner.averageSpeedKmh.round()} km/h and do not consider road conditions or weather. Visit lengths are estimates. Confirm opening hours with each place.',
-          style: BcText.caption(),
         ),
       ],
     );
   }
 
-  /// Quita el día activo; si tiene lugares pide confirmación.
-  Future<void> _confirmRemoveDay(BuildContext context, WidgetRef ref) async {
-    final es = isSpanish;
-    final state = ref.read(plannerProvider);
+  Future<void> _openAddSheet(
+    BuildContext context,
+    WidgetRef ref,
+    PlaceIconResolver iconFor,
+  ) async {
     final notifier = ref.read(plannerProvider.notifier);
-    final day = state.activeDay;
+    final dayLabel = itineraryDayLabel(ref.read(plannerProvider).activeDay, isSpanish);
 
-    if (state.schedule.stops.isNotEmpty) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(es ? 'Quitar día' : 'Remove day'),
-          content: Text(
-            es
-                ? 'Se quitarán ${itineraryDayLabel(day, true)} y sus lugares del itinerario.'
-                : '${itineraryDayLabel(day, false)} and its places will be removed from the itinerary.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(es ? 'Cancelar' : 'Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(es ? 'Quitar' : 'Remove'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
+    final selected = await showModalBottomSheet<PlannerPlace>(
+      context: context,
+      isScrollControlled: true,
+      // Sobre la barra de navegación flotante: con el navegador de la
+      // pestaña la hoja quedaba debajo y la barra tapaba los últimos lugares.
+      useRootNavigator: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: BcColors.fog,
+      builder: (context) => _AddPlaceSheet(
+        isSpanish: isSpanish,
+        dayLabel: dayLabel,
+        iconFor: iconFor,
+      ),
+    );
+    if (selected != null && context.mounted) {
+      notifier.add(selected);
+      onModeChanged(ItineraryViewMode.day);
     }
-    notifier.removeDay(day);
   }
 }
 
-class _Note extends StatelessWidget {
-  const _Note({required this.icon, required this.text, this.color});
+/// Día activo: barra de tiempo y recorrido (o el día vacío).
+class _DayContent extends ConsumerWidget {
+  const _DayContent({
+    super.key,
+    required this.isSpanish,
+    required this.originLabel,
+    required this.iconFor,
+    required this.onAdd,
+  });
 
-  final IconData icon;
-  final String text;
-  final Color? color;
+  final bool isSpanish;
+  final String originLabel;
+  final PlaceIconResolver iconFor;
+  final VoidCallback onAdd;
 
   @override
-  Widget build(BuildContext context) {
-    final c = color ?? AppTheme.textSecondary;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: c),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(text, style: TextStyle(fontSize: 12.5, color: c)),
-          ),
-        ],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final es = isSpanish;
+    final state = ref.watch(plannerProvider);
+    final notifier = ref.read(plannerProvider.notifier);
+    final schedule = state.schedule;
+
+    if (schedule.stops.isEmpty) {
+      return ItineraryEmptyDay(
+        isSpanish: es,
+        onAdd: onAdd,
+        message: state.dayCount == 1
+            ? (es
+                  ? 'Ningún lugar cabe en ese tiempo. Prueba con más horas, otros intereses o agrega lugares a mano.'
+                  : 'No place fits that time. Try more hours, other interests or add places by hand.')
+            : null,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TimeCapacityBar(
+          schedule: schedule,
+          availableMinutes: state.availableMinutes,
+          isSpanish: es,
+        ),
+        const SizedBox(height: BcSpace.s4),
+        ItineraryTimeline(
+          schedule: schedule,
+          availableMinutes: state.availableMinutes,
+          originLabel: originLabel,
+          isSpanish: es,
+          iconFor: iconFor,
+          onReorder: notifier.reorder,
+          onRemove: (index) => _removeWithUndo(context, ref, index),
+        ),
+      ],
     );
+  }
+
+  /// Quita la parada y ofrece deshacer en vez de pedir confirmación.
+  void _removeWithUndo(BuildContext context, WidgetRef ref, int index) {
+    final es = isSpanish;
+    final notifier = ref.read(plannerProvider.notifier);
+    final stops = ref.read(plannerProvider).stops;
+    if (stops == null || index < 0 || index >= stops.length) return;
+    final place = stops[index];
+    final messenger = ScaffoldMessenger.of(context);
+
+    notifier.removeAt(index);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            es ? 'Quitaste ${place.name(es)}.' : 'You removed ${place.name(es)}.',
+          ),
+          action: SnackBarAction(
+            label: es ? 'Deshacer' : 'Undo',
+            onPressed: () {
+              // Vuelve a su posición en el mismo día.
+              notifier.add(place);
+              final after = ref.read(plannerProvider).stops;
+              if (after == null) return;
+              final last = after.length - 1;
+              final target = math.min(index, last);
+              if (target != last) notifier.reorder(last, target);
+            },
+          ),
+        ),
+      );
   }
 }
 
@@ -826,9 +915,15 @@ class _Note extends StatelessWidget {
 // =================================================================
 
 class _AddPlaceSheet extends ConsumerStatefulWidget {
-  const _AddPlaceSheet({required this.isSpanish});
+  const _AddPlaceSheet({
+    required this.isSpanish,
+    required this.dayLabel,
+    required this.iconFor,
+  });
 
   final bool isSpanish;
+  final String dayLabel;
+  final PlaceIconResolver iconFor;
 
   @override
   ConsumerState<_AddPlaceSheet> createState() => _AddPlaceSheetState();
@@ -836,6 +931,20 @@ class _AddPlaceSheet extends ConsumerStatefulWidget {
 
 class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
   String _query = '';
+  String? _categoryId;
+  late Future<void> _loading;
+
+  @override
+  void initState() {
+    super.initState();
+    _loading = ref.read(plannerProvider.notifier).ensureCandidates();
+  }
+
+  void _retry() {
+    setState(() {
+      _loading = ref.read(plannerProvider.notifier).ensureCandidates();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -843,83 +952,271 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
     final state = ref.watch(plannerProvider);
     final inItinerary = state.allPlaces;
     final term = normalizeForSearch(_query);
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    final height = math.max(media.size.height * 0.85 - keyboard, 280.0);
+
+    // Categorías presentes entre los candidatos (datos reales del catálogo).
+    final categories = <String, String>{};
+    for (final p in state.candidates) {
+      final name = p.categoryName(es);
+      if (name != null && name.isNotEmpty) categories[p.categoryId] = name;
+    }
+    final categoryEntries = categories.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
 
     final options = state.candidates
         .where((p) => !inItinerary.contains(p))
+        .where((p) => _categoryId == null || p.categoryId == _categoryId)
         .where(
           (p) =>
               term.isEmpty ||
               normalizeForSearch(p.nameEs).contains(term) ||
-              normalizeForSearch(p.nameEn).contains(term) ||
-              normalizeForSearch(p.categoryNameEs).contains(term),
+              normalizeForSearch(p.nameEn ?? '').contains(term) ||
+              normalizeForSearch(p.categoryNameEs ?? '').contains(term),
         )
         .toList();
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      padding: EdgeInsets.only(bottom: keyboard),
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.75,
+        height: height,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (es
+                                  ? 'Agregar a ${widget.dayLabel}'
+                                  : 'Add to ${widget.dayLabel}')
+                              .toUpperCase(),
+                          style: BcText.label(color: BcColors.muted),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          es ? 'Elige un lugar' : 'Choose a place',
+                          style: BcText.title().copyWith(fontSize: 19),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: es ? 'Cerrar' : 'Close',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
               child: TextField(
-                autofocus: true,
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
+                  filled: true,
+                  fillColor: BcColors.surface,
                   prefixIcon: const Icon(Icons.search_rounded),
                   hintText: es
                       ? 'Buscar un lugar o actividad'
                       : 'Search a place or activity',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(BcRadius.field),
+                    borderSide: BorderSide.none,
                   ),
                 ),
                 onChanged: (value) => setState(() => _query = value),
               ),
             ),
-            Expanded(
-              child: state.candidates.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          es
-                              ? 'Cargando lugares… Si no aparecen, revisa tu conexión o descarga la información.'
-                              : 'Loading places… If none appear, check your connection or download the information.',
-                          textAlign: TextAlign.center,
+            if (categoryEntries.length > 1)
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    PlannerFilterChip(
+                      label: es ? 'Todas' : 'All',
+                      selected: _categoryId == null,
+                      onTap: () => setState(() => _categoryId = null),
+                    ),
+                    for (final entry in categoryEntries) ...[
+                      const SizedBox(width: BcSpace.s2),
+                      PlannerFilterChip(
+                        label: entry.value,
+                        selected: _categoryId == entry.key,
+                        onTap: () => setState(
+                          () => _categoryId =
+                              _categoryId == entry.key ? null : entry.key,
                         ),
                       ),
-                    )
-                  : options.isEmpty
-                  ? Center(child: Text(es ? 'Sin resultados.' : 'No results.'))
-                  : ListView.separated(
-                      itemCount: options.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final place = options[index];
-                        return ListTile(
-                          leading: Icon(
-                            place.kind == 'activity'
-                                ? Icons.directions_run_rounded
-                                : Icons.place_rounded,
+                    ],
+                  ],
+                ),
+              ),
+            const SizedBox(height: BcSpace.s2),
+            Expanded(
+              child: FutureBuilder<void>(
+                future: _loading,
+                builder: (context, snapshot) {
+                  final loading =
+                      snapshot.connectionState != ConnectionState.done;
+                  if (state.candidates.isEmpty && loading) {
+                    return PlannerSkeletonList(
+                      semanticLabel: es ? 'Cargando lugares' : 'Loading places',
+                    );
+                  }
+                  if (state.candidates.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: PlannerNotice(
+                          tone: PlannerNoticeTone.danger,
+                          icon: Icons.cloud_off_rounded,
+                          text: es
+                              ? 'No se pudieron cargar los lugares. Revisa tu conexión o descarga la información desde el inicio.'
+                              : 'Places could not be loaded. Check your connection or download the information from the home screen.',
+                          actionLabel: es ? 'Reintentar' : 'Retry',
+                          onAction: _retry,
+                        ),
+                      ),
+                    );
+                  }
+                  if (options.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.search_off_rounded,
+                            size: 32,
+                            color: BcColors.muted,
                           ),
-                          title: Text(place.name(es)),
-                          subtitle: Text(
-                            [
-                              if (place.categoryName(es) != null)
-                                place.categoryName(es)!,
-                              es
-                                  ? 'Visita ${ItineraryPlanner.formatDuration(place.visitMinutes)}'
-                                  : 'Visit ${ItineraryPlanner.formatDuration(place.visitMinutes)}',
-                            ].join(' · '),
+                          const SizedBox(height: BcSpace.s2),
+                          Text(
+                            es ? 'Sin resultados' : 'No results',
+                            style: BcText.title(),
                           ),
-                          trailing: const Icon(Icons.add_rounded),
-                          onTap: () => Navigator.pop(context, place),
-                        );
-                      },
+                          const SizedBox(height: BcSpace.s2),
+                          TextButton(
+                            onPressed: () => setState(() => _categoryId = null),
+                            child: Text(
+                              es ? 'Ver todas las categorías' : 'Show all categories',
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: options.length,
+                    itemBuilder: (context, index) => _AddPlaceRow(
+                      place: options[index],
+                      isSpanish: es,
+                      icon: widget.iconFor(options[index]),
                     ),
+                  );
+                },
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddPlaceRow extends StatelessWidget {
+  const _AddPlaceRow({
+    required this.place,
+    required this.isSpanish,
+    required this.icon,
+  });
+
+  final PlannerPlace place;
+  final bool isSpanish;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final es = isSpanish;
+    final category = place.categoryName(es);
+    final image = place.imageUrl;
+    final visit = ItineraryPlanner.formatDuration(place.visitMinutes);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: BcSpace.s2),
+      child: Semantics(
+        button: true,
+        excludeSemantics: true,
+        label: es
+            ? 'Agregar ${place.name(es)}. Visita estimada $visit'
+            : 'Add ${place.name(es)}. Estimated visit $visit',
+        onTap: () => Navigator.pop(context, place),
+        child: Material(
+          color: BcColors.surface,
+          borderRadius: BorderRadius.circular(BcRadius.tile),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => Navigator.pop(context, place),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(10, 10, 12, 10),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(BcRadius.control),
+                    child: SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: image != null && image.trim().isNotEmpty
+                          ? BcPhotoImage(source: image)
+                          : ColoredBox(
+                              color: BcColors.fog,
+                              child: Icon(icon, color: BcColors.muted),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: BcSpace.s3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          place.name(es),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: BcText.title(),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          [
+                            if (category != null && category.isNotEmpty)
+                              category,
+                            es ? 'visita est. $visit' : 'est. visit $visit',
+                          ].join(' · '),
+                          style: BcText.caption(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: BcSpace.s2),
+                  const Icon(
+                    Icons.add_circle_rounded,
+                    color: BcColors.glacierDeep,
+                    size: 28,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -973,21 +1270,36 @@ class _SaveDialogState extends State<_SaveDialog> {
   Widget build(BuildContext context) {
     final es = widget.isSpanish;
     return AlertDialog(
+      icon: const Icon(Icons.bookmark_add_rounded),
       title: Text(
         widget.isUpdate
             ? (es ? 'Guardar cambios' : 'Save changes')
             : (es ? 'Guardar itinerario' : 'Save itinerary'),
       ),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        maxLength: 80,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => _submit(),
-        decoration: InputDecoration(
-          labelText: es ? 'Nombre' : 'Name',
-          errorText: _error,
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            es
+                ? 'Lo verás en «Mis itinerarios».'
+                : 'You will find it in “My itineraries”.',
+            style: BcText.caption(),
+          ),
+          const SizedBox(height: BcSpace.s3),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: 80,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              labelText: es ? 'Nombre' : 'Name',
+              errorText: _error,
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
