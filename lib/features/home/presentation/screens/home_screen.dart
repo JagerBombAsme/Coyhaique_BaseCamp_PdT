@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/local/catalog_download_consent.dart';
 import '../../../../core/local/catalog_status_provider.dart';
 import '../../../../core/models/category_model.dart';
 import '../../../../core/providers/auth/auth_user_provider.dart';
@@ -124,9 +125,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      TripNotice.show(context, kind: TripNoticeKind.home, oncePerSession: true);
+      unawaited(_showStartupMessages());
     });
     _saveTimer = Timer(_saveDelay, _minimizeTiles);
+  }
+
+  /// Primero el mensaje de descarga (solo la primera vez) y después el aviso
+  /// de inicio, para que nunca aparezcan juntos.
+  Future<void> _showStartupMessages() async {
+    await askCatalogDownloadIfNeeded(context, ref);
+    if (!mounted) return;
+    TripNotice.show(context, kind: TripNoticeKind.home);
   }
 
   @override
@@ -200,15 +209,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (_saving || _busy) return;
     setState(() => _saving = true);
     try {
-      final firstTap = await _rememberFirst('home_hint_download');
-      if (!mounted) return;
-      if (firstTap) {
-        _showHint(
-          _isEs
-              ? 'Descargarás siempre tu info'
-              : 'You will always download your info',
-        );
-      }
+      // El mensaje de descarga del inicio ya explica que la información se
+      // actualiza sola; aquí no se repite con otra burbuja.
       // Terminar primero la restauración: evita cambios de catálogo mientras
       // la imagen capturada se está deformando en pantalla.
       if (_minimized) await _runGenie(restoring: true);
@@ -537,7 +539,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _HomeHero(isSpanish: isSpanish),
+                    const _TopButtonsSpacer(),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: BcSpace.gutter,
@@ -601,6 +603,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ),
             ),
+            // Fondo bajo la barra de estado y los botones fijos: al bajar, el
+            // contenido pasa por debajo sin chocar con ellos ni con la hora.
+            const _TopScrim(),
             ..._topOverlay(context, isSpanish),
           ],
         ),
@@ -625,177 +630,58 @@ String _exploreLabel(CategoryModel category, String language) {
   return label ?? category.getNombre(language);
 }
 
-/// Tamaño del subtítulo de las tarjetas (cámbialo aquí).
-const double _tileSubtitleSize = 8;
+/// Tamaño del subtítulo de las tarjetas. 12 es el mínimo legible para un
+/// texto secundario; con 8 no se leía en un teléfono.
+const double _tileSubtitleSize = 12;
 
-/// Alto de las tarjetas «Antes de tu viaje» y «Disponible sin conexión».
-const double _infoTileHeight = 80;
+/// Separación entre «Antes de tu viaje» y «Disponible sin conexión». Su alto
+/// lo da el contenido (antes era fijo en 80 y el texto se desbordaba en
+/// teléfonos angostos o con letra grande).
 const double _infoTilesGap = 10;
 
 /// Espacio bajo las tarjetas, antes de la búsqueda.
 const double _tilesBottomGap = 16;
 
 /// Franja superior que ocupan Perfil, Descargar información e Información
-/// (14 de margen + botón de 50 + 8 de aire). Cuando el encabezado se pliega,
-/// queda este alto libre para que EXPLORAR no pase por debajo de los botones.
+/// (14 de margen + botón de 50 + 8 de aire).
 const double _topButtonsBand = 14 + 50 + 8;
 
-/// Encabezado fotográfico: a los 6 segundos se desvanece y el contenido sube.
-class _HomeHero extends StatefulWidget {
-  const _HomeHero({required this.isSpanish});
-  final bool isSpanish;
+/// Espacio libre bajo los botones superiores, para que EXPLORAR no quede
+/// debajo de ellos. Reemplaza a la foto principal, que se eliminó del inicio.
+class _TopButtonsSpacer extends StatelessWidget {
+  const _TopButtonsSpacer();
+
   @override
-  State<_HomeHero> createState() => _HomeHeroState();
+  Widget build(BuildContext context) =>
+      SizedBox(height: MediaQuery.paddingOf(context).top + _topButtonsBand);
 }
 
-class _HomeHeroState extends State<_HomeHero> {
-  static const _collapseDelay = Duration(seconds: 6);
-  static const _animDuration = Duration(milliseconds: 700);
-  static const _curve = Curves.easeInOutCubic;
-  Timer? _timer;
-  bool _collapsed = false;
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(_collapseDelay, () {
-      if (mounted) setState(() => _collapsed = true);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+/// Franja fija color niebla bajo la barra de estado y los botones superiores,
+/// con un borde inferior que se desvanece. No recibe toques.
+class _TopScrim extends StatelessWidget {
+  const _TopScrim();
 
   @override
   Widget build(BuildContext context) {
-    final isSpanish = widget.isSpanish;
-    final width = MediaQuery.sizeOf(context).width;
-    final top = MediaQuery.paddingOf(context).top;
-    final collapsed = _collapsed;
-    final photoSize = width * 1.36;
-    final photoTop = top + 60;
-    final expandedHeight = photoTop + photoSize - 50;
-    final titleTop = photoTop + 70;
-    return AnimatedContainer(
-      duration: _animDuration,
-      curve: _curve,
-      // Plegado no llega a 0: deja libre la franja de los botones superiores.
-      height: collapsed ? top + _topButtonsBand : expandedHeight,
-      child: AnimatedOpacity(
-        duration: _animDuration,
-        opacity: collapsed ? 0 : 1,
-        child: IgnorePointer(
-          ignoring: collapsed,
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              const Positioned.fill(
-                child: BcPhotoImage(
-                  source: BcPhoto.gauchosinr,
-                  alignment: Alignment.center,
-                ),
-              ),
-              const Positioned.fill(
-                child: IgnorePointer(child: BcPhotoShade(from: 0.55)),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: top + 150,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          BcColors.ink.withValues(alpha: 0.55),
-                          BcColors.ink.withValues(alpha: 0.25),
-                          BcColors.ink.withValues(alpha: 0),
-                        ],
-                        stops: const [0, 0.6, 1],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                top: titleTop,
-                child: Semantics(
-                  header: true,
-                  label: 'Coyhaique',
-                  excludeSemantics: true,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text('COYHAIQUE', style: BcText.displayHero),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: BcSpace.gutter,
-                top: photoTop + 130,
-                child: const BcTag(
-                  'Patagonia',
-                  lead: 'Aysén',
-                  style: BcTagStyle.ink,
-                ),
-              ),
-              Positioned(
-                left: BcSpace.gutter,
-                right: BcSpace.gutter,
-                bottom: 24,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Icon(
-                          Icons.landscape_rounded,
-                          size: 38,
-                          color: BcColors.onPhoto,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '45°34′S',
-                          style: BcText.figure().copyWith(
-                            color: BcColors.glacier,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              isSpanish
-                                  ? 'CAPITAL REGIONAL\nDE AYSÉN'
-                                  : 'REGIONAL CAPITAL\nOF AYSÉN',
-                              style: BcText.label(color: BcColors.onPhoto),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      isSpanish
-                          ? 'Montañas, ríos patagónicos y naturaleza para descansar o salir a la aventura.'
-                          : 'Mountains, Patagonian rivers and nature to rest or head out on an adventure.',
-                      style: BcText.body(
-                        color: BcColors.onPhoto.withValues(alpha: 0.88),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    final height = MediaQuery.paddingOf(context).top + _topButtonsBand;
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: height + 16,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0, height / (height + 16), 1],
+              colors: [
+                BcColors.fog,
+                BcColors.fog,
+                BcColors.fog.withValues(alpha: 0),
+              ],
+            ),
           ),
         ),
       ),
@@ -828,27 +714,23 @@ class _InfoTiles extends StatelessWidget {
   final bool visible;
   @override
   Widget build(BuildContext context) {
-    const fullHeight = _infoTileHeight + _tilesBottomGap;
     // SizeTransition recorta y reduce el alto anclado arriba; las tarjetas
     // conservan su tamaño completo, así la captura y el vuelo parten siempre
     // de la misma forma y el contenido de abajo sube de manera continua.
     return SizeTransition(
       sizeFactor: openFraction,
       alignment: Alignment.topCenter,
-      child: SizedBox(
-        height: fullHeight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: _tilesBottomGap),
         child: IgnorePointer(
           ignoring: !visible,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: BcSpace.gutter),
             child: Opacity(
               opacity: visible ? 1.0 : 0.0,
-              child: SizedBox(
-                height: _infoTileHeight,
-                // El botón de ocultar queda fuera de la captura: no
-                // aparece deformado dentro del vuelo.
-                child: Stack(
-                  fit: StackFit.expand,
+              // El botón de ocultar queda fuera de la captura: no aparece
+              // deformado dentro del vuelo.
+              child: Stack(
                   children: [
                     _tilesRow(context),
                     Positioned(
@@ -861,7 +743,6 @@ class _InfoTiles extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
             ),
           ),
         ),
@@ -871,9 +752,16 @@ class _InfoTiles extends StatelessWidget {
 
   /// Las dos tarjetas, dentro de la zona que se captura para el vuelo.
   Widget _tilesRow(BuildContext context) {
+    // Ancho de cada tarjeta: pantalla menos márgenes y separación, en dos.
+    final tileWidth =
+        (MediaQuery.sizeOf(context).width - 2 * BcSpace.gutter - _infoTilesGap) /
+        2;
+    final compact = tileWidth < BcWideInfoTile.compactBelowWidth;
     return RepaintBoundary(
       key: captureKey,
-      child: Row(
+      // Las dos tarjetas toman el alto de la más alta.
+      child: IntrinsicHeight(
+        child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
@@ -886,11 +774,15 @@ class _InfoTiles extends StatelessWidget {
                   : 'Emergencies, safety and transport',
               onTap: () => context.push(tripInfoRoute),
               subtitleSize: _tileSubtitleSize,
+              compact: compact,
             ),
           ),
           const SizedBox(width: _infoTilesGap),
-          Expanded(child: _OfflineTile(isSpanish: isSpanish)),
+          Expanded(
+            child: _OfflineTile(isSpanish: isSpanish, compact: compact),
+          ),
         ],
+        ),
       ),
     );
   }
@@ -1016,10 +908,11 @@ class _HideTilesButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        // Zona táctil de 40 px aunque el círculo visible sea pequeño.
+        // Zona táctil de 48 dp (mínimo recomendado) aunque el círculo
+        // visible sea pequeño.
         child: SizedBox(
-          width: 40,
-          height: 40,
+          width: 48,
+          height: 48,
           child: Align(
             alignment: Alignment.topRight,
             child: Container(
@@ -1137,8 +1030,9 @@ class _InlineSectionHeader extends StatelessWidget {
 
 /// Estado y descarga del catálogo sin conexión (tarjeta oscura).
 class _OfflineTile extends ConsumerWidget {
-  const _OfflineTile({required this.isSpanish});
+  const _OfflineTile({required this.isSpanish, this.compact = false});
   final bool isSpanish;
+  final bool compact;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(catalogStatusProvider);
@@ -1179,6 +1073,9 @@ class _OfflineTile extends ConsumerWidget {
       title: title,
       subtitle: subtitle,
       subtitleSize: _tileSubtitleSize,
+      compact: compact,
+      // Sin descarga en curso se reserva el espacio del botón «ocultar», que
+      // va en la esquina superior derecha y tapaba el título.
       trailing: status.isSyncing
           ? const SizedBox(
               width: 18,
@@ -1188,7 +1085,7 @@ class _OfflineTile extends ConsumerWidget {
                 color: BcColors.glacier,
               ),
             )
-          : null,
+          : const SizedBox(width: 14),
       onTap: status.isSyncing
           ? null
           : () => downloadOfflineCatalog(context, ref),
@@ -1215,6 +1112,9 @@ Future<void> downloadOfflineCatalog(BuildContext context, WidgetRef ref) async {
   }
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
+      // Flotante y sobre la barra inferior: no tapa la navegación.
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 104),
       content: Text(
         ok
             ? (isSpanish

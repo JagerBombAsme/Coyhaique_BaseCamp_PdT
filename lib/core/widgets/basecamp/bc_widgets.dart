@@ -879,6 +879,7 @@ class BcWideInfoTile extends StatelessWidget {
     this.onTap,
     this.trailing,
     this.subtitleSize,
+    this.compact = false,
   });
 
   final IconData icon;
@@ -889,50 +890,78 @@ class BcWideInfoTile extends StatelessWidget {
   final Widget? trailing;
   final double? subtitleSize;
 
+  /// Ícono sobre el texto, para tarjetas angostas. Con dos tarjetas lado a
+  /// lado (~175 dp) el ícono al costado dejaba ~85 dp para el texto y el
+  /// subtítulo se partía en cinco líneas. Es un parámetro y no un
+  /// LayoutBuilder porque la tarjeta suele ir dentro de un IntrinsicHeight.
+  final bool compact;
+
+  /// Ancho bajo el cual conviene [compact].
+  static const double compactBelowWidth = 200;
+
   @override
   Widget build(BuildContext context) {
     final fg = dark ? BcColors.onPhoto : BcColors.ink;
+    final iconColor = dark ? BcColors.glacier : BcColors.ink;
+    final extra = trailing;
+
+    final texts = <Widget>[
+      Text(title, style: BcText.title(color: fg).copyWith(fontSize: 13)),
+      if (subtitle != null) ...[
+        const SizedBox(height: 2),
+        Text(
+          subtitle!,
+          style: BcText.caption(
+            color: dark
+                ? BcColors.onPhoto.withValues(alpha: 0.78)
+                : BcColors.muted,
+          ).copyWith(fontSize: subtitleSize),
+        ),
+      ],
+    ];
 
     return BcPressable(
       onTap: onTap,
       semanticLabel: subtitle == null ? title : '$title. $subtitle',
       child: Container(
-        constraints: const BoxConstraints(minHeight: 88),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        decoration: BoxDecoration(
-          color: dark ? BcColors.ink : BcColors.surface,
-          borderRadius: BorderRadius.circular(BcRadius.tile),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 32, color: dark ? BcColors.glacier : BcColors.ink),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: BcText.title(color: fg).copyWith(fontSize: 13),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: BcText.caption(
-                        color: dark
-                            ? BcColors.onPhoto.withValues(alpha: 0.78)
-                            : BcColors.muted,
-                      ).copyWith(fontSize: subtitleSize),
-                    ),
-                  ],
-                ],
-              ),
+            constraints: const BoxConstraints(minHeight: 88),
+            padding: compact
+                ? const EdgeInsets.all(12)
+                : const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            decoration: BoxDecoration(
+              color: dark ? BcColors.ink : BcColors.surface,
+              borderRadius: BorderRadius.circular(BcRadius.tile),
             ),
-            if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-          ],
-        ),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(icon, size: 28, color: iconColor),
+                          const Spacer(),
+                          ?extra,
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...texts,
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Icon(icon, size: 32, color: iconColor),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: texts,
+                        ),
+                      ),
+                      if (extra != null) ...[const SizedBox(width: 8), extra],
+                    ],
+                  ),
       ),
     );
   }

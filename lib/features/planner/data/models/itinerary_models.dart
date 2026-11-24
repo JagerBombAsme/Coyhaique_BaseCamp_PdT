@@ -16,6 +16,7 @@ PlannerPlace plannerPlaceFromDto(PlaceDto dto) {
     latitude: dto.latitude,
     longitude: dto.longitude,
     visitMinutes: ItineraryPlanner.defaultVisitMinutes(dto.kind),
+    imageUrl: dto.imageUrl,
   );
 }
 

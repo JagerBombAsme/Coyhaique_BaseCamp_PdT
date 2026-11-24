@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/connectivity/network_status.dart';
 import '../../../../core/local/catalog_local_db.dart';
 import '../../../../core/models/category_model.dart';
 import '../../../../core/models/informational_content_dto.dart';
@@ -9,20 +10,26 @@ import '../models/place_dto.dart';
 /// Repositorio de datos turísticos sobre el modelo Supabase V2
 /// (categories_v2, places_v2, place_media_v2, informational_content_v2).
 ///
-/// Consulta primero Supabase. Si no hay conexión o la respuesta tarda más de
-/// 15 s (RNF-13), responde con la copia local descargada (HU-10, RNF-04).
+/// Sin ninguna red activa (modo avión) o justo después de una falla de
+/// conexión, responde de inmediato con la copia local descargada (HU-10,
+/// RNF-04), sin esperar a Supabase ([NetworkStatus]). En los demás casos
+/// consulta primero Supabase y, si falla o tarda más de 15 s (RNF-13), usa la
+/// copia local.
 /// Si tampoco hay copia local, lanza [CatalogUnavailableException]: la
 /// pantalla muestra el error con «Reintentar», nunca datos de ejemplo.
 class PlacesRepository {
   PlacesRepository({
     SupabaseClient? client,
     CatalogLocalDb? localDb,
+    NetworkStatus? network,
     this._onDataSource,
   })  : _client = client ?? Supabase.instance.client,
-        _localDb = localDb ?? CatalogLocalDb.instance;
+        _localDb = localDb ?? CatalogLocalDb.instance,
+        _network = network ?? NetworkStatus.instance;
 
   final SupabaseClient _client;
   final CatalogLocalDb _localDb;
+  final NetworkStatus _network;
   final void Function(bool usingOfflineData)? _onDataSource;
 
   static const Duration _timeout = Duration(seconds: 15);
@@ -38,8 +45,15 @@ class PlacesRepository {
     required Future<T> Function() remote,
     required Future<T> Function() local,
   }) async {
+    // Atajo sin red: la copia local responde de inmediato.
+    if (await _network.shouldSkipRemote() && await _localDb.hasData()) {
+      final result = await local();
+      _report(true);
+      return result;
+    }
     try {
       final result = await remote().timeout(_timeout);
+      _network.markSuccess();
       _report(false);
       return result;
     } catch (error) {
@@ -51,6 +65,7 @@ class PlacesRepository {
         rethrow;
       }
       debugPrint('Catálogo remoto no disponible, se usa copia local: $error');
+      _network.markFailure();
       if (!await _localDb.hasData()) {
         throw const CatalogUnavailableException();
       }

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
+import '../../../../core/widgets/basecamp/bc_scroll_back_bar.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
@@ -31,6 +32,16 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
   /// Ancla de «Información práctica», a la que lleva el botón Información.
   final GlobalKey _infoKey = GlobalKey();
+
+  /// true cuando la foto de cabecera salió de la vista: se muestra la barra
+  /// con «Volver» para que la salida siga a la vista.
+  final ValueNotifier<bool> _collapsed = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _collapsed.dispose();
+    super.dispose();
+  }
 
   Future<void> _reloadPlace({bool showMessage = false}) async {
     if (_isReloading) {
@@ -356,7 +367,14 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
         ? (isSpanish ? 'Actividad' : 'Activity')
         : (isSpanish ? 'Atractivo' : 'Attraction');
 
-    return RefreshIndicator(
+    final collapseAt =
+        heroHeight - MediaQuery.paddingOf(context).top - BcScrollBackBar.height;
+
+    return Stack(
+      children: [
+        NotificationListener<ScrollNotification>(
+          onNotification: (n) => bcTrackCollapse(n, _collapsed, collapseAt),
+          child: RefreshIndicator(
       onRefresh: () => _reloadPlace(),
       color: BcColors.glacierDeep,
       child: SingleChildScrollView(
@@ -421,6 +439,15 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
           ],
         ),
       ),
+          ),
+        ),
+        BcScrollBackBar(
+          visible: _collapsed,
+          title: title,
+          backLabel: isSpanish ? 'Volver' : 'Back',
+          onBack: widget.onBack,
+        ),
+      ],
     );
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/connectivity/network_status.dart';
 import '../models/transfer_service.dart';
 
 /// Resultado de la consulta de transfers, con su origen.
@@ -35,10 +36,12 @@ class TransfersUnavailableException implements Exception {
 /// avión aunque no haya señal. No se envía ni se guarda ningún dato del
 /// pasajero.
 class TransferRepository {
-  TransferRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  TransferRepository({SupabaseClient? client, NetworkStatus? network})
+      : _client = client ?? Supabase.instance.client,
+        _network = network ?? NetworkStatus.instance;
 
   final SupabaseClient _client;
+  final NetworkStatus _network;
 
   static const Duration timeout = Duration(seconds: 15);
   static const String _cacheKey = 'transfer_services_v2_cache';
@@ -54,16 +57,23 @@ class TransferRepository {
       'phone, website_url';
 
   /// Transfers del aeropuerto. Con conexión consulta Supabase y actualiza la
-  /// copia local; sin conexión devuelve la copia guardada.
+  /// copia local; sin conexión devuelve la copia guardada. Sin ninguna red
+  /// activa (modo avión), la copia se devuelve de inmediato ([NetworkStatus]).
   Future<TransferListResult> getAirportTransfers() async {
+    if (await _network.shouldSkipRemote()) {
+      final cached = await _readCache();
+      if (cached != null) return cached;
+    }
     try {
       final rows = await _fetchRemote();
+      _network.markSuccess();
       await _saveCache(rows);
       return TransferListResult(
         services: _toServices(rows),
         fromCache: false,
       );
     } catch (_) {
+      _network.markFailure();
       final cached = await _readCache();
       if (cached == null) throw const TransfersUnavailableException();
       return cached;
