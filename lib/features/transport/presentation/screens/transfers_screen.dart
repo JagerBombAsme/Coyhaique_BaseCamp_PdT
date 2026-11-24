@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
+import '../../../../core/widgets/basecamp/bc_scroll_back_bar.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import '../../data/models/transfer_service.dart';
 import '../../data/providers/transfer_providers.dart';
@@ -40,7 +41,12 @@ class TransfersScreen extends ConsumerWidget {
       ),
       child: Scaffold(
         backgroundColor: BcColors.fog,
-        body: RefreshIndicator(
+        body: BcBackOnScroll(
+          collapseAt: 320 - BcScrollBackBar.height,
+          title: 'Transfer',
+          backLabel: isSpanish ? 'Volver' : 'Back',
+          onBack: () => context.pop(),
+          child: RefreshIndicator(
           color: BcColors.ink,
           backgroundColor: BcColors.surface,
           edgeOffset: topPadding,
@@ -245,6 +251,7 @@ class TransfersScreen extends ConsumerWidget {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -284,11 +291,11 @@ class TransfersScreen extends ConsumerWidget {
                       Text(
                         toAirport
                             ? (isSpanish
-                                  ? 'Habilitadas para transporte de pasajeros. Reserva con anticipación; la empresa confirma la hora.'
-                                  : 'Licensed for passenger transport. Book ahead; the company confirms the time.')
+                                  ? 'Revisadas por el equipo; cada tarjeta indica cómo y cuándo. Reserva con anticipación; la empresa confirma la hora.'
+                                  : 'Reviewed by the team; each card says how and when. Book ahead; the company confirms the time.')
                             : (isSpanish
-                                  ? 'Habilitadas para transporte de pasajeros. Contáctalas antes de viajar o contrata en el counter.'
-                                  : 'Licensed for passenger transport. Contact them before you travel or book at the counter.'),
+                                  ? 'Revisadas por el equipo; cada tarjeta indica cómo y cuándo. Contáctalas antes de viajar o contrata en el counter.'
+                                  : 'Reviewed by the team; each card says how and when. Contact them before you travel or book at the counter.'),
                         style: BcText.caption(),
                       ),
                     ],
@@ -466,6 +473,8 @@ class _TransferCard extends StatelessWidget {
         ),
     ];
 
+    final publicSource = service.verificationLevel == 'fuente_publica';
+
     return Container(
       padding: const EdgeInsets.all(BcSpace.gutter),
       decoration: BoxDecoration(
@@ -475,8 +484,13 @@ class _TransferCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Con fuente pública no se afirma la habilitación: solo que los
+          // datos se revisaron en fuentes públicas (la inscripción en el
+          // MTT puede estar pendiente, y así lo dice la fuente).
           BcTag(
-            isSpanish ? 'y habilitada' : 'and licensed',
+            publicSource
+                ? (isSpanish ? 'fuente pública' : 'public source')
+                : (isSpanish ? 'y habilitada' : 'and licensed'),
             lead: isSpanish ? 'Verificada' : 'Verified',
             style: BcTagStyle.ink,
           ),
@@ -518,13 +532,19 @@ class _TransferCard extends StatelessWidget {
           if (verifiedOn != null) ...[
             const SizedBox(height: BcSpace.s1),
             Text(
-              source == null
-                  ? (isSpanish
-                        ? 'Habilitación verificada el ${formatDate(verifiedOn)}.'
-                        : 'Licence verified on ${formatDate(verifiedOn)}.')
-                  : (isSpanish
-                        ? 'Habilitación verificada el ${formatDate(verifiedOn)}. Fuente: $source.'
-                        : 'Licence verified on ${formatDate(verifiedOn)}. Source: $source.'),
+              [
+                publicSource
+                    ? (isSpanish
+                          ? 'Datos revisados en fuentes públicas el ${formatDate(verifiedOn)}.'
+                          : 'Details checked in public sources on ${formatDate(verifiedOn)}.')
+                    : (isSpanish
+                          ? 'Habilitación verificada el ${formatDate(verifiedOn)}.'
+                          : 'Licence verified on ${formatDate(verifiedOn)}.'),
+                if (source != null)
+                  isSpanish
+                      ? 'Fuente: ${_withoutFinalPeriod(source)}.'
+                      : 'Source: ${_withoutFinalPeriod(source)}.',
+              ].join(' '),
               style: BcText.caption(),
             ),
           ],
@@ -749,4 +769,13 @@ class _CounterGuide extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Quita el punto final de un texto que se inserta antes de otro punto, para
+/// no mostrar «..» cuando la fuente ya termina en punto.
+String _withoutFinalPeriod(String text) {
+  final trimmed = text.trimRight();
+  return trimmed.endsWith('.')
+      ? trimmed.substring(0, trimmed.length - 1)
+      : trimmed;
 }
