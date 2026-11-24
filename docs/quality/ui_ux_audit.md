@@ -128,3 +128,10 @@ La propuesta de planificación también mostraba los botones fijos encima del co
 4. Generar propuesta, añadir lugar con teclado activo, reordenar por arrastre y menú, eliminar/deshacer, añadir días, alternar calendario, guardar y retomar después de autenticación.
 5. Probar sesión iniciada, permisos rechazados, conexión ausente, nombres largos y carga/error. Comprobar foco y semántica con TalkBack.
 6. Riesgo residual: la eliminación del tope de texto puede revelar defectos en pantallas no intervenidas (especialmente mapa nativo, tarjetas fotográficas, onboarding y formularios). Registrar capturas y logs; corregir layouts específicos, no restablecer el tope global como solución final.
+
+
+### Respaldo por subcategoría (tercera revisión)
+
+Se incorporaron 13 JPEG del archivo `BaseCamp_Imagenes.zip`, sin recortar ni recomprimir. Se verificó su decodificación e inspeccionó una hoja de contacto. El selector `bcReferenceAsset` prioriza los slugs de la migración de jerarquía, reconoce nombres ES/EN y conserva las referencias generales existentes. El slug se propaga desde el DTO al planificador y mapa; no cambia el identificador de interés, ni se persisten imágenes ilustrativas como reales. La vista previa del mapa conserva la galería original cuando existe.
+
+Pruebas añadidas en `test/bc_reference_photo_test.dart`: los 13 slugs y nombres, carga de assets, prioridad de slug, alias históricos, preservación del ID de interés y respaldo en widget. El SDK Flutter/Dart no está disponible; ejecutar `flutter pub get`, `flutter analyze` y `flutter test` en el equipo de desarrollo. Las fuentes declaradas por el usuario se conservan en `docs/architecture/fallback_image_sources.txt`; verificar sus condiciones antes de publicar.

@@ -501,12 +501,13 @@ class _StopCard extends StatelessWidget {
                 child: SizedBox(
                   width: 64,
                   height: 64,
-                  child: image != null && image.trim().isNotEmpty
-                      ? BcPhotoImage(source: image)
-                      : ColoredBox(
-                          color: BcColors.fog,
-                          child: Icon(icon, color: BcColors.muted, size: 28),
-                        ),
+                  child: BcPhotoImage(
+                    source: image ?? '',
+                    fallbackCategory:
+                        '${place.categorySlug ?? ''} ${place.categoryNameEs ?? ''} '
+                        '${bcReferenceCategoryForIcon(icon)} ${place.kind}',
+                    isSpanish: es,
+                  ),
                 ),
               ),
               const SizedBox(width: BcSpace.s3),

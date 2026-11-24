@@ -13,6 +13,7 @@ PlannerPlace plannerPlaceFromDto(PlaceDto dto) {
     categoryId: dto.category?.parentId ?? dto.categoryId,
     categoryNameEs: dto.category?.nombreEs,
     categoryNameEn: dto.category?.nombreEn,
+    categorySlug: dto.categorySlug ?? dto.category?.slug,
     latitude: dto.latitude,
     longitude: dto.longitude,
     visitMinutes: ItineraryPlanner.defaultVisitMinutes(dto.kind),

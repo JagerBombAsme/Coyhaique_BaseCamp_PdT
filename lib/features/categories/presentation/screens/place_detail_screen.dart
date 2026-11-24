@@ -256,6 +256,8 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                   child: PlacePhotoHero(
                     placeId: seed.id,
                     photoUrl: seed.imageUrl,
+                    fallbackCategory: '${seed.categorySlug ?? ''} ${seed.category?.groupType ?? ''} ${seed.category?.nombreEs ?? ''}',
+                    isSpanish: isSpanish,
                   ),
                 ),
               SafeArea(
@@ -379,6 +381,8 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
               title: title,
               categoryLabel: categoryLabel,
               photoUrl: heroUrl,
+              fallbackCategory: '${place.categorySlug ?? ''} ${place.category?.groupType ?? ''} ${place.category?.nombreEs ?? ''}',
+              isSpanish: isSpanish,
               height: heroHeight,
             ),
 

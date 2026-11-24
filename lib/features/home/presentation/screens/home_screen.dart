@@ -1182,6 +1182,11 @@ class _InterestSection extends ConsumerWidget {
                 key: ValueKey(place.id),
                 title: place.getTitle(isSpanish),
                 image: place.imageUrl ?? '',
+                fallbackCategory:
+                    '${place.categorySlug ?? place.category?.slug ?? ''} '
+                    '${place.category?.nombreEs ?? ''} '
+                    '${category.slug} ${category.groupType ?? ''}',
+                isSpanish: isSpanish,
                 metrics: [
                   if (subtitle.isNotEmpty)
                     BcMetric(Icons.place_outlined, subtitle),

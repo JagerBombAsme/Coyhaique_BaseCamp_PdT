@@ -56,10 +56,14 @@ class PlacePhotoHero extends StatelessWidget {
     required this.placeId,
     required this.photoUrl,
     this.radius = 0,
+    this.fallbackCategory,
+    this.isSpanish = true,
   });
 
   final String placeId;
   final String? photoUrl;
+  final String? fallbackCategory;
+  final bool isSpanish;
 
   /// Radio de las esquinas en reposo (el de la tarjeta; 0 en la ficha).
   final double radius;
@@ -69,7 +73,7 @@ class PlacePhotoHero extends StatelessWidget {
 
   Widget _photo(double r) => ClipRRect(
     borderRadius: BorderRadius.circular(r),
-    child: BcPhotoImage(source: photoUrl ?? ''),
+    child: BcPhotoImage(source: photoUrl ?? '', fallbackCategory: fallbackCategory, isSpanish: isSpanish),
   );
 
   @override
@@ -96,6 +100,8 @@ class PlaceHero extends StatelessWidget {
     required this.categoryLabel,
     required this.photoUrl,
     required this.height,
+    this.fallbackCategory,
+    this.isSpanish = true,
   });
 
   /// Si viene, la foto viaja desde la tarjeta de la lista (ver [PlacePhotoHero]).
@@ -105,6 +111,8 @@ class PlaceHero extends StatelessWidget {
   final String categoryLabel;
   final String? photoUrl;
   final double height;
+  final String? fallbackCategory;
+  final bool isSpanish;
 
 
   /// El título se achica con el largo para que quepa en 2–3 líneas.
@@ -125,8 +133,8 @@ class PlaceHero extends StatelessWidget {
         children: [
           Positioned.fill(
             child: placeId == null
-                ? BcPhotoImage(source: photoUrl ?? '')
-                : PlacePhotoHero(placeId: placeId!, photoUrl: photoUrl),
+                ? BcPhotoImage(source: photoUrl ?? '', fallbackCategory: fallbackCategory, isSpanish: isSpanish)
+                : PlacePhotoHero(placeId: placeId!, photoUrl: photoUrl, fallbackCategory: fallbackCategory, isSpanish: isSpanish),
           ),
           const Positioned.fill(child: BcPhotoShade(from: 0.3, topShade: 0.4)),
           Align(

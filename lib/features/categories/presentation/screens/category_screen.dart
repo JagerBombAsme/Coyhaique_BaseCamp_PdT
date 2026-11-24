@@ -608,7 +608,7 @@ class _PlaceCard extends StatelessWidget {
               child: SizedBox(
                 width: 88,
                 height: 88,
-                child: BcPhotoImage(source: place.imageUrl ?? ''),
+                child: BcPhotoImage(source: place.imageUrl ?? '', fallbackCategory: '${place.categorySlug ?? ''} ${place.category?.groupType ?? ''} ${place.category?.nombreEs ?? ''}', isSpanish: isSpanish),
               ),
             ),
             const SizedBox(width: 14),

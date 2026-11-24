@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../../../core/widgets/basecamp/bc_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,31 +46,15 @@ class RouteDetailScreen extends ConsumerWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  child: (imageUrl == null || imageUrl.trim().isEmpty)
-                      ? Container(
-                          height: 240,
-                          color: AppTheme.primaryDark,
-                          child: const Icon(
-                            Icons.landscape,
-                            size: 60,
-                            color: Colors.white,
-                          ),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          height: 240,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, _, _) => Container(
-                            height: 240,
-                            color: AppTheme.primaryDark,
-                            child: const Icon(
-                              Icons.landscape,
-                              size: 60,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                  child: SizedBox(
+                    height: 240,
+                    width: double.infinity,
+                    child: BcPhotoImage(
+                      source: imageUrl ?? '',
+                      fallbackCategory: 'ruta',
+                      isSpanish: isSpanish,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(

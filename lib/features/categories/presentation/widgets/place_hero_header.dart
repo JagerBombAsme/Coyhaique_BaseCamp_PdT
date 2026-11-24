@@ -39,7 +39,7 @@ class PlaceHeroHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          BcPhotoImage(source: place.imageUrl ?? ''),
+          BcPhotoImage(source: place.imageUrl ?? '', fallbackCategory: '${place.categorySlug ?? ''} ${place.category?.groupType ?? ''} ${place.category?.nombreEs ?? ''}', isSpanish: isSpanish),
           const BcPhotoShade(from: 0.35, topShade: 0.4),
           Positioned(
             left: BcSpace.gutter,
