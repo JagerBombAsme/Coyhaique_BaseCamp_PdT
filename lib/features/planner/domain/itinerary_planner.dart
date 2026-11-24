@@ -222,6 +222,7 @@ class PlannerPlace {
     this.latitude,
     this.longitude,
     required this.visitMinutes,
+    this.imageUrl,
   });
 
   final String id;
@@ -234,6 +235,10 @@ class PlannerPlace {
   final double? latitude;
   final double? longitude;
   final int visitMinutes;
+
+  /// Foto principal del catálogo (places_v2.image_url o su primera foto),
+  /// solo para mostrarla. No interviene en la propuesta.
+  final String? imageUrl;
 
   bool get hasLocation => latitude != null && longitude != null;
 

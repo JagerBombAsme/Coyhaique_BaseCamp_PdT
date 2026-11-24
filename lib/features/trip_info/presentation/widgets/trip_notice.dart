@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/home_visual_tokens.dart';
@@ -16,6 +17,11 @@ enum TripNoticeKind { home, transport, route, walk }
 
 /// Aviso de uso seguro en forma de tarjeta flotante.
 ///
+/// Cada aviso aparece una sola vez en el teléfono: lo que ya se mostró queda
+/// guardado y no vuelve a interrumpir. Todos los avisos quedan a la vista en
+/// «Antes de tu viaje» (sección «Avisos de la aplicación»), a la que se entra
+/// desde la tarjeta del inicio.
+///
 /// Se cierra solo a los 4 segundos o con el botón
 /// «Entendido, quiero comenzar mi viaje», que va dentro de la tarjeta.
 /// El botón «Información antes de tu viaje» abre la pantalla de prevención.
@@ -26,19 +32,77 @@ class TripNotice {
 
   static OverlayEntry? _current;
 
-  /// Avisos ya mostrados en esta sesión (inicio y transporte se muestran una
-  /// vez por sesión; el de ruta, cada vez que se genera una ruta).
-  static final Set<TripNoticeKind> _shownThisSession = {};
+  /// Clave de SharedPreferences con los avisos ya mostrados.
+  static const String _seenKey = 'trip_notices_seen_v1';
 
-  /// Muestra el aviso. Con [oncePerSession] no se repite en la misma sesión.
-  static void show(
-    BuildContext context, {
-    required TripNoticeKind kind,
-    bool oncePerSession = false,
+  /// Avisos pedidos en esta sesión, para no consultar dos veces el disco.
+  static final Set<TripNoticeKind> _requested = {};
+
+  /// Muestra el aviso solo si nunca se mostró en este teléfono.
+  static void show(BuildContext context, {required TripNoticeKind kind}) {
+    if (!_requested.add(kind)) return;
+    unawaited(_showIfUnseen(context, kind));
+  }
+
+  static Future<void> _showIfUnseen(
+    BuildContext context,
+    TripNoticeKind kind,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final seen = prefs.getStringList(_seenKey) ?? const <String>[];
+      if (seen.contains(kind.name)) return;
+      if (!context.mounted) return;
+      _insert(context, kind);
+      await prefs.setStringList(_seenKey, [...seen, kind.name]);
+    } catch (error) {
+      debugPrint('No se pudo registrar el aviso ${kind.name}: $error');
+    }
+  }
+
+  /// Título, texto e ícono de cada aviso. También los usa «Antes de tu viaje».
+  static (String, String, IconData) contentFor(
+    TripNoticeKind kind, {
+    required bool isSpanish,
   }) {
-    if (oncePerSession && _shownThisSession.contains(kind)) return;
-    _shownThisSession.add(kind);
+    final es = isSpanish;
+    switch (kind) {
+      case TripNoticeKind.home:
+        return (
+          es ? 'Antes de tu viaje' : 'Before your trip',
+          es
+              ? 'La información es referencial: confirma horarios y condiciones con cada lugar. Descarga la información antes de salir a zonas sin señal.'
+              : 'Information is for reference only: confirm hours and conditions with each place. Download the information before going to areas without signal.',
+          Icons.info_outline_rounded,
+        );
+      case TripNoticeKind.transport:
+        return (
+          es ? 'Transporte' : 'Transport',
+          es
+              ? 'Horarios y tarifas son referenciales y pueden cambiar. Confirma con cada empresa antes de viajar; la aplicación no hace reservas.'
+              : 'Schedules and fares are for reference only and may change. Confirm with each company before travelling; the app does not make bookings.',
+          Icons.directions_bus_rounded,
+        );
+      case TripNoticeKind.walk:
+        return (
+          es ? 'Recorrido a pie' : 'Walking route',
+          es
+              ? 'Sal abrigado y con agua: el clima en Aysén cambia rápido. No ingreses a propiedades privadas sin autorización y respeta cercos y animales.'
+              : 'Dress warmly and bring water: Aysén weather changes quickly. Do not enter private property without permission, and respect fences and animals.',
+          Icons.directions_walk_rounded,
+        );
+      case TripNoticeKind.route:
+        return (
+          es ? 'Ruta referencial' : 'Reference route',
+          es
+              ? 'No manipules el teléfono mientras conduces. La ruta no considera el estado del camino, el clima ni los cierres.'
+              : 'Do not handle your phone while driving. The route does not consider road conditions, weather or closures.',
+          Icons.warning_amber_rounded,
+        );
+    }
+  }
 
+  static void _insert(BuildContext context, TripNoticeKind kind) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
 
@@ -129,47 +193,12 @@ class _TripNoticeCardState extends State<_TripNoticeCard>
     super.dispose();
   }
 
-  (String, String, IconData) _content() {
-    final es = widget.isSpanish;
-    switch (widget.kind) {
-      case TripNoticeKind.home:
-        return (
-          es ? 'Antes de tu viaje' : 'Before your trip',
-          es
-              ? 'La información es referencial: confirma horarios y condiciones con cada lugar. Descarga la información antes de salir a zonas sin señal.'
-              : 'Information is for reference only: confirm hours and conditions with each place. Download the information before going to areas without signal.',
-          Icons.info_outline_rounded,
-        );
-      case TripNoticeKind.transport:
-        return (
-          es ? 'Transporte' : 'Transport',
-          es
-              ? 'Horarios y tarifas son referenciales y pueden cambiar. Confirma con cada empresa antes de viajar; la aplicación no hace reservas.'
-              : 'Schedules and fares are for reference only and may change. Confirm with each company before travelling; the app does not make bookings.',
-          Icons.directions_bus_rounded,
-        );
-      case TripNoticeKind.walk:
-        return (
-          es ? 'Recorrido a pie' : 'Walking route',
-          es
-              ? 'Sal abrigado y con agua: el clima en Aysén cambia rápido. No ingreses a propiedades privadas sin autorización y respeta cercos y animales.'
-              : 'Dress warmly and bring water: Aysén weather changes quickly. Do not enter private property without permission, and respect fences and animals.',
-          Icons.directions_walk_rounded,
-        );
-      case TripNoticeKind.route:
-        return (
-          es ? 'Ruta referencial' : 'Reference route',
-          es
-              ? 'No manipules el teléfono mientras conduces. La ruta no considera el estado del camino, el clima ni los cierres.'
-              : 'Do not handle your phone while driving. The route does not consider road conditions, weather or closures.',
-          Icons.warning_amber_rounded,
-        );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final (title, message, icon) = _content();
+    final (title, message, icon) = TripNotice.contentFor(
+      widget.kind,
+      isSpanish: widget.isSpanish,
+    );
     final es = widget.isSpanish;
 
     return Positioned(
@@ -250,7 +279,7 @@ class _TripNoticeCardState extends State<_TripNoticeCard>
   }
 }
 
-/// Muestra un aviso al abrir una pantalla, una vez por sesión.
+/// Muestra un aviso al abrir una pantalla, solo la primera vez.
 class TripNoticeOnOpen extends StatefulWidget {
   const TripNoticeOnOpen({
     super.key,
@@ -274,7 +303,7 @@ class _TripNoticeOnOpenState extends State<TripNoticeOnOpen> {
     if (!widget.enabled) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      TripNotice.show(context, kind: widget.kind, oncePerSession: true);
+      TripNotice.show(context, kind: widget.kind);
     });
   }
 

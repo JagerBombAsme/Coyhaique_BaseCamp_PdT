@@ -6,10 +6,12 @@ import '../../../../core/models/informational_content_dto.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../data/safety_content.dart';
+import '../widgets/trip_notice.dart';
 
 /// Pantalla «Antes de tu viaje» (HU-25, RNF-14).
 ///
-/// Reúne los números de emergencia, los avisos de uso seguro y el contenido
+/// Reúne los números de emergencia, los avisos de uso seguro, los avisos que
+/// la app muestra una sola vez y el contenido
 /// informativo de Supabase (prevención, restricciones de acceso, guías de
 /// transporte y cultura). Funciona sin conexión con la copia descargada.
 class TripInfoScreen extends ConsumerWidget {
@@ -108,6 +110,43 @@ class TripInfoScreen extends ConsumerWidget {
                         dense: true,
                         leading: const Icon(Icons.check_circle_outline_rounded),
                         title: Text(isSpanish ? notice.es : notice.en),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Los avisos emergentes aparecen una sola vez; aquí quedan siempre
+            // disponibles.
+            _SectionTitle(
+              icon: Icons.notifications_none_rounded,
+              text: isSpanish
+                  ? 'Avisos de la aplicación'
+                  : 'App notices',
+            ),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    for (final kind in TripNoticeKind.values)
+                      Builder(
+                        builder: (context) {
+                          final (title, message, icon) = TripNotice.contentFor(
+                            kind,
+                            isSpanish: isSpanish,
+                          );
+                          return ListTile(
+                            leading: Icon(icon, color: _ink),
+                            title: Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(message),
+                          );
+                        },
                       ),
                   ],
                 ),

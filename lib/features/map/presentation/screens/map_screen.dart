@@ -456,18 +456,31 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void _onMapCreated(MapboxMap mapboxMap) {
     _mapboxMap = mapboxMap;
 
-    // Brújula debajo del buscador y de los chips (no tapada por ellos).
+    // Brújula bajo el buscador y también bajo la barra de la ruta con la
+    // próxima maniobra (≈ 205 dp desde arriba): a 130 dp quedaba tapada.
     final topInset = MediaQuery.paddingOf(context).top;
     mapboxMap.compass.updateSettings(
       CompassSettings(
         position: OrnamentPosition.TOP_RIGHT,
-        marginTop: topInset + 130,
+        marginTop: topInset + 230,
         marginRight: 16,
       ),
     );
 
     // La barra de escala chocaría con la tarjeta inferior.
     mapboxMap.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+
+    // El logo y la atribución de Mapbox deben verse (condición de uso de
+    // Mapbox). Van en el espacio entre la barra de navegación flotante y el
+    // panel inferior: con el margen del área segura quedaban bajo la barra,
+    // porque al crear el mapa ese margen no incluye la barra flotante.
+    const ornamentBottom = _bottomPanelOffset - 28;
+    mapboxMap.logo.updateSettings(
+      LogoSettings(marginBottom: ornamentBottom, marginLeft: 16),
+    );
+    mapboxMap.attribution.updateSettings(
+      AttributionSettings(marginBottom: ornamentBottom, marginLeft: 100),
+    );
   }
 
   /// Se ejecuta al cargar el mapa y cada vez que cambia el estilo,
@@ -1395,15 +1408,25 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
         // Mapa cargando (con conexión): indicador para que no parezca colgado.
         if (_online && !_styleLoaded && !_mapLoadFailed)
-          const IgnorePointer(
+          IgnorePointer(
             child: Center(
-              child: SizedBox(
-                width: 36,
-                height: 36,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: AppTheme.primaryDark,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: AppTheme.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _isSpanish ? 'Cargando mapa…' : 'Loading map…',
+                    style: const TextStyle(color: AppTheme.primaryDark),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1809,6 +1832,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           prefixIcon: const Icon(Icons.search, color: AppTheme.primaryDark),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
+                  tooltip: _isSpanish ? 'Borrar búsqueda' : 'Clear search',
                   icon: const Icon(Icons.clear),
                   onPressed: _clearSearch,
                 )

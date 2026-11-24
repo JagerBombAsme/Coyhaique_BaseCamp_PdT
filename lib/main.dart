@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router/app_router.dart';
 import 'core/config/app_config.dart';
 import 'core/connectivity/connectivity_gate.dart';
+import 'core/local/catalog_download_consent.dart';
 import 'core/local/catalog_status_provider.dart';
 import 'core/providers/language_provider.dart';
 import 'core/theme/app_theme.dart';
@@ -92,11 +93,13 @@ Future<void> main() async {
     ],
   );
 
-  // Al abrir la aplicación con conexión se descarga el catálogo para
-  // consultarlo sin conexión (HU-09). Si no hay conexión, la descarga falla
-  // en silencio y se conserva la copia anterior.
-
-  unawaited(container.read(catalogStatusProvider.notifier).download());
+  // Al abrir la aplicación se descarga el catálogo para consultarlo sin
+  // conexión (HU-09), pero solo después de que la persona aceptó el mensaje
+  // que lo explica (se muestra una vez, en el inicio). Si no hay conexión, la
+  // descarga falla en silencio y se conserva la copia anterior.
+  if (prefs.getBool(catalogDownloadAcceptedKey) ?? false) {
+    unawaited(container.read(catalogStatusProvider.notifier).download());
+  }
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(
