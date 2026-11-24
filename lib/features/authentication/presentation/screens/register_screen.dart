@@ -114,6 +114,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       case SignUpOutcome.confirmationRequired:
         setState(() => _confirmationSentTo = email);
         _startCooldown();
+      case SignUpOutcome.alreadyRegistered:
+        // BUG-007: el correo ya tiene cuenta; no se muestra la pantalla del código.
+        setState(() {
+          _errorMessage = es
+              ? 'Ya existe una cuenta con este correo. Inicia sesión o recupera tu contraseña.'
+              : 'An account with this email already exists. Sign in or reset your password.';
+        });
       case null:
         final error = ref.read(authControllerProvider).error;
         setState(() {
