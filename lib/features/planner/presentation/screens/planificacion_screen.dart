@@ -89,14 +89,10 @@ class _PlanificacionScreenState extends ConsumerState<PlanificacionScreen> {
         scrolledUnderElevation: 0,
         elevation: 0,
         actions: [
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: BcColors.ink,
-              minimumSize: const Size(48, 44),
-            ),
+          IconButton(
+            tooltip: es ? 'Mis itinerarios' : 'My itineraries',
             onPressed: () => context.push(savedItinerariesRoute),
-            icon: const Icon(Icons.bookmarks_outlined, size: 20),
-            label: Text(es ? 'Mis itinerarios' : 'My itineraries'),
+            icon: const Icon(Icons.bookmarks_outlined, color: BcColors.ink),
           ),
           if (state.hasProposal)
             PopupMenuButton<_ProposalAction>(
@@ -352,16 +348,9 @@ class _PlannerForm extends ConsumerWidget {
     );
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Stack(
-      children: [
-        ListView(
-          padding: EdgeInsets.fromLTRB(
-            BcSpace.gutter,
-            BcSpace.s1,
-            BcSpace.gutter,
-            bottomInset + 110,
-          ),
-          children: [
+    return _PlannerActionLayout(
+      bottomInset: bottomInset,
+      content: [
             Semantics(
               header: true,
               child: Text(
@@ -407,13 +396,15 @@ class _PlannerForm extends ConsumerWidget {
                     style: BcText.body(color: BcColors.ink),
                   ),
                 ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: BcColors.glacierDeep,
-                    minimumSize: const Size(48, 44),
+                Flexible(
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: BcColors.glacierDeep,
+                      minimumSize: const Size(48, 48),
+                    ),
+                    onPressed: () => _pickStart(context, ref),
+                    child: Text(es ? 'Cambiar hora' : 'Change time', textAlign: TextAlign.center),
                   ),
-                  onPressed: () => _pickStart(context, ref),
-                  child: Text(es ? 'Cambiar hora' : 'Change time'),
                 ),
               ],
             ),
@@ -498,20 +489,13 @@ class _PlannerForm extends ConsumerWidget {
                     : 'No connection and no downloaded information. Connect and try again.',
               ),
             ],
-          ],
-        ),
-
-        // Un solo botón, siempre a la vista.
-        _BottomActions(
-          bottomInset: bottomInset,
-          child: BcButton(
+      ],
+      actions: BcButton(
             label: es ? 'Crear mi itinerario' : 'Create my itinerary',
             icon: Icons.auto_awesome_rounded,
             isLoading: state.isGenerating,
             onPressed: notifier.generate,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -576,40 +560,42 @@ class _PlannerForm extends ConsumerWidget {
   }
 }
 
-/// Zona fija de acciones sobre la navegación inferior. Un fondo que se
-/// difumina hacia arriba evita que el contenido se vea entre los botones y
-/// por detrás de ellos al desplazar.
-class _BottomActions extends StatelessWidget {
-  const _BottomActions({required this.bottomInset, required this.child});
+/// The footer participates in layout; it cannot cover the final list item.
+/// On very short windows, actions join the scroll content instead.
+class _PlannerActionLayout extends StatelessWidget {
+  const _PlannerActionLayout({required this.bottomInset, required this.content, required this.actions});
 
   final double bottomInset;
-  final Widget child;
+  final List<Widget> content;
+  final Widget actions;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: const [0, 0.3],
-            colors: [BcColors.fog.withValues(alpha: 0), BcColors.fog],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final largeText = MediaQuery.textScalerOf(context).scale(15) > 19;
+        final inline = constraints.maxHeight - bottomInset < (largeText ? 400 : 260);
+        final footer = Padding(
+          padding: const EdgeInsets.fromLTRB(BcSpace.gutter, BcSpace.s3, BcSpace.gutter, BcSpace.s3),
+          child: actions,
+        );
+        final list = ListView(
+          padding: EdgeInsets.fromLTRB(BcSpace.gutter, BcSpace.s1, BcSpace.gutter, inline ? 0 : BcSpace.s4),
+          children: [
+            ...content,
+            if (inline) ...[const SizedBox(height: BcSpace.s4), actions],
+          ],
+        );
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: inline ? list : Column(
+            children: [
+              Expanded(child: list),
+              Material(color: BcColors.fog, child: footer),
+            ],
           ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            BcSpace.gutter,
-            BcSpace.section,
-            BcSpace.gutter,
-            bottomInset + BcSpace.s3,
-          ),
-          child: child,
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -676,16 +662,9 @@ class _ProposalView extends ConsumerWidget {
 
     void openAdd() => _openAddSheet(context, ref, iconFor);
 
-    return Stack(
-      children: [
-        ListView(
-          padding: EdgeInsets.fromLTRB(
-            BcSpace.gutter,
-            BcSpace.s1,
-            BcSpace.gutter,
-            bottomInset + 110,
-          ),
-          children: [
+    return _PlannerActionLayout(
+      bottomInset: bottomInset,
+      content: [
             Semantics(
               header: true,
               child: Text(
@@ -755,37 +734,29 @@ class _ProposalView extends ConsumerWidget {
                   : 'Times and travel are estimates. Confirm with each place.',
               style: BcText.caption(),
             ),
-          ],
-        ),
-
-        // Dos acciones: agregar y guardar.
-        _BottomActions(
-          bottomInset: bottomInset,
-          child: Row(
-            children: [
-              Expanded(
-                child: BcButton(
-                  label: es ? 'Agregar' : 'Add',
-                  icon: Icons.add_rounded,
-                  style: BcButtonStyle.surface,
-                  onPressed: openAdd,
-                ),
-              ),
-              const SizedBox(width: BcSpace.s2),
-              Expanded(
-                child: BcButton(
-                  label: state.savedItineraryId != null
-                      ? (es ? 'Guardar cambios' : 'Save changes')
-                      : (es ? 'Guardar' : 'Save'),
-                  icon: Icons.bookmark_add_rounded,
-                  isLoading: state.isSaving,
-                  onPressed: state.allPlaces.isEmpty ? null : onSave,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
+      actions: LayoutBuilder(
+        builder: (context, constraints) {
+          final add = BcButton(
+            label: es ? 'Agregar' : 'Add',
+            icon: Icons.add_rounded,
+            style: BcButtonStyle.surface,
+            onPressed: openAdd,
+          );
+          final save = BcButton(
+            label: state.savedItineraryId != null
+                ? (es ? 'Guardar cambios' : 'Save changes')
+                : (es ? 'Guardar' : 'Save'),
+            icon: Icons.bookmark_add_rounded,
+            isLoading: state.isSaving,
+            onPressed: state.allPlaces.isEmpty ? null : onSave,
+          );
+          if (constraints.maxWidth < 320 || MediaQuery.textScalerOf(context).scale(15) > 19) {
+            return Column(children: [add, const SizedBox(height: BcSpace.s2), save]);
+          }
+          return Row(children: [Expanded(child: add), const SizedBox(width: BcSpace.s2), Expanded(child: save)]);
+        },
+      ),
     );
   }
 
@@ -954,7 +925,7 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
     final term = normalizeForSearch(_query);
     final media = MediaQuery.of(context);
     final keyboard = media.viewInsets.bottom;
-    final height = math.max(media.size.height * 0.85 - keyboard, 280.0);
+    final height = math.max(media.size.height * 0.85 - keyboard, 0.0);
 
     // Categorías presentes entre los candidatos (datos reales del catálogo).
     final categories = <String, String>{};
@@ -981,9 +952,11 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
       padding: EdgeInsets.only(bottom: keyboard),
       child: SizedBox(
         height: height,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: CustomScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            SliverList(
+              delegate: SliverChildListDelegate([
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
               child: Row(
@@ -1036,7 +1009,7 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
             ),
             if (categoryEntries.length > 1)
               SizedBox(
-                height: 44,
+                height: math.max(48.0, MediaQuery.textScalerOf(context).scale(14) * 1.2 + 24),
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1061,19 +1034,20 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                 ),
               ),
             const SizedBox(height: BcSpace.s2),
-            Expanded(
-              child: FutureBuilder<void>(
+              ]),
+            ),
+            FutureBuilder<void>(
                 future: _loading,
                 builder: (context, snapshot) {
                   final loading =
                       snapshot.connectionState != ConnectionState.done;
                   if (state.candidates.isEmpty && loading) {
-                    return PlannerSkeletonList(
+                    return SliverToBoxAdapter(child: PlannerSkeletonList(
                       semanticLabel: es ? 'Cargando lugares' : 'Loading places',
-                    );
+                    ));
                   }
                   if (state.candidates.isEmpty) {
-                    return Padding(
+                    return SliverToBoxAdapter(child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Align(
                         alignment: Alignment.topCenter,
@@ -1087,10 +1061,10 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                           onAction: _retry,
                         ),
                       ),
-                    );
+                    ));
                   }
                   if (options.isEmpty) {
-                    return Padding(
+                    return SliverToBoxAdapter(child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Column(
                         children: [
@@ -1113,19 +1087,20 @@ class _AddPlaceSheetState extends ConsumerState<_AddPlaceSheet> {
                           ),
                         ],
                       ),
-                    );
+                    ));
                   }
-                  return ListView.builder(
+                  return SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    itemCount: options.length,
-                    itemBuilder: (context, index) => _AddPlaceRow(
+                    sliver: SliverList(delegate: SliverChildBuilderDelegate(
+                      (context, index) => _AddPlaceRow(
                       place: options[index],
                       isSpanish: es,
                       icon: widget.iconFor(options[index]),
-                    ),
+                      ),
+                      childCount: options.length,
+                    )),
                   );
                 },
-              ),
             ),
           ],
         ),

@@ -33,16 +33,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
   /// Ancla de «Información práctica», a la que lleva el botón Información.
   final GlobalKey _infoKey = GlobalKey();
 
-  /// true cuando la foto de cabecera salió de la vista: se muestra la barra
-  /// con «Volver» para que la salida siga a la vista.
-  final ValueNotifier<bool> _collapsed = ValueNotifier(false);
-
-  @override
-  void dispose() {
-    _collapsed.dispose();
-    super.dispose();
-  }
-
   Future<void> _reloadPlace({bool showMessage = false}) async {
     if (_isReloading) {
       return;
@@ -367,14 +357,16 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
         ? (isSpanish ? 'Actividad' : 'Activity')
         : (isSpanish ? 'Atractivo' : 'Attraction');
 
-    final collapseAt =
-        heroHeight - MediaQuery.paddingOf(context).top - BcScrollBackBar.height;
-
-    return Stack(
-      children: [
-        NotificationListener<ScrollNotification>(
-          onNotification: (n) => bcTrackCollapse(n, _collapsed, collapseAt),
-          child: RefreshIndicator(
+    return BcPinnedBackLayout(
+      title: title,
+      backLabel: isSpanish ? 'Volver' : 'Back',
+      onBack: widget.onBack,
+      trailing: IconButton(
+        tooltip: isSpanish ? 'Actualizar' : 'Refresh',
+        onPressed: _isReloading ? null : () => _reloadPlace(showMessage: true),
+        icon: const Icon(Icons.refresh_rounded, color: BcColors.ink),
+      ),
+      child: RefreshIndicator(
       onRefresh: () => _reloadPlace(),
       color: BcColors.glacierDeep,
       child: SingleChildScrollView(
@@ -388,12 +380,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
               categoryLabel: categoryLabel,
               photoUrl: heroUrl,
               height: heroHeight,
-              backLabel: isSpanish ? 'Volver' : 'Back',
-              reloadLabel: isSpanish ? 'Actualizar' : 'Refresh',
-              onBack: widget.onBack,
-              onReload: _isReloading
-                  ? null
-                  : () => _reloadPlace(showMessage: true),
             ),
 
             PlaceLede(kicker: kindLabel, lede: subtitle),
@@ -439,15 +425,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
           ],
         ),
       ),
-          ),
-        ),
-        BcScrollBackBar(
-          visible: _collapsed,
-          title: title,
-          backLabel: isSpanish ? 'Volver' : 'Back',
-          onBack: widget.onBack,
-        ),
-      ],
+      ),
     );
   }
 

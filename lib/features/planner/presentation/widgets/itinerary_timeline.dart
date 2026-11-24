@@ -187,6 +187,8 @@ class ItineraryTimeline extends StatelessWidget {
               isSpanish: es,
               icon: iconFor(stop.place),
               onRemove: () => onRemove(index),
+              onMoveUp: index > 0 ? () => onReorder(index, index - 1) : null,
+              onMoveDown: index < stops.length - 1 ? () => onReorder(index, index + 2) : null,
             );
           },
         ),
@@ -218,6 +220,8 @@ class _TimelineStop extends StatelessWidget {
     required this.isSpanish,
     required this.icon,
     required this.onRemove,
+    required this.onMoveUp,
+    required this.onMoveDown,
   });
 
   final ScheduledStop stop;
@@ -225,6 +229,8 @@ class _TimelineStop extends StatelessWidget {
   final bool isSpanish;
   final IconData icon;
   final VoidCallback onRemove;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +249,8 @@ class _TimelineStop extends StatelessWidget {
             isSpanish: isSpanish,
             icon: icon,
             onRemove: onRemove,
+            onMoveUp: onMoveUp,
+            onMoveDown: onMoveDown,
           ),
         ),
       ],
@@ -252,7 +260,8 @@ class _TimelineStop extends StatelessWidget {
 
 /// Ancho de la columna de horas: cabe «00:00» en negrita con la letra del
 /// sistema hasta 1,3×.
-const double _timeColumnWidth = 60;
+double _timeColumnWidth(BuildContext context) =>
+    (MediaQuery.textScalerOf(context).scale(15) * 3.2 + 10).clamp(60.0, 125.0).toDouble();
 
 /// Fila de la línea de tiempo: hora, riel con su nodo y contenido.
 class _TimelineRow extends StatelessWidget {
@@ -280,7 +289,7 @@ class _TimelineRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: _timeColumnWidth,
+            width: _timeColumnWidth(context),
             child: Padding(
               padding: const EdgeInsets.only(top: 14),
               child: Column(
@@ -384,7 +393,7 @@ class _TravelConnector extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(width: _timeColumnWidth),
+          SizedBox(width: _timeColumnWidth(context)),
           const SizedBox(width: 34, child: _RailLine()),
           Expanded(
             child: Padding(
@@ -445,7 +454,7 @@ class _Endpoint extends StatelessWidget {
   }
 }
 
-enum _StopAction { details, walk, car, remove }
+enum _StopAction { details, walk, car, moveUp, moveDown, remove }
 
 /// Tarjeta de una parada: foto (o ícono si no tiene), nombre, categoría y
 /// duración estimada de la visita. Tocarla abre la ficha.
@@ -456,6 +465,8 @@ class _StopCard extends StatelessWidget {
     required this.isSpanish,
     required this.icon,
     required this.onRemove,
+    required this.onMoveUp,
+    required this.onMoveDown,
   });
 
   final ScheduledStop stop;
@@ -463,6 +474,8 @@ class _StopCard extends StatelessWidget {
   final bool isSpanish;
   final IconData icon;
   final VoidCallback onRemove;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -470,6 +483,7 @@ class _StopCard extends StatelessWidget {
     final place = stop.place;
     final image = place.imageUrl;
     final visit = ItineraryPlanner.formatDuration(place.visitMinutes);
+    final compact = MediaQuery.sizeOf(context).width < 390 || MediaQuery.textScalerOf(context).scale(15) > 19;
 
     return Material(
       color: BcColors.surface,
@@ -481,6 +495,7 @@ class _StopCard extends StatelessWidget {
           padding: const EdgeInsetsDirectional.fromSTEB(10, 10, 0, 10),
           child: Row(
             children: [
+              if (!compact) ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(BcRadius.control),
                 child: SizedBox(
@@ -495,14 +510,14 @@ class _StopCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: BcSpace.s3),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       place.name(es),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
                       style: BcText.title(),
                     ),
                     const SizedBox(height: 4),
@@ -529,7 +544,7 @@ class _StopCard extends StatelessWidget {
                           : 'Move ${place.name(es)}',
                       child: const SizedBox(
                         width: 48,
-                        height: 44,
+                        height: 48,
                         child: Icon(
                           Icons.drag_indicator_rounded,
                           color: BcColors.muted,
@@ -548,6 +563,10 @@ class _StopCard extends StatelessWidget {
                           openPlaceRoute(context, place, 'pie');
                         case _StopAction.car:
                           openPlaceRoute(context, place, 'auto');
+                        case _StopAction.moveUp:
+                          onMoveUp?.call();
+                        case _StopAction.moveDown:
+                          onMoveDown?.call();
                         case _StopAction.remove:
                           onRemove();
                       }
@@ -570,6 +589,10 @@ class _StopCard extends StatelessWidget {
                           es ? 'Ruta en auto' : 'Driving route',
                         ),
                       ],
+                      if (onMoveUp != null)
+                        _menuItem(_StopAction.moveUp, Icons.arrow_upward_rounded, es ? 'Mover arriba' : 'Move up'),
+                      if (onMoveDown != null)
+                        _menuItem(_StopAction.moveDown, Icons.arrow_downward_rounded, es ? 'Mover abajo' : 'Move down'),
                       _menuItem(
                         _StopAction.remove,
                         Icons.remove_circle_outline_rounded,
@@ -599,7 +622,7 @@ class _StopCard extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: color),
           const SizedBox(width: BcSpace.s3),
-          Text(label, style: BcText.body(color: color)),
+          Flexible(child: Text(label, style: BcText.body(color: color))),
         ],
       ),
     );

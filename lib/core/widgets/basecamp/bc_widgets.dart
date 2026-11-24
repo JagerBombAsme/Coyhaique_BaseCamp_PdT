@@ -11,11 +11,13 @@ class BcPressable extends StatefulWidget {
     required this.child,
     this.onTap,
     this.semanticLabel,
+    this.selected,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final String? semanticLabel;
+  final bool? selected;
 
   @override
   State<BcPressable> createState() => _BcPressableState();
@@ -31,19 +33,26 @@ class _BcPressableState extends State<BcPressable> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final content = AnimatedScale(
+      scale: enabled && _down && !reduceMotion ? 0.96 : 1,
+      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 110),
+      child: widget.child,
+    );
+    if (!enabled) return content;
+
     return Semantics(
-      button: widget.onTap != null,
+      button: true,
+      enabled: true,
+      selected: widget.selected,
       label: widget.semanticLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onTapDown: (_) => _set(true),
-        onTapUp: (_) => _set(false),
-        onTapCancel: () => _set(false),
-        child: AnimatedScale(
-          scale: _down ? 0.96 : 1,
-          duration: const Duration(milliseconds: 110),
-          child: widget.child,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: widget.onTap,
+          onHighlightChanged: _set,
+          child: content,
         ),
       ),
     );
@@ -335,7 +344,6 @@ class BcButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: height,
       child: FilledButton(
         onPressed: enabled ? onPressed : null,
         style: FilledButton.styleFrom(
@@ -348,13 +356,18 @@ class BcButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(BcRadius.field),
           ),
           textStyle: BcText.button(color: fg),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          minimumSize: Size(0, math.max(48.0, height)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
         child: isLoading
-            ? SizedBox(
+            ? Semantics(
+                label: label,
+                liveRegion: true,
+                child: SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2.4, color: fg),
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -366,7 +379,8 @@ class BcButton extends StatelessWidget {
                   Flexible(
                     child: Text(
                       label,
-                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      softWrap: true,
                       style: BcText.button(color: fg),
                     ),
                   ),
@@ -395,10 +409,10 @@ class BcCategoryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return BcPressable(
       onTap: onTap,
-      semanticLabel: label,
+      selected: highlighted,
       child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        constraints: const BoxConstraints(minHeight: 50),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: highlighted
               ? BcColors.glacier
@@ -412,8 +426,6 @@ class BcCategoryButton extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: BcText.title(),
               ),
             ),
@@ -443,9 +455,9 @@ class BcCategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return BcPressable(
       onTap: onTap,
-      semanticLabel: label,
+      selected: highlighted,
       child: Container(
-        height: 46,
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: highlighted ? BcColors.glacier : BcColors.fog,
@@ -487,40 +499,38 @@ class BcSectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (kicker != null) ...[BcKicker(kicker!), const SizedBox(height: 8)],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    title.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: BcText.displaySection,
-                  ),
-                ),
-              ),
-              if (actionLabel != null && onAction != null)
-                BcPressable(
-                  onTap: onAction,
-                  semanticLabel: actionLabel,
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 44),
-                    alignment: Alignment.bottomCenter,
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Container(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: BcColors.glacier, width: 2),
-                        ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 300 ||
+                  MediaQuery.textScalerOf(context).scale(15) > 19;
+              final heading = Semantics(
+                header: true,
+                child: Text(title.toUpperCase(), style: BcText.displaySection),
+              );
+              final action = actionLabel != null && onAction != null
+                  ? TextButton(
+                      onPressed: onAction,
+                      style: TextButton.styleFrom(
+                        foregroundColor: BcColors.glacierDeep,
+                        minimumSize: const Size(48, 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                       child: Text(actionLabel!, style: BcText.title()),
-                    ),
-                  ),
-                ),
-            ],
+                    )
+                  : null;
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [heading, if (action != null) action],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: heading),
+                  if (action != null) Flexible(child: action),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -798,7 +808,6 @@ class BcListRow extends StatelessWidget {
                   child: Text(
                     value!,
                     textAlign: TextAlign.right,
-                    overflow: TextOverflow.ellipsis,
                     style: BcText.caption(),
                   ),
                 ),

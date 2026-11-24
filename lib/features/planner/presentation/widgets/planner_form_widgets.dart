@@ -37,8 +37,8 @@ class PlannerFilterChip extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: itineraryMotion(context, 160),
-          constraints: const BoxConstraints(minHeight: 44),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: selected ? BcColors.glacier : BcColors.surface,
             borderRadius: BorderRadius.circular(BcRadius.pill),
@@ -53,9 +53,11 @@ class PlannerFilterChip extends StatelessWidget {
                 Icon(leading, size: 18, color: BcColors.ink),
                 const SizedBox(width: 6),
               ],
-              Text(
-                label,
-                style: BcText.button(color: BcColors.ink).copyWith(fontSize: 14),
+              Flexible(
+                child: Text(
+                  label,
+                  style: BcText.button(color: BcColors.ink).copyWith(fontSize: 14),
+                ),
               ),
             ],
           ),
@@ -102,33 +104,25 @@ class PlannerNotice extends StatelessWidget {
           color: danger ? BcColors.danger.withValues(alpha: 0.35) : BcColors.line,
         ),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(icon, size: 20, color: accent),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                text,
-                style: BcText.caption(
-                  color: danger ? BcColors.danger : BcColors.ink,
-                ),
-              ),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 20, color: accent),
+              const SizedBox(width: 10),
+              Expanded(child: Text(text, style: BcText.caption(color: danger ? BcColors.danger : BcColors.ink))),
+            ],
           ),
           if (action != null && onAction != null)
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(
-                foregroundColor: accent,
-                minimumSize: const Size(48, 40),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(foregroundColor: accent, minimumSize: const Size(48, 48)),
+                child: Text(action),
               ),
-              child: Text(action),
             ),
         ],
       ),
@@ -153,6 +147,8 @@ class PlannerSkeletonList extends StatelessWidget {
       label: semanticLabel,
       child: ExcludeSemantics(
         child: ListView.builder(
+          shrinkWrap: true,
+          primary: false,
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: rows,

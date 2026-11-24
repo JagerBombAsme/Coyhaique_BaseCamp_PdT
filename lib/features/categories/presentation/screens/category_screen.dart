@@ -9,6 +9,7 @@ import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/utils/text_normalizer.dart';
 import '../../../../core/widgets/basecamp/bc_motion.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
+import '../../../../core/widgets/basecamp/bc_scroll_back_bar.dart';
 import '../../data/models/place_dto.dart';
 import '../../data/providers/places_provider.dart';
 import '../../../transport/presentation/widgets/transfer_widgets.dart';
@@ -93,12 +94,22 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     final categoriesAsync = ref.watch(categoriesProvider);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
       ),
       child: Scaffold(
         backgroundColor: BcColors.fog,
-        body: categoriesAsync.when(
+        body: BcPinnedBackLayout(
+          title: isSpanish ? 'Explorar' : 'Explore',
+          backLabel: isSpanish ? 'Volver' : 'Back',
+          onBack: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+          child: categoriesAsync.when(
           loading: () => const Center(
             child: CircularProgressIndicator(color: BcColors.ink),
           ),
@@ -129,6 +140,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
 
             return _buildContent(context, resolved, language, isSpanish);
           },
+          ),
         ),
       ),
     );
@@ -273,7 +285,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
           if (subs.length > 1)
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 64,
+                height: (MediaQuery.textScalerOf(context).scale(14) * 1.2 + 64).clamp(72.0, 180.0).toDouble(),
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(
@@ -468,30 +480,13 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.paddingOf(context).top;
-
     return SizedBox(
-      height: top + 230,
+      height: 230,
       child: Stack(
         fit: StackFit.expand,
         children: [
           BcPhotoImage(source: photo),
           const BcPhotoShade(from: 0.35, topShade: 0.4),
-          Positioned(
-            left: BcSpace.gutter,
-            top: top + 14,
-            child: BcCornerButton(
-              icon: Icons.arrow_back_rounded,
-              semanticLabel: isSpanish ? 'Volver' : 'Back',
-              onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/home');
-                }
-              },
-            ),
-          ),
           Positioned(
             left: BcSpace.gutter,
             right: BcSpace.gutter,
@@ -554,7 +549,7 @@ class _FilterChip extends StatelessWidget {
         child: BcPressable(
           onTap: onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -675,34 +670,15 @@ class _ErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.paddingOf(context).top;
-
-    return Stack(
-      children: [
-        Center(
-          child: BcMessage(
-            icon: icon,
-            text: text,
-            actionLabel: isSpanish ? 'Reintentar' : 'Retry',
-            onAction: onRetry,
-          ),
+    return Center(
+      child: SingleChildScrollView(
+        child: BcMessage(
+          icon: icon,
+          text: text,
+          actionLabel: isSpanish ? 'Reintentar' : 'Retry',
+          onAction: onRetry,
         ),
-        Positioned(
-          left: BcSpace.gutter,
-          top: top + 14,
-          child: BcCornerButton(
-            icon: Icons.arrow_back_rounded,
-            semanticLabel: isSpanish ? 'Volver' : 'Back',
-            onTap: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/home');
-              }
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -721,8 +697,6 @@ class _AllCategoriesView extends ConsumerWidget {
     final language = ref.watch(languageProvider).languageCode;
     final isSpanish = language == 'es';
     final categoriesAsync = ref.watch(mainCategoriesProvider);
-    final top = MediaQuery.paddingOf(context).top;
-
     Future<void> retry() async {
       ref.invalidate(categoriesProvider);
       ref.invalidate(mainCategoriesProvider);
@@ -730,7 +704,17 @@ class _AllCategoriesView extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: BcColors.fog,
-      body: categoriesAsync.when(
+      body: BcPinnedBackLayout(
+        title: isSpanish ? 'Categorías' : 'Categories',
+        backLabel: isSpanish ? 'Volver' : 'Back',
+        onBack: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+        child: categoriesAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: BcColors.ink),
         ),
@@ -744,30 +728,6 @@ class _AllCategoriesView extends ConsumerWidget {
         data: (categories) {
           return CustomScrollView(
             slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    BcSpace.gutter,
-                    top + 14,
-                    BcSpace.gutter,
-                    0,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: BcCornerButton(
-                      icon: Icons.arrow_back_rounded,
-                      semanticLabel: isSpanish ? 'Volver' : 'Back',
-                      onTap: () {
-                        if (context.canPop()) {
-                          context.pop();
-                        } else {
-                          context.go('/home');
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -796,22 +756,14 @@ class _AllCategoriesView extends ConsumerWidget {
                   BcSpace.gutter,
                   32,
                 ),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.15,
-                  ),
+                sliver: SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final category = categories[index];
                     final name = category.getNombre(language);
 
-                    return Semantics(
-                      button: true,
-                      label: name,
-                      child: ExcludeSemantics(
-                        child: Material(
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: BcSpace.s3),
+                      child: Material(
                           color: BcColors.surface,
                           borderRadius: BorderRadius.circular(20),
                           child: InkWell(
@@ -819,27 +771,21 @@ class _AllCategoriesView extends ConsumerWidget {
                             onTap: () => onCategoryTap(category.route),
                             child: Padding(
                               padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                              child: Row(
                                 children: [
                                   Icon(
                                     category.icon,
                                     size: 32,
                                     color: BcColors.glacierDeep,
                                   ),
-                                  Text(
-                                    name,
-                                    maxLines: 2,
-                                    style: BcText.title(color: BcColors.ink),
-                                  ),
+                                  const SizedBox(width: BcSpace.s3),
+                                  Expanded(child: Text(name, style: BcText.title(color: BcColors.ink))),
+                                  const Icon(Icons.chevron_right_rounded, color: BcColors.muted),
                                 ],
                               ),
                             ),
                           ),
                         ),
-                      ),
                     );
                   }, childCount: categories.length),
                 ),
@@ -847,6 +793,7 @@ class _AllCategoriesView extends ConsumerWidget {
             ],
           );
         },
+        ),
       ),
     );
   }

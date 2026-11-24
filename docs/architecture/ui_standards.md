@@ -10,19 +10,19 @@ Reglas para pantallas y componentes nuevos. Nacen de los defectos de la auditor�
 
 ## 2. Áreas seguras y elementos fijos
 
-- **Botones fijos sobre contenido que se desplaza** (arriba o abajo): siempre llevan un fondo color niebla que se desvanece. En el inicio es `_TopScrim`; en la planificación, `_BottomActions`. El contenido nunca pasa visible por debajo de un botón ni de la hora del sistema.
+- **Controles fijos:** preferir un layout que reserve espacio real (`Scaffold`, `Column` con `Expanded`, `BcPinnedBackLayout`). Si el diseño requiere una superposición, reservar el espacio mediante insets medidos y mantener contraste. En planificación se usa `_PlannerActionLayout`, no un padding fijo que suponga la altura del botón.
 - **Espacio para la barra de navegación:** el contenido de las pestañas usa `MediaQuery.paddingOf(context).bottom`, que con `extendBody` ya incluye la barra. No se usan números fijos para esa altura.
 - **Hojas inferiores desde una pestaña:** se abren con `useRootNavigator: true`. Sin eso, la barra de navegación flotante queda encima de la hoja.
 - **Diálogos:** usan `showDialog`, que por defecto ya usa el navegador raíz.
 
 ## 3. Barra de estado
 
-- Una pantalla con foto de cabecera declara íconos claros (`SystemUiOverlayStyle.light`).
-- Cuando aparece una barra blanca encima, como `BcScrollBackBar`, esa barra declara íconos oscuros. No se deja texto ni íconos blancos sobre fondo blanco.
+- Una pantalla con foto de cabecera que llega hasta la barra de estado declara íconos claros (`SystemUiOverlayStyle.light`).
+- Cuando aparece una barra blanca encima, como `BcPinnedBackLayout`, esa barra declara íconos oscuros. No se deja texto ni íconos blancos sobre fondo blanco.
 
 ## 4. Volver
 
-- Toda pantalla secundaria tiene una salida visible: el botón de esquina sobre la foto y, al bajar, `BcBackOnScroll` o `BcScrollBackBar`.
+- Toda pantalla secundaria tiene una salida visible: una barra persistente fuera del contenido desplazable (por ejemplo, `BcPinnedBackLayout`), también durante carga/error.
 - Se respeta el botón Atrás de Android.
 - Si al salir se pierden cambios, se pide confirmación con `PopScope` o un diálogo.
 
@@ -58,3 +58,13 @@ flutter test
 ```
 
 Revisa la pantalla en un teléfono: arriba del todo, desplazada, con el teclado abierto si tiene campos, y con letra grande.
+
+## 8. Escala, navegación y acciones
+
+- No aplicar un límite global al `TextScaler`. Los controles deben crecer con el contenido; probar el sistema al 200%.
+- La altura de `BcButton.height` es una **altura mínima**, no una altura fija. No imponer alturas rígidas en sus padres si la etiqueta puede ocupar varias líneas.
+- El ancho limitado se resuelve con `Flexible`, `Wrap`, controles apilados o un layout compacto. No recortar información necesaria.
+- La navegación compacta conserva todos los destinos, etiquetas semánticas y tooltips.
+- Reordenamiento: siempre ofrecer acciones equivalentes a arrastrar (por ejemplo, mover arriba/abajo).
+- Un catálogo en una hoja modal debe adaptarse al teclado y construir resultados de forma diferida.
+- Si no se dispone del SDK o de un emulador, distinguir expresamente revisión estática de validación ejecutada.

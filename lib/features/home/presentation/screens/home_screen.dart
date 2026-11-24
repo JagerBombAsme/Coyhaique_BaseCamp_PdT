@@ -1329,7 +1329,7 @@ class _ExploreBand extends ConsumerWidget {
 
             const SizedBox(height: 40),
             SizedBox(
-              height: 46,
+              height: (MediaQuery.textScalerOf(context).scale(15) * 1.2 + 24).clamp(48.0, 160.0).toDouble(),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),

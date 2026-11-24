@@ -136,17 +136,17 @@ class ProfilePillButton extends StatelessWidget {
       onTap: enabled ? onTap : null,
       child: AnimatedOpacity(
         opacity: enabled || loading ? 1 : 0.5,
-        duration: HomeVisualTokens.stateDuration,
+        duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : HomeVisualTokens.stateDuration,
         child: Container(
-          height: 50,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(25),
           ),
           child: AnimatedSwitcher(
-            duration: HomeVisualTokens.stateDuration,
+            duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : HomeVisualTokens.stateDuration,
             child: loading
                 ? SizedBox(
                     key: const ValueKey('loading'),
@@ -168,8 +168,8 @@ class ProfilePillButton extends StatelessWidget {
                       Flexible(
                         child: Text(
                           label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          softWrap: true,
                           style: TextStyle(
                             color: foreground,
                             fontSize: 14,

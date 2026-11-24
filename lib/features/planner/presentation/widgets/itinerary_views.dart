@@ -66,7 +66,7 @@ class ItineraryDayChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 44,
+      height: (MediaQuery.textScalerOf(context).scale(14) * 1.2 + 24).clamp(48.0, 160.0).toDouble(),
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -121,8 +121,7 @@ class _DayChip extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: itineraryMotion(context, 200),
-          height: 44,
-          constraints: const BoxConstraints(minWidth: 72),
+          constraints: const BoxConstraints(minWidth: 72, minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           alignment: Alignment.center,
           decoration: BoxDecoration(

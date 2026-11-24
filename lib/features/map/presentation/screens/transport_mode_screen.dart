@@ -17,7 +17,6 @@ class TransportModeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final es = ref.watch(languageProvider).languageCode == 'es';
-    final bottom = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: BcColors.fog,
@@ -32,8 +31,15 @@ class TransportModeScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // El contenido se desplaza si no cabe (letra grande o pantallas
-              // bajas) en vez de desbordarse. La nota queda fija abajo.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: BcCornerButton(
+                  icon: Icons.arrow_back_rounded,
+                  semanticLabel: es ? 'Volver al mapa' : 'Back to the map',
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ),
+              // El contenido y la nota se desplazan; Volver queda fijo.
               Expanded(
                 child: SingleChildScrollView(
                   // Sin recorte: las tarjetas de ruta sobresalen con su sombra.
@@ -41,16 +47,6 @@ class TransportModeScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: BcCornerButton(
-                          icon: Icons.arrow_back_rounded,
-                          semanticLabel: es
-                              ? 'Volver al mapa'
-                              : 'Back to the map',
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
-                      ),
                       const SizedBox(height: 28),
                       BcTag(es ? 'Tu ruta' : 'Your route', lead: 'Coyhaique'),
                       const SizedBox(height: 14),
@@ -110,17 +106,17 @@ class TransportModeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 20),
+                        child: Text(
+                          es
+                              ? 'Las rutas son referenciales: confirma el estado del camino y el clima antes de salir.'
+                              : 'Routes are for reference only: check road and weather conditions before you leave.',
+                          style: BcText.caption(),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.only(top: 8, bottom: bottom + 20),
-                child: Text(
-                  es
-                      ? 'Las rutas son referenciales: confirma el estado del camino y el clima antes de salir.'
-                      : 'Routes are for reference only: check road and weather conditions before you leave.',
-                  style: BcText.caption(),
                 ),
               ),
             ],

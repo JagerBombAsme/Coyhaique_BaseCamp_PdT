@@ -85,3 +85,46 @@ La propuesta de planificación también mostraba los botones fijos encima del co
 | Errores en ejecución después de las correcciones | Sin errores (DTD, 21:31) |
 | `flutter test` | **No ejecutado aquí.** Ejecutar: `flutter test` |
 | `dart format` | **No ejecutado aquí.** Ejecutar: `dart format lib test` |
+
+---
+
+## Addendum — revisión estática y refactor de componentes (23-11-2026)
+
+**Origen:** ZIP de la rama `main`, commit base indicado por el archivo ZIP `b01a33b8f8ed4213035caa696386fe21a54f1a44`. Esta revisión no reemplaza las evidencias de la sesión anterior. No se ejecutó la app en un dispositivo en esta intervención.
+
+| ID | Prioridad | Área | Causa encontrada en código | Cambio aplicado |
+|---|---|---|---|---|
+| BC-R01 | P1 | Botones comunes, perfil | Altura fija y etiquetas con elipsis | Altura mínima, padding vertical y etiquetas multilínea; feedback y foco en componentes BaseCamp. |
+| BC-R02 | P1 | Fichas y transfers | Volver dentro de hero y barra condicionada a umbral de scroll | `BcPinnedBackLayout` reserva espacio real y mantiene la acción visible; actualización de ficha en barra fija. |
+| BC-R03 | P1 | Categorías e intereses | Volver dentro del contenido; algunos estados de carga sin salida | Barra fija también en carga/error de categorías, navegación de retorno con fallback y listado de categorías de altura natural. |
+| BC-R04 | P1 | Planificación | Footer sobrepuesto con padding compensatorio fijo | Layout que reserva la altura real; acciones apiladas con poco ancho; fallback desplazable para poca altura. |
+| BC-R05 | P1 | Hoja de lugares | Altura mínima independiente del teclado; encabezado fijo | Altura ajustada al teclado y contenido desplazable mediante slivers, manteniendo construcción diferida de lugares. |
+| BC-R06 | P1 | Accesibilidad | Límite global de escala de texto 1,15× | Se elimina el límite global; los controles intervenidos se adaptan, otros requieren validación. |
+| BC-R07 | P1 | Navegación principal | Etiqueta activa compite por ancho con los iconos; gestos sin foco estándar | Cuatro acciones de ancho equivalente, botones Material, estados seleccionados, tooltips y modo compacto. |
+| BC-R08 | P2 | Timeline | Arrastre como vía principal de reordenamiento; columna horaria fija | Acciones de menú arriba/abajo con los índices de `reorder`; ancho de hora adaptable y tarjeta compacta. |
+| BC-R09 | P2 | Intereses y chips | Grid de altura fija; chips sin espacio para texto grande | Listado adaptable a ancho/escala con altura natural y filas horizontales de chips dimensionadas según fuente. |
+| BC-R10 | P2 | Transporte en mapa | Volver dentro del scroll; nota ocupa espacio fijo | Control de salida fuera del scroll y nota dentro del contenido. |
+
+### Inventario y alcance real
+
+- Cambios directos: navegación inferior compartida, componentes BaseCamp, inicio (chips), categorías, ficha de lugar, transfer al aeropuerto, selector de transporte, planificador, timeline, selector de días, hoja de lugares, intereses, botón compartido de perfil y raíz de aplicación.
+- Inspección parcial sin refactor específico: autenticación, perfil/edición, información de viaje, guardados, mapa nativo, rutas, solicitud/código de transfer. Sus funcionalidades y datos no se alteraron intencionalmente.
+- No se modificaron algoritmos de generación, providers, contratos de Supabase, rutas del router, dependencias ni persistencia.
+- Esta entrega es una **fase de corrección estructural**, no una certificación completa de WCAG ni una revisión visual exhaustiva de todas las pantallas.
+
+### Verificación realizada
+
+- Inspección del código fuente y de referencias a los componentes reemplazados.
+- Verificación del balance de delimitadores mediante análisis léxico auxiliar; no sustituye al compilador Dart.
+- `git diff --check` para whitespace y revisión de diferencias.
+- Se agrega `test/ui_accessibility_regression_test.dart` con casos para botones, barra Volver, chips/avisos y navegación compacta; **no ejecutado**.
+- `dart format`, `flutter analyze`, `flutter test`, instalación en Android, pruebas de TalkBack y validación visual: **pendientes**; el entorno de edición no contiene Flutter ni Dart.
+
+### Validación prioritaria en dispositivo
+
+1. Ejecutar `flutter pub get`, `dart format lib test`, `flutter analyze`, `flutter test` con el SDK indicado en `pubspec.yaml` y el workflow.
+2. Probar anchos de 320, 360, 390, 430, 600 y 768 dp; escalas 100%, 130%, 150% y 200%; español e inglés. La orientación de producción sigue siendo vertical.
+3. Verificar navegación desde inicio a todas las categorías, detalle, transfers, perfil/intereses y mapa; desplazar hasta el final y usar Volver; probar retroceso nativo.
+4. Generar propuesta, añadir lugar con teclado activo, reordenar por arrastre y menú, eliminar/deshacer, añadir días, alternar calendario, guardar y retomar después de autenticación.
+5. Probar sesión iniciada, permisos rechazados, conexión ausente, nombres largos y carga/error. Comprobar foco y semántica con TalkBack.
+6. Riesgo residual: la eliminación del tope de texto puede revelar defectos en pantallas no intervenidas (especialmente mapa nativo, tarjetas fotográficas, onboarding y formularios). Registrar capturas y logs; corregir layouts específicos, no restablecer el tope global como solución final.
