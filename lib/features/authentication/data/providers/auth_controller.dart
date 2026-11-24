@@ -14,6 +14,28 @@ enum SignUpOutcome {
 
   /// Supabase envió un correo para confirmar la cuenta antes de entrar.
   confirmationRequired,
+
+  /// El correo ya tiene una cuenta (BUG-007).
+  alreadyRegistered,
+}
+
+/// Traduce la respuesta de `signUp` a un [SignUpOutcome].
+///
+/// Con la confirmación de correo activa, Supabase no devuelve error cuando el
+/// correo ya está registrado: responde sin sesión y con un usuario sin
+/// identidades, para no revelar qué correos existen. Sin esta revisión la app
+/// mostraba la pantalla del código como si la cuenta fuera nueva (BUG-007,
+/// CP-PF16-03).
+@visibleForTesting
+SignUpOutcome signUpOutcomeFor({
+  required bool hasSession,
+  required List<Object>? identities,
+}) {
+  if (hasSession) return SignUpOutcome.signedIn;
+  if (identities != null && identities.isEmpty) {
+    return SignUpOutcome.alreadyRegistered;
+  }
+  return SignUpOutcome.confirmationRequired;
 }
 
 /// Lógica de autenticación (HU-16). Cada método deja el error en `state`
@@ -54,9 +76,10 @@ class AuthController extends AsyncNotifier<void> {
           .signUp(email: email, password: password),
     );
     if (response == null) return null;
-    return response.session != null
-        ? SignUpOutcome.signedIn
-        : SignUpOutcome.confirmationRequired;
+    return signUpOutcomeFor(
+      hasSession: response.session != null,
+      identities: response.user?.identities,
+    );
   }
 
   /// Confirma la cuenta con el código del correo; deja la sesión iniciada.
