@@ -32,9 +32,6 @@ dependencies:
   # Navegación
   go_router: ^14.8.1
 
-  # Mapas
-  google_maps_flutter: ^2.10.0
-
   # Permisos del dispositivo
   permission_handler: ^11.3.1
 
