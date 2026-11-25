@@ -83,5 +83,9 @@ flutter:
   assets:
     - assets/images/
     - assets/google_fonts/
+    - assets/images/fallback/gastronomia/
+    - assets/images/fallback/alojamiento/
+    - assets/images/fallback/transporte/
+    - assets/images/fallback/servicios/
   
  

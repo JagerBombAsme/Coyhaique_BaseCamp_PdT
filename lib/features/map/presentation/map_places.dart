@@ -18,6 +18,7 @@ class MapPlace {
     this.verified = true,
     this.categoryEs = '',
     this.categoryEn = '',
+    this.categorySlug,
     this.address,
     this.photoUrls = const [],
   });
@@ -39,6 +40,7 @@ class MapPlace {
   /// Nombre de la categoría (places_v2). Vacío en los puntos fijos.
   final String categoryEs;
   final String categoryEn;
+  final String? categorySlug;
 
   /// Dirección o punto de encuentro del lugar. Null si no tiene.
   final String? address;

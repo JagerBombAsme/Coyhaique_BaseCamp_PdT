@@ -275,6 +275,23 @@ class _PreviewBody extends StatelessWidget {
                       ),
                     ),
                   ),
+                ] else if (place.id != null) ...[
+                  const SizedBox(height: BcSpace.s2),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(BcRadius.control),
+                      child: SizedBox(
+                        width: galleryHeight * 1.35,
+                        height: galleryHeight,
+                        child: BcPhotoImage(
+                          source: '',
+                          fallbackCategory: '${place.categorySlug ?? ''} ${place.categoryEs}',
+                          isSpanish: isSpanish,
+                        ),
+                      ),
+                    ),
+                  ),
                 ] else if (place.id == null && description.isNotEmpty) ...[
                   // Los puntos fijos no tienen ficha ni fotos: la descripción
                   // es toda su información.

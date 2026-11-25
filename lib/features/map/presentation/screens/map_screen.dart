@@ -341,6 +341,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           latitude: lat,
           categoryEs: dto.category?.getNombre('es') ?? '',
           categoryEn: dto.category?.getNombre('en') ?? '',
+          categorySlug: dto.categorySlug ?? dto.category?.slug,
           address: dto.address ?? dto.meetingPoint,
           photoUrls: photos.toSet().toList(),
         ),

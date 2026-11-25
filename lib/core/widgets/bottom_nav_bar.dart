@@ -4,157 +4,68 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/language_provider.dart';
 import '../theme/basecamp_tokens.dart';
 
-/// Barra inferior del sistema «Coyhaique BaseCamp».
-///
-/// - Píldora tinta con 3 pestañas (índices 0, 1, 2).
-/// - Círculo tinta aparte para Perfil (índice 3).
-/// La pestaña activa se rellena en azul glaciar con ícono y texto tinta.
+/// Persistent navigation, with the original ink/glacier visual identity.
 class GlassNavBar extends ConsumerWidget {
-  const GlassNavBar({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const GlassNavBar({super.key, required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const double _height = 64;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isSpanish = ref.watch(languageProvider).languageCode == 'es';
-
+    final es = ref.watch(languageProvider).languageCode == 'es';
+    final labels = [es ? 'Inicio' : 'Home', 'Plan', es ? 'Mapa' : 'Map', es ? 'Perfil' : 'Profile'];
+    const icons = [Icons.home_rounded, Icons.event_note_rounded, Icons.map_rounded, Icons.person_rounded];
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: SizedBox(
-          height: _height,
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: BcColors.ink.withValues(alpha: 0.96),
-                    borderRadius: BorderRadius.circular(BcRadius.pill),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _NavItem(
-                        icon: Icons.home_rounded,
-                        label: isSpanish ? 'Inicio' : 'Home',
-                        selected: currentIndex == 0,
-                        onTap: () => onTap(0),
-                      ),
-                      _NavItem(
-                        icon: Icons.event_note_rounded,
-                        label: 'Plan',
-                        selected: currentIndex == 1,
-                        onTap: () => onTap(1),
-                      ),
-                      _NavItem(
-                        icon: Icons.map_rounded,
-                        label: isSpanish ? 'Mapa' : 'Map',
-                        selected: currentIndex == 2,
-                        onTap: () => onTap(2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Semantics(
-                button: true,
-                selected: currentIndex == 3,
-                label: isSpanish ? 'Perfil' : 'Profile',
-                child: GestureDetector(
-                  onTap: () => onTap(3),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    width: _height,
-                    height: _height,
-                    decoration: BoxDecoration(
-                      color: currentIndex == 3
-                          ? BcColors.glacier
-                          : BcColors.ink.withValues(alpha: 0.96),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.person_rounded,
-                      size: 28,
-                      color: currentIndex == 3
-                          ? BcColors.ink
-                          : BcColors.onPhoto.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: selected ? 3 : 2,
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: label,
-        excludeSemantics: true,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              color: selected ? BcColors.glacier : Colors.transparent,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(15) > 19;
+            return Material(
+              color: BcColors.ink,
               borderRadius: BorderRadius.circular(BcRadius.pill),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 25,
-                  color: selected
-                      ? BcColors.ink
-                      : BcColors.onPhoto.withValues(alpha: 0.6),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < labels.length; i++)
+                      Expanded(
+                        child: Semantics(
+                          selected: currentIndex == i,
+                          child: Tooltip(
+                            message: labels[i],
+                            excludeFromSemantics: true,
+                            child: TextButton(
+                              onPressed: () => onTap(i),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+                                minimumSize: const Size(48, 48),
+                                foregroundColor: currentIndex == i ? BcColors.ink : BcColors.onPhoto,
+                                backgroundColor: currentIndex == i ? BcColors.glacier : Colors.transparent,
+                                animationDuration: reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(icons[i], size: 24, semanticLabel: compact ? labels[i] : null),
+                                  if (!compact) ...[
+                                    const SizedBox(height: 2),
+                                    Text(labels[i], textAlign: TextAlign.center, style: BcText.caption(color: currentIndex == i ? BcColors.ink : BcColors.onPhoto)),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                if (selected) ...[
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      label,
-                      overflow: TextOverflow.ellipsis,
-                      style: BcText.button(),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

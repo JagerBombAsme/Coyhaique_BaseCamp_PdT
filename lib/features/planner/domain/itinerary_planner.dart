@@ -219,6 +219,7 @@ class PlannerPlace {
     required this.categoryId,
     this.categoryNameEs,
     this.categoryNameEn,
+    this.categorySlug,
     this.latitude,
     this.longitude,
     required this.visitMinutes,
@@ -232,6 +233,7 @@ class PlannerPlace {
   final String categoryId;
   final String? categoryNameEs;
   final String? categoryNameEn;
+  final String? categorySlug;
   final double? latitude;
   final double? longitude;
   final int visitMinutes;

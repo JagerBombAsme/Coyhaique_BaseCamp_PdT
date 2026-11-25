@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/basecamp_tokens.dart';
+import '../../utils/text_normalizer.dart';
 
 class BcPressable extends StatefulWidget {
   const BcPressable({
@@ -11,11 +12,13 @@ class BcPressable extends StatefulWidget {
     required this.child,
     this.onTap,
     this.semanticLabel,
+    this.selected,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final String? semanticLabel;
+  final bool? selected;
 
   @override
   State<BcPressable> createState() => _BcPressableState();
@@ -31,19 +34,193 @@ class _BcPressableState extends State<BcPressable> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final content = AnimatedScale(
+      scale: enabled && _down && !reduceMotion ? 0.96 : 1,
+      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 110),
+      child: widget.child,
+    );
+    if (!enabled) return content;
+
     return Semantics(
-      button: widget.onTap != null,
+      button: true,
+      enabled: true,
+      selected: widget.selected,
       label: widget.semanticLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onTapDown: (_) => _set(true),
-        onTapUp: (_) => _set(false),
-        onTapCancel: () => _set(false),
-        child: AnimatedScale(
-          scale: _down ? 0.96 : 1,
-          duration: const Duration(milliseconds: 110),
-          child: widget.child,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: widget.onTap,
+          onHighlightChanged: _set,
+          child: content,
+        ),
+      ),
+    );
+  }
+}
+
+/// Los slugs del catálogo tienen prioridad sobre nombres traducidos y grupos.
+const _bcSubcategoryAssets = <String, String>{
+  'cafeterias': 'gastronomia/cafeterias.jpg',
+  'restaurantes': 'gastronomia/restaurantes.jpg',
+  'comida-tradicional': 'gastronomia/comida-tradicional.jpg',
+  'fuentes-de-soda': 'gastronomia/fuentes-de-soda.jpg',
+  'hoteles': 'alojamiento/hoteles.jpg',
+  'cabanas': 'alojamiento/cabanas.jpg',
+  'departamentos': 'alojamiento/departamentos.jpg',
+  'buses': 'transporte/buses.jpg',
+  'rent-a-car': 'transporte/rent-a-car.jpg',
+  'bencineras': 'servicios/bencineras.jpg',
+  'estacionamientos': 'servicios/estacionamientos.jpg',
+  'banos-publicos': 'servicios/banos-publicos.jpg',
+  'agencias-de-viaje': 'servicios/agencias-de-viaje.jpg',
+};
+
+/// Nombres en ambos idiomas y equivalencias del catálogo anterior.
+/// Las variantes específicas se evalúan antes de las generales (restaurante).
+const _bcSubcategoryAliases = <String, List<String>>{
+  'comida-tradicional': [
+    'comida tradicional', 'gastronomia patagonica', 'comida patagonica',
+    'comida casera', 'comida chilena', 'comida tipica', 'parrilladas',
+    'traditional and patagonian food', 'traditional food', 'patagonian food',
+  ],
+  'fuentes-de-soda': ['fuente de soda', 'fuentes de soda', 'colaciones',
+    'diner', 'diners', 'set lunches'],
+  'cafeterias': ['cafeteria', 'cafeterias', 'cafe', 'cafes', 'coffee shop',
+    'coffee shops', 'chocolateria', 'pasteleria'],
+  'restaurantes': ['restaurante', 'restaurantes', 'restaurant', 'restaurants'],
+  'cabanas': ['cabana', 'cabanas', 'cabin', 'cabins'],
+  'departamentos': ['departamento', 'departamentos', 'apartment', 'apartments'],
+  'hoteles': ['hotel', 'hoteles', 'hotels', 'lodge'],
+  'rent-a-car': ['rent a car', 'car rental', 'rental car', 'arriendo de autos'],
+  'buses': ['bus', 'buses', 'bus interurbano'],
+  'bencineras': ['bencinera', 'bencineras', 'estacion de servicio',
+    'gas station', 'gas stations', 'fuel station', 'petrol station'],
+  'estacionamientos': ['estacionamiento', 'estacionamientos', 'parking'],
+  'banos-publicos': ['bano publico', 'banos publicos', 'public restroom',
+    'public restrooms', 'public toilet', 'public toilets'],
+  'agencias-de-viaje': ['agencia de viaje', 'agencias de viaje',
+    'agencia de viajes', 'agencias de viajes', 'travel agency',
+    'travel agencies', 'receptivo y emisivo'],
+};
+
+/// Foto ilustrativa local, nunca añadida a la galería real del lugar.
+/// Si no hay una referencia específica, conserva los respaldos generales.
+String bcReferenceAsset(String? category) {
+  final key = normalizeForSearch(category);
+  const base = 'assets/images/fallback';
+  // Las llamadas del catálogo pasan primero el slug, seguido del grupo y
+  // nombre. Se revisa primero ese identificador, sin depender del idioma.
+  final tokens = key.split(' ');
+  final slugAsset = _bcSubcategoryAssets[tokens.first];
+  if (slugAsset != null) return '$base/$slugAsset';
+
+  final words = ' ${key.replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim()} ';
+  for (final entry in _bcSubcategoryAliases.entries) {
+    if (entry.value.any((alias) => words.contains(' $alias '))) {
+      return '$base/${_bcSubcategoryAssets[entry.key]}';
+    }
+  }
+  bool matches(List<String> terms) => terms.any(key.contains);
+  if (matches(['gastro', 'restauran', 'cafe', 'food', 'cocina', 'bar', 'pub'])) {
+    return 'assets/images/gastronomia_fogon.jpg';
+  }
+  if (matches(['aloj', 'hotel', 'hostal', 'hostel', 'cabana', 'lodge', 'accommodation', 'hosped', 'departamento', 'camping'])) {
+    return 'assets/images/alojamiento_hotel.jpg';
+  }
+  if (matches(['cultur', 'muse', 'histor', 'artesan', 'patrimonio', 'heritage'])) {
+    return 'assets/images/cultura_gaucho.jpg';
+  }
+  if (matches(['transp', 'transfer', 'bus', 'rent a car', 'rent-a-car', 'taxi', 'servicio', 'service'])) {
+    return 'assets/images/miradores_coyhaique.jpg';
+  }
+  if (matches(['avent', 'advent', 'actividad', 'activity', 'activit', 'sender', 'trek', 'hiking', 'kayak', 'ciclismo', 'ruta', 'route', 'tour'])) {
+    return 'assets/images/mountain_hike.jpg';
+  }
+  if (matches(['natur', 'parque', 'park', 'reserva', 'reserve', 'bosque', 'forest'])) {
+    return 'assets/images/nature_green_forest.jpg';
+  }
+  return 'assets/images/cerro_castillo_panoramico.jpg';
+}
+
+/// Respaldo para lugares del planificador que no conservan el slug.
+String bcReferenceCategoryForIcon(IconData icon) {
+  if (icon == Icons.restaurant_rounded || icon == Icons.restaurant) return 'gastronomia';
+  if (icon == Icons.hotel_rounded || icon == Icons.hotel) return 'alojamiento';
+  if (icon == Icons.museum_rounded) return 'cultura';
+  if (icon == Icons.park_rounded) return 'naturaleza';
+  if (icon == Icons.directions_run_rounded || icon == Icons.directions_run) return 'aventura';
+  if (icon == Icons.directions_bus_rounded || icon == Icons.directions_bus) return 'transporte';
+  return '';
+}
+
+class BcReferencePhoto extends StatelessWidget {
+  const BcReferencePhoto({
+    super.key,
+    required this.category,
+    required this.isSpanish,
+    this.fit = BoxFit.cover,
+    this.alignment = Alignment.center,
+    this.cacheWidth,
+  });
+
+  final String category;
+  final bool isSpanish;
+  final BoxFit fit;
+  final Alignment alignment;
+  final int? cacheWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isSpanish ? 'Imagen referencial' : 'Illustrative image';
+    return Semantics(
+      image: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final showLabel = constraints.maxWidth >= 160 &&
+                constraints.maxHeight >= 100;
+            return Stack(
+              fit: StackFit.passthrough,
+              children: [
+                Image.asset(
+                  bcReferenceAsset(category),
+                  fit: fit,
+                  alignment: alignment,
+                  width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
+                  height: constraints.maxHeight.isFinite ? constraints.maxHeight : null,
+                  cacheWidth: cacheWidth,
+                  errorBuilder: (_, _, _) => const BcLogoPlaceholder(),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Align(
+                      alignment: showLabel ? Alignment.center : Alignment.bottomRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: BcColors.ink,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: showLabel
+                              ? Text(
+                                  label,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                                )
+                              : const Icon(Icons.image_outlined, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -56,9 +233,16 @@ class BcPhotoImage extends StatelessWidget {
     required this.source,
     this.alignment = Alignment.center,
     this.fit = BoxFit.cover,
+    this.fallbackCategory,
+    this.isSpanish = true,
   });
 
   final String source;
+
+  /// Null conserva el respaldo de marca (p. ej. galerías reales).
+  /// Una cadena vacía usa el paisaje genérico.
+  final String? fallbackCategory;
+  final bool isSpanish;
   final Alignment alignment;
   final BoxFit fit;
 
@@ -68,10 +252,7 @@ class BcPhotoImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sin foto: fondo tinta con el logo BC tenue, nunca una foto ajena.
-    const fallback = BcLogoPlaceholder();
-
-    if (source.trim().isEmpty) return fallback;
+    final cleanSource = source.trim();
 
     // La foto se decodifica al tamaño con que se dibuja y no al de su
     // archivo original (muchas vienen de sitios externos en alta
@@ -85,10 +266,27 @@ class BcPhotoImage extends StatelessWidget {
             ? math.min((width * pixelRatio).ceil(), _maxDecodeWidth)
             : null;
 
-        final image = source.startsWith('http')
+        final fallback = fallbackCategory == null
+            ? const BcLogoPlaceholder()
+            : BcReferencePhoto(
+                category: fallbackCategory!,
+                isSpanish: isSpanish,
+                fit: fit,
+                alignment: alignment,
+                cacheWidth: decodeWidth,
+              );
+        if (cleanSource.isEmpty ||
+            const {'null', 'n/a', 'undefined'}.contains(cleanSource.toLowerCase())) {
+          return fallback;
+        }
+        final uri = Uri.tryParse(cleanSource);
+        final isNetwork = uri != null &&
+            (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty;
+        if (!isNetwork && !cleanSource.startsWith('assets/')) return fallback;
+        final image = isNetwork
             // Con caché en disco: una foto ya vista se reutiliza.
             ? CachedNetworkImage(
-                imageUrl: source,
+                imageUrl: cleanSource,
                 fit: fit,
                 alignment: alignment,
                 memCacheWidth: decodeWidth,
@@ -96,7 +294,7 @@ class BcPhotoImage extends StatelessWidget {
                 errorWidget: (_, _, _) => fallback,
               )
             : Image.asset(
-                source,
+                cleanSource,
                 fit: fit,
                 alignment: alignment,
                 cacheWidth: decodeWidth,
@@ -335,7 +533,6 @@ class BcButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: height,
       child: FilledButton(
         onPressed: enabled ? onPressed : null,
         style: FilledButton.styleFrom(
@@ -348,13 +545,18 @@ class BcButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(BcRadius.field),
           ),
           textStyle: BcText.button(color: fg),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          minimumSize: Size(0, math.max(48.0, height)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
         child: isLoading
-            ? SizedBox(
+            ? Semantics(
+                label: label,
+                liveRegion: true,
+                child: SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2.4, color: fg),
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -366,7 +568,8 @@ class BcButton extends StatelessWidget {
                   Flexible(
                     child: Text(
                       label,
-                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      softWrap: true,
                       style: BcText.button(color: fg),
                     ),
                   ),
@@ -395,10 +598,10 @@ class BcCategoryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return BcPressable(
       onTap: onTap,
-      semanticLabel: label,
+      selected: highlighted,
       child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        constraints: const BoxConstraints(minHeight: 50),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: highlighted
               ? BcColors.glacier
@@ -412,8 +615,6 @@ class BcCategoryButton extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: BcText.title(),
               ),
             ),
@@ -443,9 +644,9 @@ class BcCategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return BcPressable(
       onTap: onTap,
-      semanticLabel: label,
+      selected: highlighted,
       child: Container(
-        height: 46,
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: highlighted ? BcColors.glacier : BcColors.fog,
@@ -487,40 +688,38 @@ class BcSectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (kicker != null) ...[BcKicker(kicker!), const SizedBox(height: 8)],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    title.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: BcText.displaySection,
-                  ),
-                ),
-              ),
-              if (actionLabel != null && onAction != null)
-                BcPressable(
-                  onTap: onAction,
-                  semanticLabel: actionLabel,
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 44),
-                    alignment: Alignment.bottomCenter,
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Container(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: BcColors.glacier, width: 2),
-                        ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 300 ||
+                  MediaQuery.textScalerOf(context).scale(15) > 19;
+              final heading = Semantics(
+                header: true,
+                child: Text(title.toUpperCase(), style: BcText.displaySection),
+              );
+              final action = actionLabel != null && onAction != null
+                  ? TextButton(
+                      onPressed: onAction,
+                      style: TextButton.styleFrom(
+                        foregroundColor: BcColors.glacierDeep,
+                        minimumSize: const Size(48, 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                       child: Text(actionLabel!, style: BcText.title()),
-                    ),
-                  ),
-                ),
-            ],
+                    )
+                  : null;
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [heading, if (action != null) action],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: heading),
+                  if (action != null) Flexible(child: action),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -545,6 +744,8 @@ class BcTourCard extends StatelessWidget {
     required this.onTap,
     this.tag,
     this.metrics = const [],
+    this.fallbackCategory,
+    this.isSpanish = true,
   });
 
   final String title;
@@ -552,6 +753,8 @@ class BcTourCard extends StatelessWidget {
   final VoidCallback onTap;
   final String? tag;
   final List<BcMetric> metrics;
+  final String? fallbackCategory;
+  final bool isSpanish;
 
   static const double width = 270;
   static const double height = 300;
@@ -569,7 +772,7 @@ class BcTourCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              BcPhotoImage(source: image),
+              BcPhotoImage(source: image, fallbackCategory: fallbackCategory, isSpanish: isSpanish),
               const BcPhotoShade(from: 0.35),
               Positioned(
                 left: 16,
@@ -798,7 +1001,6 @@ class BcListRow extends StatelessWidget {
                   child: Text(
                     value!,
                     textAlign: TextAlign.right,
-                    overflow: TextOverflow.ellipsis,
                     style: BcText.caption(),
                   ),
                 ),

@@ -1182,6 +1182,11 @@ class _InterestSection extends ConsumerWidget {
                 key: ValueKey(place.id),
                 title: place.getTitle(isSpanish),
                 image: place.imageUrl ?? '',
+                fallbackCategory:
+                    '${place.categorySlug ?? place.category?.slug ?? ''} '
+                    '${place.category?.nombreEs ?? ''} '
+                    '${category.slug} ${category.groupType ?? ''}',
+                isSpanish: isSpanish,
                 metrics: [
                   if (subtitle.isNotEmpty)
                     BcMetric(Icons.place_outlined, subtitle),
@@ -1329,7 +1334,7 @@ class _ExploreBand extends ConsumerWidget {
 
             const SizedBox(height: 40),
             SizedBox(
-              height: 46,
+              height: (MediaQuery.textScalerOf(context).scale(15) * 1.2 + 24).clamp(48.0, 160.0).toDouble(),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),

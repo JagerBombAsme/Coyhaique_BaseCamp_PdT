@@ -56,10 +56,14 @@ class PlacePhotoHero extends StatelessWidget {
     required this.placeId,
     required this.photoUrl,
     this.radius = 0,
+    this.fallbackCategory,
+    this.isSpanish = true,
   });
 
   final String placeId;
   final String? photoUrl;
+  final String? fallbackCategory;
+  final bool isSpanish;
 
   /// Radio de las esquinas en reposo (el de la tarjeta; 0 en la ficha).
   final double radius;
@@ -69,7 +73,7 @@ class PlacePhotoHero extends StatelessWidget {
 
   Widget _photo(double r) => ClipRRect(
     borderRadius: BorderRadius.circular(r),
-    child: BcPhotoImage(source: photoUrl ?? ''),
+    child: BcPhotoImage(source: photoUrl ?? '', fallbackCategory: fallbackCategory, isSpanish: isSpanish),
   );
 
   @override
@@ -96,10 +100,8 @@ class PlaceHero extends StatelessWidget {
     required this.categoryLabel,
     required this.photoUrl,
     required this.height,
-    required this.backLabel,
-    required this.reloadLabel,
-    required this.onBack,
-    required this.onReload,
+    this.fallbackCategory,
+    this.isSpanish = true,
   });
 
   /// Si viene, la foto viaja desde la tarjeta de la lista (ver [PlacePhotoHero]).
@@ -109,12 +111,9 @@ class PlaceHero extends StatelessWidget {
   final String categoryLabel;
   final String? photoUrl;
   final double height;
-  final String backLabel;
-  final String reloadLabel;
-  final VoidCallback onBack;
+  final String? fallbackCategory;
+  final bool isSpanish;
 
-  /// null mientras se actualiza (el botón queda deshabilitado).
-  final VoidCallback? onReload;
 
   /// El título se achica con el largo para que quepa en 2–3 líneas.
   static double titleSize(int length) {
@@ -125,59 +124,38 @@ class PlaceHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.paddingOf(context).top;
     final upper = title.toUpperCase();
 
-    return SizedBox(
-      height: height,
-      width: double.infinity,
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: height),
       child: Stack(
-        fit: StackFit.expand,
+        fit: StackFit.passthrough,
         children: [
-          if (placeId == null)
-            BcPhotoImage(source: photoUrl ?? '')
-          else
-            PlacePhotoHero(placeId: placeId!, photoUrl: photoUrl),
-          const BcPhotoShade(from: 0.3, topShade: 0.4),
-          PositionedDirectional(
-            top: top + BcSpace.s3,
-            start: BcSpace.gutter,
-            child: BcCornerButton(
-              icon: Icons.arrow_back_rounded,
-              semanticLabel: backLabel,
-              onTap: onBack,
-            ),
+          Positioned.fill(
+            child: placeId == null
+                ? BcPhotoImage(source: photoUrl ?? '', fallbackCategory: fallbackCategory, isSpanish: isSpanish)
+                : PlacePhotoHero(placeId: placeId!, photoUrl: photoUrl, fallbackCategory: fallbackCategory, isSpanish: isSpanish),
           ),
-          PositionedDirectional(
-            top: top + BcSpace.s3,
-            end: BcSpace.gutter,
-            child: BcCornerButton(
-              icon: Icons.refresh_rounded,
-              semanticLabel: reloadLabel,
-              onTap: onReload,
-            ),
-          ),
-          PositionedDirectional(
-            start: BcSpace.gutter,
-            end: BcSpace.gutter,
-            bottom: 28,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                BcTag(categoryLabel),
-                const SizedBox(height: BcSpace.s4),
-                Semantics(
-                  header: true,
-                  child: Text(
-                    upper,
-                    style: BcText.display(
-                      titleSize(upper.length),
-                      color: BcColors.onPhoto,
+          const Positioned.fill(child: BcPhotoShade(from: 0.3, topShade: 0.4)),
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(BcSpace.gutter, 48, BcSpace.gutter, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  BcTag(categoryLabel),
+                  const SizedBox(height: BcSpace.s4),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      upper,
+                      style: BcText.display(titleSize(upper.length), color: BcColors.onPhoto).copyWith(height: 1.05),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

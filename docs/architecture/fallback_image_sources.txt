@@ -1,0 +1,14 @@
+gastronomia/cafeterias.jpg : https://www.pexels.com/photo/5851732/
+gastronomia/restaurantes.jpg : https://www.pexels.com/photo/29775269/
+gastronomia/comida-tradicional.jpg : https://www.pexels.com/photo/18299594/
+gastronomia/fuentes-de-soda.jpg : https://www.pexels.com/photo/20115301/
+alojamiento/hoteles.jpg : https://www.pexels.com/photo/19988067/
+alojamiento/cabanas.jpg : https://www.pexels.com/photo/12440677/
+alojamiento/departamentos.jpg : https://www.pexels.com/photo/5825550/
+transporte/buses.jpg : https://www.pexels.com/photo/15106175/
+transporte/rent-a-car.jpg : https://www.pexels.com/photo/6565048/
+servicios/bencineras.jpg : https://www.pexels.com/photo/14437598/
+servicios/estacionamientos.jpg : https://www.pexels.com/photo/8783550/
+servicios/banos-publicos.jpg : https://www.pexels.com/photo/17461785/
+servicios/agencias-de-viaje.jpg : https://www.pexels.com/photo/16686155/
+License: https://www.pexels.com/license/ | Reference images only, not actual venues.

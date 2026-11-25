@@ -33,44 +33,32 @@ class TransfersScreen extends ConsumerWidget {
     final toAirport = !fromAirport;
     final isSpanish = ref.watch(languageProvider).languageCode == 'es';
     final transfersAsync = ref.watch(airportTransfersProvider);
-    final topPadding = MediaQuery.paddingOf(context).top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
       ),
       child: Scaffold(
         backgroundColor: BcColors.fog,
-        body: BcBackOnScroll(
-          collapseAt: 320 - BcScrollBackBar.height,
+        body: BcPinnedBackLayout(
           title: 'Transfer',
           backLabel: isSpanish ? 'Volver' : 'Back',
           onBack: () => context.pop(),
           child: RefreshIndicator(
           color: BcColors.ink,
           backgroundColor: BcColors.surface,
-          edgeOffset: topPadding,
           onRefresh: () => ref.refresh(airportTransfersProvider.future),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: 320 + topPadding,
+                  height: 320,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
                       const BcPhotoImage(source: _heroPhoto),
                       const BcPhotoShade(topShade: 0.35),
-                      Positioned(
-                        top: topPadding + 12,
-                        left: BcSpace.gutter,
-                        child: BcCornerButton(
-                          icon: Icons.arrow_back_rounded,
-                          semanticLabel: isSpanish ? 'Volver' : 'Back',
-                          onTap: () => context.pop(),
-                        ),
-                      ),
                       Positioned(
                         left: BcSpace.gutter,
                         right: BcSpace.gutter,

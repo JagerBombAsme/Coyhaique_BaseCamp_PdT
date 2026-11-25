@@ -7,6 +7,7 @@ import '../../../../core/providers/interests_provider.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../core/theme/basecamp_tokens.dart';
 import '../../../../core/widgets/basecamp/bc_widgets.dart';
+import '../../../../core/widgets/basecamp/bc_scroll_back_bar.dart';
 import '../../../categories/data/providers/places_provider.dart';
 import '../../../planner/data/providers/planner_provider.dart'
     show isPlannerCategory;
@@ -24,7 +25,6 @@ class InterestsScreen extends ConsumerWidget {
     final isSpanish = language == 'es';
     final interests = ref.watch(validInterestsProvider);
     final categoriesAsync = ref.watch(mainCategoriesProvider);
-    final top = MediaQuery.paddingOf(context).top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
@@ -32,29 +32,24 @@ class InterestsScreen extends ConsumerWidget {
       ),
       child: Scaffold(
         backgroundColor: BcColors.fog,
-        body: ListView(
+        body: BcPinnedBackLayout(
+          title: isSpanish ? 'Mis intereses' : 'My interests',
+          backLabel: isSpanish ? 'Volver' : 'Back',
+          onBack: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/profile');
+            }
+          },
+          child: ListView(
           padding: EdgeInsets.fromLTRB(
             BcSpace.gutter,
-            top + 14,
+            14,
             BcSpace.gutter,
             40,
           ),
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: BcCornerButton(
-                icon: Icons.arrow_back_rounded,
-                semanticLabel: isSpanish ? 'Volver' : 'Back',
-                onTap: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/profile');
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
             BcKicker(
               interests.isEmpty
                   ? (isSpanish ? 'Sin intereses elegidos' : 'No interests selected')
@@ -98,30 +93,26 @@ class InterestsScreen extends ConsumerWidget {
                     .where((c) => c.isActive && isPlannerCategory(c.groupType))
                     .toList();
 
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  itemCount: visible.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    mainAxisExtent: 54,
-                  ),
-                  itemBuilder: (context, index) {
-                    final category = visible[index];
-                    final selected = interests.contains(category.id);
-                    return Semantics(
-                      selected: selected,
-                      child: BcCategoryButton(
-                        icon: selected ? Icons.check_rounded : category.icon,
-                        label: category.getNombre(language),
-                        highlighted: selected,
-                        onTap: () => ref
-                            .read(interestsProvider.notifier)
-                            .toggle(category.id),
-                      ),
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = constraints.maxWidth >= 340 &&
+                        MediaQuery.textScalerOf(context).scale(15) <= 19 ? 2 : 1;
+                    final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final category in visible)
+                          SizedBox(
+                            width: width,
+                            child: BcCategoryButton(
+                              icon: interests.contains(category.id) ? Icons.check_rounded : category.icon,
+                              label: category.getNombre(language),
+                              highlighted: interests.contains(category.id),
+                              onTap: () => ref.read(interestsProvider.notifier).toggle(category.id),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 );
@@ -141,6 +132,7 @@ class InterestsScreen extends ConsumerWidget {
               ),
             ],
           ],
+          ),
         ),
       ),
     );

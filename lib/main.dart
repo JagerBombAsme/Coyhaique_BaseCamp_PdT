@@ -37,17 +37,8 @@ class CoyhaiqueApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: appRouter,
-      builder: (context, child) {
-        // Tope al tamaño de letra del sistema: con la letra muy grande los
-        // diseños dejan de verse completos.
-        final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: media.textScaler.clamp(maxScaleFactor: 1.15),
-          ),
-          child: ConnectivityGate(child: child ?? const SizedBox.shrink()),
-        );
-      },
+      builder: (context, child) =>
+          ConnectivityGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }
